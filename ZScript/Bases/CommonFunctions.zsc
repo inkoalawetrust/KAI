@@ -1,0 +1,12 @@
+//TODO:
+//Functions that ALL NPC types should share go here. Stuff like GetNearestCardinalAngle() and the likes.
+
+Extend Class KAI_Actor
+{
+	String KAI_HelloWorld()
+	{
+		String Msg = "Hello world !";
+		Console.Printf ("%s",Msg);
+		Return Msg;
+	}
+}

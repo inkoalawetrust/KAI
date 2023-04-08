@@ -1,0 +1,14 @@
+Class KAI_BaseVehicle : KAI_Actor Abstract
+{
+	
+}
+
+Class KAI_BaseVehicleTurret : KAI_BaseVehicle Abstract
+{
+	
+}
+
+Class KAI_VehicleHeadlight : DynamicLight
+{
+	
+}

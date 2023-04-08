@@ -1,0 +1,8 @@
+Extend Class KAI_BaseVehicleTurret
+{
+	Void PewPew()
+	{
+		Console.Printf ("*bzzzt* *bzzzt* pew pew");
+		Return;
+	}
+}

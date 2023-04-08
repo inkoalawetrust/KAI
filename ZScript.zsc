@@ -1,0 +1,30 @@
+Version "4.10.0"
+
+/*Uh, add cool license and ASCII art or whatever the fuck here. God, I don't even know where to start here lmao.
+Let alone how to make a smooth transition to the MVP being a mod based on this library.*/
+
+//TODO: Okay, there's obviously a fucking lot to do, but here are some mental notes so I don't forget.
+/*Add documentation of the code tags used by the project. The tags include the common ones Wikipedia lists (https://en.wikipedia.org/wiki/Comment_(computer_programming)#Tags)
+But there are also some I want to make specifically for this codebase, like MAYDO.*/
+//Speaking of documentation, begin writing some on a Github wiki, of the functions, classes etc. Once I port over the actual code from the MVP first of course.
+//The MVPs' CommonFunctions file is getting pretty large. This will certainly be the case for other files like it. So I should probably split them at some point.
+//Add a method to produce warning zones for KAI actors, what they do with that info is up to them. The info should use inventory tokens for cross-mod compat. No the current MVP system won't do AT ALL.
+
+//=====|Library structure|=====\\
+/*The most basic NPC class, all types are based on this, land/water/air vehicles, humanoids, flying creatures, you name it. 
+Likewise, the code that is meant to be shared by all NPCs also goes here.*/
+#Include "ZScript/Bases/Base.zsc"
+#Include "ZScript/Bases/CommonFunctions.zsc"
+	
+	//The base *land* vehicle class. As of 8/4/2023, this basically a direct rip from a dev build of MVP 0.5.0.
+	//Any future vehicle types like air and water vehicles will probably be based on this.
+	#Include "ZScript/Bases/Vehicle/Base.zsc"
+	#Include "ZScript/Bases/Vehicle/BaseProp.zsc"
+	#Include "ZScript/Bases/Vehicle/CommonFunctions.zsc"
+	#Include "ZScript/Bases/Vehicle/TurretFunctions.zsc"
+		//Air, sea, etc vehicles.
+	
+	//The base humanoid/creature/(whatever I decide to call it) class.
+	/*This will stay empty until I get around to remaking the Smart Marines. Once the rewrite starts,
+	I will begin moving any generic code to this base.*/
+	#Include "ZScript/Bases/Humanoid/Base.zsc"

@@ -1,0 +1,7 @@
+//TODO:
+//This is a BIG TIME placeholder. This will be kept as is until I begin remaking the Smart Marines.
+
+Class KAI_BaseHumanoid : KAI_Actor
+{
+	
+}

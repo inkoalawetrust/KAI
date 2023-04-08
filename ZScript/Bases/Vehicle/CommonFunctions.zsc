@@ -1,0 +1,11 @@
+//TODO:
+//The smart marine spawning from the MVP will stay there. Until the marine rewrite to make them use this library.
+
+Extend Class KAI_BaseVehicle
+{
+	Void Vroom()
+	{
+		Console.Printf ("Vroom vroom");
+		Return;
+	}
+}

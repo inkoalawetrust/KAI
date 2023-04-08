@@ -1,0 +1,6 @@
+//TODO:
+
+Class KAI_BaseVehicleProp : KAI_BaseVehicle Abstract
+{
+	
+}

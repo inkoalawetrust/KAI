@@ -1,0 +1,8 @@
+//TODO:
+//The CanAttack() and ShouldAttack() virtuals should be in this root class. Probably GetAttackLocation() too.
+//Also need a base projectile class, also ripped from the MVP.
+
+Class KAI_Actor : Actor Abstract
+{
+	
+}

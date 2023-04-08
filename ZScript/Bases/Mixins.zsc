@@ -160,4 +160,13 @@ Mixin Class KAI_CheckFunctions
 		If (Other.bNeverTarget) Return False;
 		Return (Other == Caller.Target || !Other.bNoTarget && !(Other.Player && Other.Player.Cheats & CF_NOTARGET));
 	}
+	
+	//Returns if the calling actor is fast.
+	//https://github.com/ZDoom/gzdoom/blob/master/src/playsim/p_mobj.cpp?L4892#L4892-L4897
+	Bool IsFast(Actor Other)
+	{
+		If (Other.bAlwaysFast) Return True;
+		If (Other.bNeverFast) Return False;
+		Return !!G_SkillPropertyInt (SKILLP_FastMonsters);
+	}
 }

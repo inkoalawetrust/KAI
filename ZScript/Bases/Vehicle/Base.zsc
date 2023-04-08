@@ -1,3 +1,6 @@
+//TODO:
+//Add the definition for SpawnVehicleTurret() and SpawnHeadlights().
+
 Class KAI_BaseVehicle : KAI_Actor Abstract
 {
 	

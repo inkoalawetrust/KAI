@@ -1,8 +1,96 @@
 //TODO:
-//The CanAttack() and ShouldAttack() virtuals should be in this root class. Probably GetAttackLocation() too.
 //Also need a base projectile class, also ripped from the MVP.
+/*Maybe instead of trying to shoehorn MVP_Chase to become a do-all function. I should make different chase functions for each NPC type.
+And rename MVP_Chase to KAI_VehicleChase. While KAI_Chase will be the chase function for humanoids and creatures. Yeah, that sounds much better.*/
+//Adopt the command system the smart marines and MVP has into a generic system for KAI monsters. Preferrably something actually stable and functional.
 
 Class KAI_Actor : Actor Abstract
 {
+	Default
+	{
+		//Properties
+		Radius 40;
+		Height 54;
+		CameraHeight 48;
+		Mass 100;
+		Speed 8;
+		FastSpeed 16;
+		FriendlySeeBlocks 32; //The default monster sight range is higher for KAI monsters because the default of 10 is too low.
+		MaxStepHeight 32;
+		MaxTargetRange 10000;
+		Species "KAIMonster";
+		Obituary "%o managed to be killed by an abstract class, congratulations %o, we are all very proud of you. Or maybe a modder forgot to define a custom obituary.";
+		Tag "Base K-AI Actor (You really shouldn't be seeing this in-game)";
+		KAI_Actor.AggressionMultiplier 1.0;
+		
+		//Flags
+		Monster;
+		+AvoidHazards;
+		+SeeFriendlyMonsters; //Hostile KAI monsters can see friendly monsters by default.
+		+FloorClip;
+	}
 	
+	Mixin KAI_CheckFunctions;
+	Mixin KAI_MathFunctions;
+	
+	//NOTE: The code on these virtuals is basically just the default. Different base classes will likely add on this base code or replace it entirely.
+	Override Void PostBeginPlay()
+	{
+		Actor.PostBeginPlay ();
+		UserVariableDefaults(); //User variables cannot be handled in BeginPlay().
+	}
+	
+	/*Allows actors to define the defaults for their own user variables. This is better than the //$UserDefaultValue editor key,
+	because it allows default user variable values to be set for actors that are spawned in-game as well, not just ones placed in UDB*/
+	Virtual Void UserVariableDefaults(){}
+	
+	//TODO: Maybe have this check for SECF_NOATTACK sectors ? Or not, since it would trigger actors to run away from enemies in them.
+	//Used by KAI_Chase to check for all the different methods each actor has to attack.
+	Virtual Bool CanAttack()
+	{
+		If ((MissileState || MeleeState) && !IsDead(Self)) Return True; //Actors just check if they have an attack state and are alive by default.
+		Return False;
+	}
+	
+	//Called inside of KAI_Chase to handle the unique attack decision code of each actor.
+	//This is basically a customizable version of the native attack decision code: https://github.com/ZDoom/gzdoom/blob/e3f8230035f08116d1a62c74aaa78b9c0408df6e/src/playsim/p_enemy.cpp#L2574-L2601
+	//NOTE: The virtual needs to do the jump to an attack state itself !
+	//NoStateJump: If true, then the actor should not call SetStateLabel.
+	Virtual Bool ShouldAttack (Bool NoStateJump = False)
+	{
+		If (HandleNativeFright())
+		{
+			If (MeleeState && KAI_CheckMeleeRange (Target))
+			{
+				If (AttackSound)
+					S_StartSound (AttackSound, CHAN_WEAPON, 0, 1, ATTN_NORM);
+				
+				If (!NoStateJump) SetState (MeleeState);
+				Return True;
+			}
+			
+			If (MissileState)
+			{
+				If (KAI_IsFast() && MoveCount)
+					Return False;
+				
+				If (!KAI_CheckMissileRange (Target))
+					Return False;
+				
+				If (!NoStateJump) SetState (MissileState);
+				Return True;
+			}
+		}
+		Return False;
+	}
+	
+	//Return the location that the actors' attack will hit at. This is just whatever the targets' position is by default.
+	Virtual Vector3 GetAttackLocation()
+	{
+		If (Target) Return Target.Pos;
+		Return (Double.NaN,Double.NaN,Double.NaN); //This is an actual empty vector. Not one that is (0,0,0) but fully null.
+	} 
+	
+	Double AggressionMultiplier; //Can be used to further increase the chance of KAI_CheckMissileRange returning true. The LOWER it is the more frequent the attacking.
+	Property AggressionMultiplier : AggressionMultiplier;
 }

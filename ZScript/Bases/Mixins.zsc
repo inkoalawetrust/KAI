@@ -163,7 +163,7 @@ Mixin Class KAI_CheckFunctions
 	
 	//Returns if the calling actor is fast.
 	//https://github.com/ZDoom/gzdoom/blob/master/src/playsim/p_mobj.cpp?L4892#L4892-L4897
-	Bool IsFast(Actor Other)
+	Bool IsFast (Actor Other)
 	{
 		If (Other.bAlwaysFast) Return True;
 		If (Other.bNeverFast) Return False;

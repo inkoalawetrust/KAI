@@ -3,9 +3,203 @@
 
 Extend Class KAI_BaseVehicle
 {
-	Void Vroom()
+	//=====|Headlight Functions|=====\\
+	//High quality code rips.
+	Enum DynamicLightArgs
 	{
-		Console.Printf ("Vroom vroom");
-		Return;
+	   LIGHT_RED = 0,
+	   LIGHT_GREEN = 1,
+	   LIGHT_BLUE = 2,
+	   LIGHT_INTENSITY = 3,
+	   LIGHT_SECONDARY_INTENSITY = 4,
+	   LIGHT_SCALE = 3,
+	}
+	
+	//VHSF = Vehicle Headlight Spawn Function
+	Enum HeadlightSpawnFlags
+	{
+		VHSF_BACKLIGHT = 1 << 0 //Is this a backlight ? If yes, the angle it faces relative to the vehicle is inverted, so that it faces behind the vehicle.
+	}
+	
+	//Spawns a headlight with the specified parameters. Then returns a pointer to it.
+	//AttachTo: The actor to attach the headlight to, this is just the caller usually.
+	//Offsets: The XYZ offsets to pass to the light. This doesn't call SetOffset() on the dynamic light because m_Ofs doesn't change before PostBeginPlay().
+	//Flags: The flags to pass to the headlight.
+	//LightColor: The RGB color of the headlight. This isn't a Color variable since that's not what dynamic light actors use. Default is white.
+	//Intensity: The intensity of the headlight. Default is 256.
+	//SpotlightAngles: The inner (X) and outer (Y) angle of the headlight. Default is (10,25), the default of the DynamicLight class.
+	KAI_VehicleHeadlight SpawnVehicleHeadlight (Actor AttachTo, Vector3 Offsets, Int Flags = 0, Vector3 LightColor = (255,255,255), Int Intensity = 256, Vector2 SpotlightAngles = (10,25))
+	{
+		If (!AttachTo) AttachTo = Self; //Just in case.
+		KAI_VehicleHeadlight Headlight = KAI_VehicleHeadlight(Spawn ("KAI_VehicleHeadlight",Pos,ALLOW_REPLACE));
+		
+		Headlight.Target = AttachTo; //Dynamic light actors use their target pointer to store who they are attached to.
+		Headlight.Offset = Offsets;
+		If (Flags & VHSF_BACKLIGHT) Headlight.IsBacklight = True;
+		
+		//XYZ = RGB
+		Headlight.Args[LIGHT_RED] = Int(LightColor.X);
+		Headlight.Args[LIGHT_GREEN] = Int(LightColor.Y);
+		Headlight.Args[LIGHT_BLUE] = Int(LightColor.Z);
+		Headlight.Args[LIGHT_INTENSITY] = Intensity;
+		
+		//X is the inner angle. Y is the outer angle.
+		Headlight.SpotInnerAngle = SpotlightAngles.X;
+		Headlight.SpotOuterAngle = SpotlightAngles.Y;
+		
+		Return Headlight;
+	}
+	
+	//Turn the vehicles' headlights on.
+	Void TurnHeadlightsOn()
+	{
+		If (LightsOnAlready) Return;
+		LightLevel = 64; //Light up the vehicle.
+		If (Turret) Turret.LightLevel = 64; //And the turret, if any.
+		For (Int I = HeadLights.Size()-1; I >= 0; I--)
+		{
+			If (Headlights[I])
+			{
+				Headlights[I].Activate(Self);
+				Headlights[I].Active = True;
+			}
+		}
+		If (GetAge() > 1) LightsOnAlready = True; //1 tic delay to allow the lights to spawn in the first place.
+	}
+	
+	//Turn them off.
+	Void TurnHeadlightsOff()
+	{
+		LightLevel = 0;
+		If (Turret) Turret.LightLevel = 0;
+		For (Int I = HeadLights.Size()-1; I >= 0; I--)
+		{
+			If (Headlights[I])
+			{
+				Headlights[I].Deactivate(Self);
+				Headlights[I].Active = False;
+			}
+		}
+		LightsOnAlready = False;
+	}
+	
+	//Remove them when the vehicle is killed or removed.
+	Void RemoveHeadlights()
+	{
+		For (Int I = HeadLights.Size()-1; I >= 0; I--)
+		{
+			If (Headlights[I])
+			{
+				Headlights[I].Destroy();
+				Headlights.Delete(I);
+			}
+		}
+		LightsOnAlready = False;
+	}
+	
+	//=====|AI functions|=====\\
+	Enum RetargetHullFlags
+	{
+		RVHF_NOTARGETCHANGE 		= 1 << 0, //This function should only return if the hull should be targeted, instead of also doing the actual retargeting.
+		RVHF_NOTRANSFERDAMAGECHECK	= 1 << 1, //The function should not retarget hulls larger than their bTransferDamage turret.
+		RVHF_NOWEAKHULLCHECK		= 1 << 2, //The function should not retarget hulls weaker than whatever turret the caller is targeting.
+	}
+	
+	//Makes vehicles target the hulls of vehicles instead of their turrets' under certain conditions:
+	//If the turret has bTransferDamage and is smaller than the vehicle it's attached to. Since attacking the turret only harms the vehicle, might as well shoot the bigger hull instead.
+	//If the hulls' health is less than the health of the turret being targeted. Would be quicker to kill the vehicle than the turret.
+	//Flags: Look above for a list of flags.
+	Bool RetargetVehicleHull (Int Flags = 0)
+	{
+		If (!Target || !Master) Return False;
+		
+		If (Target Is "KAI_BaseVehicleTurret" && Target.Master)
+		{
+			//If the damage that the targeted turret takes is transfered to the vehicle anyway (bTransferDamage).
+			If (!(Flags & RVHF_NOTRANSFERDAMAGECHECK) && KAI_BaseVehicleTurret(Target).bTransferDamage)
+			{
+				//And the vehicle the turret is attached to is overall bigger than the turret.
+				If (Master.Radius > Target.Radius && Master.Height > Turret.Height)
+				{
+					If (!(Flags & RVHF_NOTARGETCHANGE)) Target = Target.Master; //Then target the vehicle the turret is attached to.
+					Return True;
+				}
+			}
+			//If the turret doesn't have bTransferDamage, and it's health is higher than the hulls'.
+			If (!(Flags & RVHF_NOWEAKHULLCHECK) && !KAI_BaseVehicleTurret(Target).bTransferDamage && Target.Master.Health < (Target.Health*0.8))
+			{
+				If (!(Flags & RVHF_NOTARGETCHANGE)) Target = Target.Master; //Then target the vehicle the turret is attached to.
+				Return True;
+			}
+		}
+		Return False;
+	}
+	
+	Enum FindCorpseFlags
+	{
+		FNCF_RAISABLEONLY	= 1 << 0, //Only look for corpses that can be resurrected.
+		FNCF_NOSIZECHECK	= 1 << 1, //Ignore the MaxCorpseRadius and MaxCorpseHeight properties.
+		FNCF_STOPFORVILES	= 1 << 2, //Abort the check if a friendly Archvile-type NPC is in the search radius. This is handled here to not have to run another iterator just for the Vile search.
+	}
+	
+	//Find the corpse nearest to the actor.
+	Actor FindNearestCorpse (Int Flags = FNCF_RAISABLEONLY|FNCF_STOPFORVILES)
+	{
+		Array <Actor> NearbyCorpses;
+		Double NearestDistance = INT.MAX;
+		
+		BlockThingsIterator CorpseSearch = BlockThingsIterator.Create (Self,1024);
+		
+		While (CorpseSearch.Next())
+		{
+			Actor Mobj = CorpseSearch.Thing;
+			
+			//Skip this actor if it's invalid or yourself.
+			If (!Mobj || Mobj == Self) Continue;
+
+			//Don't crush anything if a friendly necromancer is nearby.
+			If (Flags & FNCF_STOPFORVILES && !IsDead(Mobj) && IsNecromancer(Mobj) && !IsActorHostile (Mobj) && CheckSight (Mobj)) Return Null;
+			
+			//Skip this actor if it's already your corpse target, is alive, is already crushed, is not a dead corpse, or cannot be targeted.
+			If (Mobj == CorpseTarget || !IsDead (Mobj) || Mobj.bDontGib || Mobj.bDontCorpse || !CanBeTargeted (Self, Mobj)) Continue;
+			
+			If (!Mobj.bIsMonster && !Mobj.Player) Continue; //Ignore destroyed props.
+			
+			If (Flags & FNCF_RAISABLEONLY && !Mobj.CanRaise()) Continue; //Cannot even be resurrected.
+			
+			If (Mobj.Pos.Z > Mobj.FloorZ) Continue; //Corpse is off the ground. Like if it's falling.
+			
+			If (!(Flags & FNCF_NOSIZECHECK) && Mobj.Radius > MaxCorpseRadius || Mobj.Height > MaxCorpseHeight) Continue; //Actor is too big.
+			
+			If (!CheckSight (Mobj)) Continue; //And at last, check if the corpse is even visible.
+			
+			NearbyCorpses.Push(Mobj); //Add it to the list.
+		}
+		
+		Return GetClosestActor (NearbyCorpses,Self.Pos);
+	}
+	
+	//=====|Other functions|=====\\
+	//Used to make vehicles able to run over and grind corpses like crushers.
+	Void KAI_CrushCorpses (Double RadiusMultiplier = 1.75)
+	{
+		BlockThingsIterator Crusher = BlockThingsIterator.Create (Self);
+		Actor Mobj;
+		
+		While (Crusher.Next())
+		{
+			Mobj = Crusher.Thing;
+			If (!Mobj) Continue; //No actor to crush.
+			//This runs before the bDontGib check, so that vehicles can remove corpse targets if they were already crushed.
+			If (Mobj == CorpseTarget) CorpseTarget = Null; //If the corpse you crushed was one you were targeting already, then remove the pointer to it.
+			If (!IsDead (Mobj)) Continue; //Actor isn't dead already.
+			If (Mobj.bDontGib) Continue; //Has already been crushed.
+			If (Mobj.Pos.Z > Mobj.FloorZ) Continue; //Corpse is off the ground. Like if it's falling.
+			If (Mobj.Default.bFloat) Continue; //Don't crush floating corpses, particularly recently killed Lost Souls, which end up producing floating gibs.
+			If (Mobj.Radius > MaxCorpseRadius || Mobj.Height > MaxCorpseHeight) Continue; //Actor is too big.
+			If (Distance3DSquared (Mobj) > ((Radius*2)*RadiusMultiplier) * ((Radius*2)*RadiusMultiplier)) Continue;
+			
+			Mobj.Grind (False); //Crush corpse, but not items.
+		}
 	}
 }

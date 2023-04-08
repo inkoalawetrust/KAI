@@ -21,6 +21,26 @@ Extend Class KAI_Actor
 		Return Ok;
 	}
 	
+	State IsInAttackState()
+	{
+		State FoundState = State (Null);
+		
+		If (InStateSequence (CurState,MissileState) || InStateSequence (CurState,MeleeState)) Return CurState;
+		
+		//Loop through available states.
+		For (Int I = AttackStates.Size()-1; 0 <= I; I--)
+		{
+			//The state in the array matches the current state we are in.
+			If (InStateSequence (CurState,AttackStates[I]))
+			{
+				FoundState = AttackStates[I];
+				Break;
+			}
+		}
+		
+		Return FoundState;
+	}
+	
 	//Returns true if the specified actor can resurrect corpses like an Archvile does.
 	Bool IsNecromancer (Actor Other)
 	{

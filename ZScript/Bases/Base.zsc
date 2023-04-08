@@ -30,9 +30,11 @@ Class KAI_Actor : Actor Abstract
 		+FloorClip;
 	}
 	
+	//Mixins
 	Mixin KAI_CheckFunctions;
 	Mixin KAI_MathFunctions;
 	
+	//=====|Virtual functions|=====\\
 	//NOTE: The code on these virtuals is basically just the default. Different base classes will likely add on this base code or replace it entirely.
 	Override Void PostBeginPlay()
 	{
@@ -71,7 +73,7 @@ Class KAI_Actor : Actor Abstract
 			
 			If (MissileState)
 			{
-				If (KAI_IsFast() && MoveCount)
+				If (IsFast(Self) && MoveCount)
 					Return False;
 				
 				If (!KAI_CheckMissileRange (Target))
@@ -89,8 +91,26 @@ Class KAI_Actor : Actor Abstract
 	{
 		If (Target) Return Target.Pos;
 		Return (Double.NaN,Double.NaN,Double.NaN); //This is an actual empty vector. Not one that is (0,0,0) but fully null.
-	} 
+	}
 	
+	//KLUDGE: This was hastily made due to an issue caused by the process of decoupling KAI_CrushCorpses from the MVP. Where it used a function that is to stay in the MVP.
+	//Can be used to write custom checks for whether or not an actor is considered to be hostile or friendly.
+	//TrueIfFriend: If set to true, it returns true if the other actor is a friend. Essentially a virtualized IsFriend().
+	Virtual Bool IsActorHostile (Actor Other, Bool TrueIfFriend = False)
+	{
+		If (!Other) Return False;
+		
+		If (!TrueIfFriend)
+			Return IsHostile (Other);
+		Else
+			Return IsFriend (Other);
+		
+		Return False;
+	}
+	
+	//=====|Properties, flags, and variables|=====\\
 	Double AggressionMultiplier; //Can be used to further increase the chance of KAI_CheckMissileRange returning true. The LOWER it is the more frequent the attacking.
 	Property AggressionMultiplier : AggressionMultiplier;
+	
+	Array <State> AttackStates; //Can be used to store all of the attack state labels each vehicle has.
 }

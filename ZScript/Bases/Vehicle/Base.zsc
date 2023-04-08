@@ -3,15 +3,409 @@
 
 Class KAI_BaseVehicle : KAI_Actor Abstract
 {
+	//=====|Virtual functions|=====\\
+	Override Void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		UserVariableDefaults();
+		SpawnVehicleTurret();
+		SpawnHeadlights();
+	}
 	
+	Override Void Tick()
+	{
+		Super.Tick();
+		
+		If (IsFrozen()) Return;
+		
+		If (StayStillDelay)
+			StayStillDelay--;
+		
+		If (!User_NoHeadlights)
+			HeadLightsOn = (CurSector && CurSector.LightLevel <= 104);
+		
+		If (HeadLightsOn)
+			TurnHeadlightsOn();
+		Else
+			TurnHeadlightsOff();
+	}
+	
+	//Handles spawning each vehicles' turret, if they have any.
+	Virtual Void SpawnVehicleTurret ()
+	{
+		If (VehicleTurret)
+		{
+			Turret = KAI_BaseVehicleTurret(Spawn (VehicleTurret,Pos+TurretOffsets));
+			If (Turret)
+			{
+				Turret.CopyFriendliness (Self,False);
+				Turret.SpawnFlags = SpawnFlags;
+				Turret.HandleSpawnFlags();
+				Turret.Angle = Angle;
+				Turret.Pitch = Pitch;
+				Turret.Master = Self;
+				Double HealthFactor = Double(Health) / Double(Default.Health);
+				Turret.Health *= HealthFactor;
+				Turret.TurretOffsets = TurretOffsets;
+				//Turret.SetOrigin (Vec3OffsetRelative(Turret.Master,(Turret.TurretOffsets.XY,Turret.Master.Height+Turret.TurretOffsets.Z),flags:V3R_ANGLEONLY),True);
+			}
+		}
+	}
+	
+	Override Bool CanCollideWith (Actor Other, Bool Passive)
+	{
+		//Stops the turret from preventing vehicles from going up slopes and steps due to the turret getting in the way.
+		If (!Passive && Other && Other == Turret && ((KAI_BaseVehicleTurret(Turret).bFallOnDeath && !IsDead (Turret)) || !KAI_BaseVehicleTurret(Turret).bFallOnDeath))
+			Return False;
+		
+		Return Super.CanCollideWith (Other, Passive);
+	}
+	
+	Override Void Die (Actor Source, Actor Inflictor, Int DmgFlags, Name MeansOfDeath)
+	{
+		Super.Die (Source, Inflictor, DmgFlags, MeansOfDeath);
+		If (Turret && !IsDead(Turret)) //When dead, kill the turret the same way as the vehicle died.
+		{
+			Turret.bTransferDamage = False; //Turn the flag off so that the turret can die after the vehicle itself does.
+			If (Health < GetGibHealth()) //Same check Die() uses internally to check if an actor was gibbed. 
+				Turret.DamageMobj (Inflictor, Source, Turret.Health+(-Turret.GetGibHealth())+1, MeansOfDeath, DMG_FORCED);
+			Else
+				Turret.DamageMobj (Inflictor, Source, Turret.Health, MeansOfDeath, DMG_FORCED);
+		}
+		bShootable = bNotAutoaimed = True; //Destroyed vehicles stay shootable and non-autoaimable unless specified otherwise.
+		RemoveHeadlights(); //The vehicles aren't resurrectable, so the headlights aren't needed.
+		HeadlightsOn = False;
+		CorpseTarget = Null;
+		A_StopSound (CHAN_IDLING);
+		A_StopSound (CHAN_MOVING);
+	}
+	
+	Override Void OnDestroy()
+	{
+		Super.OnDestroy();
+		RemoveHeadlights();
+		If (Turret) Turret.Destroy();
+		AttackStates.Delete(0,AttackStates.Size()); //Clean the array before removal, because the GC can't: https://github.com/ZDoom/gzdoom/issues/2019
+	}
+	
+	Override Void Activate (Actor Activator)
+	{
+		Super.Activate(Activator);
+		
+		If (Turret) //Pass it down to turrets as well.
+			Turret.Activate (Activator);
+	}
+	
+	Override Void Deactivate (Actor Activator)
+	{
+		Super.Deactivate(Activator);
+		
+		If (Turret) //Pass it down to turrets as well.
+			Turret.Deactivate (Activator);
+	}
+	
+	//Used to neatly order the spawning of headlights in vehicle definitions. You could just as easily do the spawning in PostBeginPlay()
+	Virtual Void SpawnHeadlights(){}
+	
+	//Should the vehicle stay still and attack ? The base actor class simply houses the most basic conditional check for this.
+	//CheckSightFrom is the actor whose sight to their target is checked, to determine if the vehicle can shoot.
+	Virtual Bool StayStillAndShoot (Actor CheckSightFrom)
+	{
+		If (StayStillDelay) Return False; //Too soon
+		If (Turret && Turret.bDontStayAround) Return False; //Turret told you to not move.
+		If (Turret && Turret.ElevationState != Turret.ELEVATION_INBOUNDS) Return False; //The turrets' target is too high up or low down to shoot.
+		If (IsPatrolling (Self) && bChaseGoal) Return False; //Don't stop if patrolling and "Don't Chase Goal" is on.
+		
+		Double Distance = (User_RetreatDistance > 0) ? User_RetreatDistance : 512; //Fall back to a distance of 512 MU if the vehicle is set to not retreat.
+		//Check if you are far enough from your nearest enemy or target.
+		Actor Whomstve = (NearestEnemy ? NearestEnemy : Target);
+		If ((Whomstve && Distance3DSquared (Whomstve) >= (Distance*Distance)*1.2))
+		{
+			If (CheckSightFrom.CheckSight (CheckSightFrom.Target))
+				Return True;
+		}
+		Return False;
+	}
+	
+	//=====|Variables, constants, properties etc|=====\\
+	Const DEFAULT_HEARDISTANCE = 4096; //Exactly what it says, the default hear distance the vehicles' and turrets' A_LookEx calls use.
+	Const DEFAULT_SEEDISTANCE = 8192; //The default sight distance.
+
+	Enum VehicleSoundChannels
+	{
+		CHAN_IDLING = 23500,
+		CHAN_MOVING = 23501
+	}
+	
+	//AI variables
+	Actor DeathWarnZone; //The warning zone attached to the vehicle after it died, if any. Used to warn Smart Marines if the vehicle wreck is burning.
+	Actor NearestEnemy; //The enemy closest to the vehicle, if any. TODO: Move this to KAI_Actor ?
+	Actor CorpseTarget; //The corpse that the vehicle is trying to crush.
+	Int ChaseTimer; //Makes the vehicle only chase its' target for a certain amount of time after it goes out of sight. Is also used to determine how long turreted vehicles stay in one place.
+	Int FearTimer; //Makes the vehicle keep running away from it's target for an additional random amount of time, so that it doesn't play peekaboo with enemies.
+	Int CurrentOrder; //The current order the vehicle is following.
+	Int StayStillDelay; //How long before the vehicle can stand still to attack again.
+	
+	//Internal variables
+	Array <KAI_VehicleHeadlight> Headlights; //Pointers to each headlight the vehicle has.
+	Bool HeadlightsOn; //Should the headlights be on ?
+	KAI_BaseVehicleTurret Turret; //The turret the vehicle has, used to actually spawn said turret.
+	Vector3 TurretOffsets; //The offsets of the turret relative to the vehicle.
+	Bool LightsOnAlready; //Used to stop the headlight code from constantly iterating through the headlights.
+	
+	Double MaxCorpseRadius, MaxCorpseHeight;
+	Property MaxCorpseRadius : MaxCorpseRadius;
+	Property MaxCorpseHeight : MaxCorpseHeight;
+	
+	//Flag variables
+	Private Int VehicleFlags;
+	FlagDef Transport : VehicleFlags, 0; //The vehicle is marked as being able to transport soldiers.
+	FlagDef NoRadio : VehicleFlags, 1; //The vehicle ignores orders given to it by the radio item. TODO: REIMPLEMENT THE COMMAND SYSTEM TO THE KAI, THIS TIME MORE PROPERLY THAN IN THE MARINES AND MVP.
+	//FlagDef ScareMarines : VehicleFlags, 2; //The vehicle can automatically scare marines away, regardless of its' size or health.
+	Class<KAI_BaseVehicleTurret> VehicleTurret; //The pointer to the vehicles' turret, if any.
+	Property VehicleTurret : VehicleTurret;
+	
+	//Generic user variables
+	Bool User_NoHeadLights; //Vehicle doesn't use it's headlights, or if its' a prop, the headlights should be off.
+	//Bool User_NoTargetPrediction; //The vehicle will not calculate it's targets' movement and lead its' shots, this is only available to certain vehicles as not all of them have projectile attacks.
+	Double User_RetreatDistance; //The amount of distance the vehicle keeps from enemies.
+	Int User_ChaseTime; //How much time the vehicle spends looking for it's out-of-sight target before giving up.
+	
+	States
+	{
+		StickAround: //Generic state shared by all vehicles, for when they are far enough from any enemies to be able to just sit and let their turrets do the work.
+			#### # 0
+			{
+				//Face sideways from your target, if any.
+				A_FaceTarget ();
+				If (Target)
+					Angle += RandomPick (75,80,85,90,95,10,105);
+			}
+			#### # 4 //If an enemy has gotten too close, the turret can't attack, or enough time has passed, then stop standing around.
+			{
+				If (ChaseTimer <= 0 || FindNearestEnemy (User_RetreatDistance/1.4) || Turret && (!Turret.CanAttack() || Turret.bDontStayAround))
+				{
+					ChaseTimer = 0;
+					Return ResolveState ("See");
+				}
+				
+				ChaseTimer--;
+				Return State (Null);
+			}
+			Goto StickAround+1;
+	}
 }
 
 Class KAI_BaseVehicleTurret : KAI_BaseVehicle Abstract
 {
+	Default
+	{
+		Speed 0;
+		FastSpeed 0;
+		MaxStepHeight 0;
+		Mass 500;
+		KAI_BaseVehicleTurret.TurnAmount 0.15;
+		KAI_BaseVehicleTurret.TurnSoundRadius 2;
+		Tag "Vehicle Turret Base (You really shouldn't be seeing this in-game)";
+		+NoFear; //Can't really move to run away.
+		+DontThrust;
+		+StandStill;
+		+LookAllAround;
+		+DontFollowPlayers;
+		+NoSpriteShadow;
+		+KAI_BaseVehicle.NoRadio;
+		-AvoidHazards;
+		-AvoidMelee;
+		-CanBlast; //Turrets are attached to their vehicle.
+		-CountKill; //And because of that, they don't count as kills either.
+	}
 	
+	Private Int TurretFlags;
+	FlagDef FallOnDeath : TurretFlags, 0; //Turret detached from its' vehicle upon death.
+	FlagDef DontStayAround : TurretFlags, 1; //Used to make the turret not make the vehicle stop to sit around and let the turret shoot, even if the latter has a target.
+	FlagDef NoTargetPrediction : TurretFlags, 2; //The turret will not calculate its' targets' movement and lead its' shots.
+	//Note: If your turret has bTransferDamage, any splash damage the vehicle itself receives will be effectively doubled due to the damage transfer.
+	//If you do not want this unintended consequence of the flag, then give the turret the +NORADIUSDMG flag !
+	FlagDef TransferDamage : TurretFlags, 3; //The turret will transfer damage taken to its' master (The vehicle it's on). Instead of taking any of its' own.
+	FlagDef NoCombatTraverse: TurretFlags, 4; //The stock combat traverse code will not run, can be used to give the turret its' own turn logic when firing.
+	
+	//Turret turning variables and properties.
+	Double MaxPitch, MinPitch, TurnAmount, TurnSoundRadius, CombatAngleTurnRate, CombatPitchTurnRate;
+	Sound TurnSound;
+	Property MaximumPitch : MaxPitch; //The maximum pitch the turret can go up to.
+	Property MinimumPitch : MinPitch; //The minimum pitch the turret can go down to.
+	Property TurnAmount : TurnAmount; //How much the turret turns to face the vehicle when it's not snapping into position.
+	Property TurnSoundRadius : TurnSoundRadius; //How much the turret has to turn since last tick for the sound to play.
+	Property TurnSound : TurnSound; //The sound the turret makes when it turns.
+	Property CombatAngleTurnRate : CombatAngleTurnRate; //How fast the turret changes its' angle to face its' target when in combat. In degrees per second.
+	Property CombatPitchTurnRate : CombatPitchTurnRate; //How fast the turret changes its' pitch to face its' target when in combat. In degrees per second.
+	
+	Int TurretSnapDelay; //Used for the turret rotating code, to make it so the turret snaps back to the vehicle after some time of not having a target.
+	Double TurretRotationOffset; //Can be used to offset the rotation of the turret by this exact amount. Used by turrets when they are destroyed, and by prop turrets.
+	Vector3 LastEnemyPosition; //Used by the target prediction. If the turret has a target with no velocity, it grabs their last position every tick to compare it to the current position.
+	Vector3 CurrentEnemyPosition;
+	
+	Double OldSoundAngle; //The turrets' angle in the last tick. Used for the turret turning sound.
+	
+	Enum ElevationStates
+	{
+		ELEVATION_TOOHIGH = -1, //The turret is aiming too high up.
+		ELEVATION_INBOUNDS = 0,	//The turret is within its' elevation limits.
+		ELEVATION_TOOLOW = 1	//The turret is aiming too low down.
+	}
+	Int ElevationState; //Look above for possible elevation states.
+	
+	Override Void PostBeginPlay ()
+	{
+		Actor.PostBeginPlay ();
+		UserVariableDefaults();
+		SpawnVehicleTurret();
+		If (!bFriendly) Species = 'MilitaryHostile';
+	}
+	
+	Override Void UserVariableDefaults ()
+	{
+		User_RetreatDistance = -1; //Turrets can't move or be scared anyway.
+		User_ChaseTime = 30*4;
+	}
+	
+	Override Bool CanAttack()
+	{
+		If (IsDead(Self)) Return False; 
+		If (ElevationState != ELEVATION_INBOUNDS) Return False;
+		
+		Return True;
+	}
+	
+	//Default turret checks. Is there even a target to shoot, and can the turret attack ?
+	Override Bool ShouldAttack (Bool NoStateJump)
+	{
+		If (!Target) Return False;
+		If (!CanAttack()) Return False;
+		
+		Return True;
+	}
+	
+	Override Bool StayStillAndShoot(Actor CheckSightFrom) {Return False;} //Turrets already can't move lol.
+	
+	Override Void Tick()
+	{
+		OldSoundAngle = Angle;
+		Super.Tick();
+		
+		//Keeps track of the current targets' position for the target prediction code.
+		If (Target && Target.Tics == Target.CurState.Tics)
+		{
+			LastEnemyPosition = CurrentEnemyPosition;
+			CurrentEnemyPosition = Target.Pos;
+		}
+		Else If (!Target)
+			LastEnemyPosition = CurrentEnemyPosition = (0,0,0);
+		
+		If (IsFrozen()) Return;
+		
+		Bool IsDead = IsDead (Self);
+		
+		//Combat turret traverse handling.
+		If (!bNoCombatTraverse && !IsDead)
+			If (IsInAttackState())
+				DoCombatTraverse (Target);
+		
+		//Play the turrets' mechanical whirring sound whenever it's not dead.
+		If (TurnSound && !IsDead)
+		{
+			//But only play it when the angle has changed a certain amount.
+			If (AbsAngle (Angle,OldSoundAngle) >= TurnSoundRadius
+			&& !(Master && AbsAngle(Master.Angle,Angle) <= 0.25)) //Stops the turn sound from playing when the turret is snapping to the vehicles' angle.
+				A_StartSound (TurnSound,CHAN_BODY,0,0.8,0.8);
+		}
+		
+		ElevationState = TurretOverPitchLimits();
+		If (ElevationState != ELEVATION_INBOUNDS) Pitch = Clamp (Pitch,MaxPitch,MinPitch); //Turrets can't move past their elevation limits.
+		
+		If (!Master || IsDead && bFallOnDeath) Return;
+		
+		SetOrigin (Vec3OffsetRelative(Master,(TurretOffsets.XY,Master.Height+TurretOffsets.Z),flags:V3R_ANGLEONLY),True);
+		A_Stop();
+		Floorclip = Master.Floorclip; //Copy floorclip offset for TERRAIN liquids.
+	}
+	
+	Override Void Die (Actor Source, Actor Inflictor, Int DmgFlags, Name MeansOfDeath)
+	{
+		If (Master && !(Self Is "KAI_BaseVehicleTurretProp")) //Prop turrets use TurretRotationOffset differently.
+			TurretRotationOffset = DeltaAngle (Master.Angle,Angle);
+		
+		Super.Die (Source, Inflictor, DmgFlags, MeansOfDeath);
+		bShootable = bNotAutoaimed = True;
+		If (bFallOnDeath) bNoSpriteShadow = False;
+		TurretSnapDelay = 0;
+	}
+	
+	Override Int DamageMobj (Actor Inflictor, Actor Source, Int Damage, Name MOD, Int Flags, Double Angle)
+	{
+		If (bTransferDamage && Master && !bNoDamage)
+		{
+			//TODO: Expose the internal ReactToDamage() function to ZScript in a PR one day. To call it from here.
+			//HACK: This is mostly a copied bit from this unexposed internal code: https://sourcegraph.com/github.com/ZDoom/gzdoom/-/blob/src/playsim/p_interaction.cpp?L894
+			If (Damage > 0 && OkayToSwitchTarget(Source))
+			{
+				If (!LastEnemy)
+					LastEnemy = Target; //Remember our last enemy.
+				
+				Target = Source;
+				Threshold = DefThreshold;
+			}
+			Return Master.DamageMobj (Inflictor, Source, Damage, MOD, Flags, Angle);
+		}
+		
+		Return Super.DamageMobj (Inflictor, Source, Damage, MOD, Flags, Angle);
+	}
+	
+	Override Void OnDestroy()
+	{
+		Super.OnDestroy();
+	}
 }
 
 Class KAI_VehicleHeadlight : DynamicLight
 {
+	Default
+	{
+		DynamicLight.Type "Point";
+		//+DynamicLight.Attenuate;
+		+DynamicLight.Spot;
+	}
 	
+	Bool Active; //The actual internal m_Active variable that reports if a dynamic light is on isn't exposed to ZScript.
+	Vector3 Offset; //This needs to be here because SetOffset() doesn't work right after a dynamic light spawns.
+	Bool IsBacklight;
+	
+	Override Void Tick()
+	{
+		//The actual location offsets of the lights are handled by the internal m_Ofs variable.
+		If (Target && KAI_BaseVehicle(Target).HeadlightsOn)
+		{
+			SetOrigin (Target.Pos, True);
+			Angle = IsBackLight ? Target.Angle-180 : Target.Angle;
+			Pitch = Target.Pitch;
+		}
+	}
+	
+	//White by default.
+	Override Void BeginPlay()
+	{
+		Super.BeginPlay();
+		
+		Args[LIGHT_RED] = 255;
+		Args[LIGHT_GREEN] = 255;
+		Args[LIGHT_BLUE] = 255;
+		Args[LIGHT_INTENSITY] = 256;
+	}
+	
+	Override Void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		Deactivate(Self); //Off by default.
+		SetOffset(Offset);
+	}
 }

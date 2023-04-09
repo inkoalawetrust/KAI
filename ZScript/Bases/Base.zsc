@@ -4,6 +4,23 @@
 And rename MVP_Chase to KAI_VehicleChase. While KAI_Chase will be the chase function for humanoids and creatures. Yeah, that sounds much better.*/
 //Adopt the command system the smart marines and MVP has into a generic system for KAI monsters. Preferrably something actually stable and functional.
 
+//TODO: Make a generic object class that also has mixins ? Maybe also make a barebones LineTracer that only has KAI_LOFRaycasts' mixins. Thanks ZScript.
+//KLUDGE: Mixins cannot be used across different mods (e.g from the KAI to your mod). So this class has some common mixins included for you to inherit from it.
+Class KAI_MixinActor : Actor
+{
+	Mixin KAI_UniversalFunctions;
+	Mixin KAI_CheckFunctions;
+	Mixin KAI_MathFunctions;
+}
+
+//KLUDGE: This is temporary until I port over MVP_BaseProjectile.
+Class KAI_MixinProjectile : FastProjectile
+{
+	Mixin KAI_UniversalFunctions;
+	Mixin KAI_CheckFunctions;
+	Mixin KAI_MathFunctions;
+}
+
 Class KAI_Actor : Actor Abstract
 {
 	Default

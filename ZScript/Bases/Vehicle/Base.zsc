@@ -5,6 +5,8 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 {
 	Default
 	{
+		KAI_BaseVehicle.MaxCorpseRadius 64;
+		KAI_BaseVehicle.MaxCorpseHeight 48;
 		+NoForwardFall; //Doesn't make sense for a tank or some shit to slide forward after dying.
 		//+AvoidMelee;
 		+AvoidHazards;
@@ -155,7 +157,6 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	}
 	
 	//AI variables
-	Actor DeathWarnZone; //The warning zone attached to the vehicle after it died, if any. Used to warn Smart Marines if the vehicle wreck is burning.
 	Actor NearestEnemy; //The enemy closest to the vehicle, if any. TODO: Move this to KAI_Actor ?
 	Actor CorpseTarget; //The corpse that the vehicle is trying to crush.
 	Int ChaseTimer; //Makes the vehicle only chase its' target for a certain amount of time after it goes out of sight. Is also used to determine how long turreted vehicles stay in one place.
@@ -277,7 +278,6 @@ Class KAI_BaseVehicleTurret : KAI_BaseVehicle Abstract
 		Actor.PostBeginPlay ();
 		UserVariableDefaults();
 		SpawnVehicleTurret();
-		If (!bFriendly) Species = 'MilitaryHostile';
 	}
 	
 	Override Void UserVariableDefaults ()

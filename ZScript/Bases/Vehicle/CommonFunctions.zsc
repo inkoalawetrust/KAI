@@ -98,6 +98,153 @@ Extend Class KAI_BaseVehicle
 	}
 	
 	//=====|AI functions|=====\\
+	Enum MVPChaseFlags
+	{
+		MVPC_ATTACKWHENSCARED = 1 << 0, //The vehicle will still be very likely to attack when scared of an enemy.
+		MVPC_NORANDOMTURN = 	1 << 1, //Turns on CHF_NORANDOMTURN on the A_Chase calls.
+		MVPC_NOCHASE = 			1 << 2, //Don't run any code related to the vehicle moving. Useful for the turrets.
+		MVPC_CORPSESEEKER = 	1 << 3,	//The vehicle will actively go after corpses to crush them if it has nothing else to do.
+		MVPC_NOTURRETRETARGET =	1 << 4, //The vehicle will never target the hull of a vehicle instead of its' turret. Even if doing so would be better.
+	}
+	
+	//Generic chase function shared by all vehicles.
+	//Flags: Look above for available flags.
+	//FollowDist: The distance below which the vehicle will stop trying to follow the player, to not get in their way.
+	Void MVP_Chase (Int Flags = 0, Double FollowDist = 384)
+	{
+		Bool AlreadyRetreating; //The vehicle is already running away from something that doesn't involve the enemy avoiding code, so don't bother to run from nearby enemies.
+		Double PowerfulEnemyRetreatRange = (User_RetreatDistance*4)*(User_RetreatDistance*4); //Vehicles stay 4 times further away from powerful enemies than normal ones.
+		
+		//Temporarily store the values that are changed by the fear code.
+		Double OldAggro = AggressionMultiplier;
+		
+		//Vehicles get scared if they have a living, visible target, and are either defenseless or the target is too powerful.
+		If (!bNoFear)
+		{
+			If (Target && !CanAttack() || Target && IsPowerful (Target) && Distance3DSquared (Target) <= PowerfulEnemyRetreatRange)
+				If (!IsDead (Target) && IsVisible(Target, True))
+				{
+					FearTimer = Random (2,64);
+					bFrightened = AlreadyRetreating = True;
+				}
+				Else
+					bFrightened = False;
+			Else
+				bFrightened = False;
+			
+			If (FearTimer)
+			{
+				FearTimer--;
+				bFrightened = AlreadyRetreating = True;
+			}
+			
+			If ((Flags & MVPC_ATTACKWHENSCARED) && bFrightened)
+				AggressionMultiplier *= 0.5;
+		}
+		
+		If (!(Flags & MVPC_NOCHASE))
+		{
+			FollowPlayerControl (FollowDist);
+			
+			//Vehicles try to stay away from enemies that are too close.
+			Actor OldTarget;
+			If (!(IsPatrolling(Self) && bChaseGoal)) NearestEnemy = FindNearestEnemy (User_RetreatDistance); //Only retreat from enemies if NOT set to patrol AND ignore targets.
+			//Have a close enemy, and not already retreating from something like a powerful target.
+			If (NearestEnemy && !AlreadyRetreating)
+			{
+				OldTarget = Target;
+				Target = NearestEnemy;
+				bFrightened = True;
+				FearTimer = Random (2,48);
+				A_Chase (Null,Null,CHF_DONTIDLE | ((Flags & MVPC_NORANDOMTURN) ? CHF_NORANDOMTURN : 0)); //So move away from the nearest enemy.
+				Target = OldTarget;
+			}
+			//If the vehicle turrets' target is too high, move away from it to allow the turret to shoot it.
+			Else If (Turret && Turret.Target && Turret.ElevationState == Turret.ELEVATION_TOOHIGH)
+			{
+				OldTarget = Target;
+				Target = Turret.Target;
+				bFrightened = True;
+				FearTimer = Random (8,32);
+				A_Chase (Null,Null,CHF_DONTIDLE | ((Flags & MVPC_NORANDOMTURN) ? CHF_NORANDOMTURN : 0));
+				Target = OldTarget;
+			}
+			//Archvile trolling mode activated.
+			Else If (!Target && !IsPatrolling(Self) && !NearestEnemy && CurrentOrder == ORDER_WANDER && (Flags & MVPC_CORPSESEEKER))
+			{
+				//Don't have a corpse to crush already.
+				If (!CorpseTarget)
+				{
+					CorpseTarget = FindNearestCorpse();
+					
+					If (!CorpseTarget) //Still no corpse found.
+						A_Chase (Null,Null,CHF_DONTIDLE | ((Flags & MVPC_NORANDOMTURN) ? CHF_NORANDOMTURN : 0));
+					Else
+						KAI_MoveTowards (CorpseTarget);
+				}
+				//There is an available corpse to head to and crush.
+				Else
+					KAI_MoveTowards (CorpseTarget);
+			}
+			Else
+				A_Chase (Null,Null,CHF_DONTIDLE | ((Flags & MVPC_NORANDOMTURN) ? CHF_NORANDOMTURN : 0));
+		}
+		
+		If (!(Flags & MVPC_NOTURRETRETARGET)) RetargetVehicleHull();
+		Actor CheckFrom = Turret;
+		If (!CheckFrom) CheckFrom = Self; 
+		If (StayStillAndShoot (CheckFrom)) Return;
+		
+		If (ShouldAttack()) //Run the unique attack decision code of the vehicle.
+		{
+			AggressionMultiplier = OldAggro; //Reset aggression chance.
+			ChaseTimer = 0;
+			CorpseTarget = Null;
+			Return; //End the function if the vehicle should attack.
+		}
+		AggressionMultiplier = OldAggro; //Reset aggression chance.
+		
+		HandleChaseTimer();
+	}
+	
+	Void HandleChaseTimer() //Made into a separate function so it can be called independently by turrets and such.
+	{
+		//They also eventually stop chasing their target after it's out of sight for long enough.
+		If (User_ChaseTime > 0)
+		{
+			If (ChaseTimer >= User_ChaseTime)
+			{
+				A_ClearTarget();
+				ChaseTimer = 0;
+				//Vehicles ordered to stay also go back to standing still once the timer runs out.
+				If (CurrentOrder == ORDER_STAY)
+				{
+					SetStateLabel ("Spawn");
+					Return;
+				}
+			}
+			
+			If (!IsPatrolling(Self))
+			{
+				If (!Target || Target && !CheckSight (Target,SF_SEEPASTBLOCKEVERYTHING))
+					ChaseTimer++;
+				//Target is visible again, reset the timer.
+				Else
+					ChaseTimer = 0;
+			}
+		}
+	}
+	
+	//As a friendly vehicle, only follow the player until within a certain distance from them, to prevent the player from being dogpiled by vehicles.
+	Void FollowPlayerControl (Double MaxDist = 384)
+	{
+		If (!PlayerInGame[FriendPlayer] || CurrentOrder == ORDER_WANDER)
+			Return;
+		
+		If (bFriendly)
+			bDontFollowPlayers = (Distance3DSquared (Players[FriendPlayer].Mo) <= MaxDist*MaxDist);
+	}
+	
 	Enum RetargetHullFlags
 	{
 		RVHF_NOTARGETCHANGE 		= 1 << 0, //This function should only return if the hull should be targeted, instead of also doing the actual retargeting.

@@ -23,16 +23,13 @@ But there are also some I want to make specifically for this codebase, like MAYD
 /*The most basic NPC class, all types are based on this, land/water/air vehicles, humanoids, flying creatures, you name it. 
 Likewise, the code that is meant to be shared by all NPCs also goes here.*/
 #Include "ZScript/Bases/Base.zsc"
-#Include "ZScript/Bases/AIFunctions.zsc"
-#Include "ZScript/Bases/OtherFunctions.zsc"
-#Include "ZScript/Bases/Mixins.zsc"
 	
 	//The base *land* vehicle class. As of 8/4/2023, this basically a direct rip from a dev build of MVP 0.5.0.
 	//Any future vehicle types like air and water vehicles will probably be based on this.
-	#Include "ZScript/Bases/Vehicle/Base.zsc"
-	#Include "ZScript/Bases/Vehicle/BaseProp.zsc"
-	#Include "ZScript/Bases/Vehicle/CommonFunctions.zsc"
-	#Include "ZScript/Bases/Vehicle/TurretFunctions.zsc"
+	//#Include "ZScript/Bases/Vehicle/Base.zsc"
+	//#Include "ZScript/Bases/Vehicle/BaseProp.zsc"
+	//#Include "ZScript/Bases/Vehicle/CommonFunctions.zsc"
+	//#Include "ZScript/Bases/Vehicle/TurretFunctions.zsc"
 		//Air, sea, etc vehicles.
 	
 	//The base humanoid/creature/(whatever I decide to call it) class.

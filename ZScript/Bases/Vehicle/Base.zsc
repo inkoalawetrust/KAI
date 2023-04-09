@@ -3,6 +3,23 @@
 
 Class KAI_BaseVehicle : KAI_Actor Abstract
 {
+	Default
+	{
+		+NoForwardFall; //Doesn't make sense for a tank or some shit to slide forward after dying.
+		//+AvoidMelee;
+		+AvoidHazards;
+		+Telestomp;
+		+NoInfightSpecies;
+		+DontMorph; //This is just here because ZDoom's morphing code is a mess internally, and having any of the vehicles morph would definitely break something.
+		+DontDrain; //How would you suck the life out of an inanimate object ?
+		+DontCorpse; //Keeps the vehicles' normal collision even after they are destroyed.
+		+NoBlood; //https://www.youtube.com/watch?v=K63AVSCPcSI
+		+NoPain;
+		+FloorClip;
+		+AddLightLevel; //Used for the headlight system.
+		-CanUseWalls; //Vehicles shouldn't be able to use walls, well, not  large ones anyway.
+	}
+	
 	//=====|Virtual functions|=====\\
 	Override Void PostBeginPlay()
 	{

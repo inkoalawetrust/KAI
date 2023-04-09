@@ -1,0 +1,981 @@
+//FIXME:
+/*Try and fix the vehicle turrets to be at the top of their vehicle even at the first tick of their existance.
+The first fix I tried was immediately warping the turret to its vehicle. Which somehow turns the turrets into the vehicle they are attached on in the
+first tick. Which is literally worse than the turrets spawning on the ground.*/
+//Remake the .50 cal bullet and 30mm shell sprites. So that the whole round, casing included, isn't fired. Maybe add the casings as a visual effect instead.
+
+//IDEA:
+//Maybe give the APCs' 2 big turrets 16 rotations instead of 8. Due to the combat traverse code ? The main concern here is file size.
+//Add a system in the base turrets' ShouldAttack(), where if the target is obstructed, the turret will instead try aiming up or down instead of the middle.
+//Make marines able to get back into the APC and Army Truck from their backs. Not sure how this would even work. Probably needs a rewrite of the marines.
+//Add smoke that can come off of vehicles when they are low on health.
+
+Class KAI_BaseVehicle : Actor Abstract
+{
+	Default
+	{
+		//Properties, in essense most of these are just the properties for the army car, which is the weakest vehicle.
+		XScale 0.65;
+		YScale 0.541666; //0.65 / 1.2
+		Radius 40;
+		Height 54;
+		DeathHeight 54;
+		CameraHeight 48;
+		Mass 4500;
+		RipLevelMin 3;
+		Speed 8;
+		FastSpeed 16;
+		FriendlySeeBlocks 48; // 6144 map units, armed vehicles should have a longer range to be able to attack from across the map. 80; //A bit over 10000 map unit sight range
+		MaxStepHeight 32;
+		MaxTargetRange 10000;
+		KAI_BaseVehicle.MaxCorpseRadius 64;
+		KAI_BaseVehicle.MaxCorpseHeight 48;
+		KAI_BaseVehicle.AggressionMultiplier 1.0;
+		Species "Military";
+		Obituary "%o managed to be killed by an abstract class, congratulations %o, we are all very proud of you. Or maybe a modder forgot to define a custom obituary.";
+		Tag "Military Vehicle Base (You really shouldn't be seeing this in-game)";
+		
+		//Flags
+		Monster;
+		+NoForwardFall; //Doesn't make sense for a tank or some shit to slide forward after dying.
+		//+AvoidMelee;
+		+AvoidHazards;
+		+SeeFriendlyMonsters; //Of course this is on for enemy vehicles.
+		+Telestomp;
+		+NoInfightSpecies;
+		//+DontSquash; Not on for all vehicles by default, but will be useful for more powerful vehicles like the tank.
+		//+DontBlast; Also reserved for the tank.
+		+DontMorph; //This is just here because ZDoom's morphing code is a mess internally, and having any of the vehicles morph would definitely break something.
+		+DontDrain; //How would you suck the life out of an inanimate object ?
+		+DontCorpse; //Keeps the vehicles' normal collision even after they are destroyed.
+		+NoBlood; //https://www.youtube.com/watch?v=K63AVSCPcSI
+		+NoPain;
+		+FloorClip;
+		+AddLightLevel; //Used for the headlight system.
+		-CanUseWalls; //Vehicles shouldn't be able to use walls, well, not the large ones anyway.
+		
+		//Damage factors that act as the vehicles "armor".
+		DamageFactor 0.9; //Generic damage factor for all damage.
+		DamageFactor "Drowning", 0.0;
+		DamageFactor "Poison", 0.0;
+		DamageFactor "PoisonCloud", 0.0;
+		DamageFactor "Melee", 0.2; //May change this to have melee damage do nothing to the vehicles, unless it exceeds a certain ammount.
+		DamageFactor "Electric", 0.2;
+		DamageFactor "ExplosiveImpact", 0.75;
+		DamageFactor "Explosion", 0.75;
+		DamageFactor "Explosive", 0.75;
+		DamageFactor "Grenade", 0.7;
+		DamageFactor "HitScan", 0.8; //The generic damage type of hitscan attacks.
+		DamageFactor "Fire", 0.8;
+		DamageFactor "Crush", 1.5;
+		DamageFactor "Disintegrate", 1.5;
+		DamageFactor "Railgun", 2.0;
+		DamageFactor "Falling", 1.25;
+		//Damage factors specific to the Smart Marines.
+		DamageFactor "MarineHMG", 0.8;
+		DamageFactor "MarineGrenade", 0.7;
+		DamageFactor "MarineRifle", 0.7;
+		//Vehicle damage factors
+		DamageFactor "Autocannon", 0.8;
+		DamageFactor "RifleBullet", 0.8;
+	}
+	
+	/*Allows each vehicle to define the defaults for its' own user variables. This is better than the //$UserDefaultValue editor key,
+	because it allows default user variable values to be set for actors that are spawned in-game as well, not just ones placed in UDB*/
+	Virtual Void UserVariableDefaults ()
+	{
+		If (User_RetreatDistance == 0) User_RetreatDistance = 768;
+		If (User_ChaseTime == 0) User_ChaseTime = (35/2)*30; //This is 35/2, because it assumes that the default See state on the vehicles has 2 tic long states.
+	}
+	
+	//Handles spawning each vehicles' turret, if they have any.
+	Virtual Void SpawnVehicleTurret ()
+	{
+		If (VehicleTurret)
+		{
+			Turret = KAI_BaseTurret(Spawn (VehicleTurret,Pos+TurretOffsets));
+			If (Turret)
+			{
+				Turret.CopyFriendliness (Self,False);
+				Turret.SpawnFlags = SpawnFlags;
+				Turret.HandleSpawnFlags();
+				Turret.Angle = Angle;
+				Turret.Pitch = Pitch;
+				Turret.Master = Self;
+				Double HealthFactor = Double(Health) / Double(Default.Health);
+				Turret.Health *= HealthFactor;
+				Turret.TurretOffsets = TurretOffsets;
+				//Turret.SetOrigin (Vec3OffsetRelative(Turret.Master,(Turret.TurretOffsets.XY,Turret.Master.Height+Turret.TurretOffsets.Z),flags:V3R_ANGLEONLY),True);
+			}
+		}
+	}
+	
+	//Used to neatly order the spawning of headlights in vehicle definitions. You could just as easily do the spawning in PostBeginPlay()
+	Virtual Void SpawnHeadlights(){}
+	
+	//NOTE: Maybe have this check for SECF_NOATTACK sectors ? Or not, since it would trigger vehicles to run away from enemies in them.
+	//Used by KAI_Chase to check for all the different methods each vehicle has to attack.
+	Virtual Bool CanAttack()
+	{
+		Return False; //Vehicles have no attacks by default, of course.
+	}
+	
+	//Called in the middle of KAI_Chase to handle the unique attack decision code of each vehicle.
+	//NoStateJump: If true, then the vehicle should not call SetStateLabel.
+	Virtual Bool ShouldAttack(Bool NoStateJump = False)
+	{
+		Return False;
+	}
+	
+	//Return the location that the vehicles' attack will hit at.
+	Virtual Vector3 GetAttackLocation() {Return (Double.NaN,Double.NaN,Double.NaN);}
+	
+	//Should the vehicle stay still and attack ? The base actor class simply houses the most basic conditional check for this.
+	//CheckSightFrom is the actor whose sight to their target is checked, to determine if the vehicle can shoot.
+	Virtual Bool StayStillAndShoot (Actor CheckSightFrom)
+	{
+		If (StayStillDelay) Return False; //Too soon
+		If (Turret && Turret.bDontStayAround) Return False; //Turret told you to not move.
+		If (Turret && Turret.ElevationState != Turret.ELEVATION_INBOUNDS) Return False; //The turrets' target is too high up or low down to shoot.
+		If (IsPatrolling (Self) && bChaseGoal) Return False; //Don't stop if patrolling and "Don't Chase Goal" is on.
+		
+		Double Distance = (User_RetreatDistance > 0) ? User_RetreatDistance : 512; //Fall back to a distance of 512 MU if the vehicle is set to not retreat.
+		//Check if you are far enough from your nearest enemy or target.
+		Actor Whomstve = (NearestEnemy ? NearestEnemy : Target);
+		If ((Whomstve && Distance3DSquared (Whomstve) >= (Distance*Distance)*1.2))
+		{
+			If (CheckSightFrom.CheckSight (CheckSightFrom.Target))
+				Return True;
+		}
+		Return False;
+	}
+	
+	Override Void BeginPlay()
+	{
+		Super.BeginPlay();
+		
+		If (GetClassName() == "KAI_BaseVehicle" || GetClassName() == "KAI_BaseTurret" || GetClassName() == "KAI_BaseProp" || GetClassName() == "KAI_BaseTurretProp")
+		{
+			Console.Printf ("How the fuck did you spawn this in ?");
+			Destroy();
+		}
+	}
+	
+	Override Void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		UserVariableDefaults();
+		SpawnVehicleTurret();
+		SpawnHeadlights();
+		
+		If (!bFriendly) Species = 'MilitaryHostile';
+		
+		If (!User_DefaultOrder || User_DefaultOrder ~== "")
+		{
+			//This tries to pick a random visible player for the vehicle to follow, if no friendly players are in sight, the vehicle will wander instead.
+			Array <PlayerPawn> VisibleFriends;
+			//Find all visible players friendly to you.
+			For (Int I = 0; I < MAXPLAYERS; I++)
+			{
+				If (!PlayerInGame[I]) Continue;
+				
+				If (IsFriend (Players[I].Mo) && CheckSight (Players[I].Mo, SF_IGNOREVISIBILITY|SF_IGNOREWATERBOUNDARY))
+					VisibleFriends.Push (Players[I].Mo);
+			}
+			
+			//Found at least one visible friendly player to follow.
+			If (VisibleFriends.Size() - 1 >= 0)
+			{
+				SetFriendPlayer (VisibleFriends[Random (0, VisibleFriends.Size() - 1)].Player); //Randomly pick a visible friend to follow.
+				CurrentOrder = ORDER_FOLLOW;
+			}
+			//No friendplayer, or they are out of sight
+			Else If (!FriendPlayer || FriendPlayer && !CheckSight (Players[FriendPlayer].Mo, SF_IGNOREVISIBILITY|SF_IGNOREWATERBOUNDARY))
+			{
+				CurrentOrder = ORDER_WANDER;
+				bDontFollowPlayers = True;
+			}
+		}
+		Else If (User_DefaultOrder ~== "Follow")
+		{
+			CurrentOrder = ORDER_FOLLOW;
+		}
+		Else If (User_DefaultOrder ~== "Wander")
+		{
+			CurrentOrder = ORDER_WANDER;
+			bDontFollowPlayers = True;
+		}
+		Else If (User_DefaultOrder ~== "Stay" || User_DefaultOrder ~== "Stand")
+		{
+			CurrentOrder = ORDER_STAY;
+		}
+	}
+	
+	Override Void Tick()
+	{
+		Name FearToken = "SM_IAmTheDanger";
+		Super.Tick();
+		
+		If (IsFrozen()) Return;
+		
+		If (StayStillDelay)
+			StayStillDelay--;
+		
+		If (!User_NoHeadlights)
+			HeadLightsOn = (CurSector && CurSector.LightLevel <= 104);
+		
+		If (HeadLightsOn)
+			TurnHeadlightsOn();
+		Else
+			TurnHeadlightsOff();
+		
+		If (CheckActorExists(FearToken))
+		{
+			If (bScareMarines && Self) SetInventory (FearToken,1);
+			Else If (!bScareMarines && Self) TakeInventory (FearToken,INT.MAX);
+		}
+	}
+	
+	Override Bool CanCollideWith (Actor Other, Bool Passive)
+	{
+		//Stops the turret from preventing vehicles from going up slopes and steps due to the turret getting in the way.
+		If (!Passive && Other && Other == Turret && ((KAI_BaseTurret(Turret).bFallOnDeath && !IsDead (Turret)) || !KAI_BaseTurret(Turret).bFallOnDeath))
+			Return False;
+		
+		Return Super.CanCollideWith (Other, Passive);
+	}
+	
+	Override Void Die (Actor Source, Actor Inflictor, Int DmgFlags, Name MeansOfDeath)
+	{
+		Name FearToken = "SM_IAmTheDanger";
+		Super.Die (Source, Inflictor, DmgFlags, MeansOfDeath);
+		If (Turret && !IsDead(Turret)) //When dead, kill the turret the same way as the vehicle died.
+		{
+			Turret.bTransferDamage = False; //Turn the flag off so that the turret can die after the vehicle itself does.
+			If (Health < GetGibHealth()) //Same check Die() uses internally to check if an actor was gibbed. 
+				Turret.DamageMobj (Inflictor, Source, Turret.Health+(-Turret.GetGibHealth())+1, MeansOfDeath, DMG_FORCED);
+			Else
+				Turret.DamageMobj (Inflictor, Source, Turret.Health, MeansOfDeath, DMG_FORCED);
+		}
+		TakeInventory (FearToken,INT.MAX);
+		bShootable = bNotAutoaimed = True; //Destroyed vehicles stay shootable and non-autoaimable unless specified otherwise.
+		RemoveHeadlights(); //The vehicles aren't resurrectable, so the headlights aren't needed.
+		HeadlightsOn = False;
+		CorpseTarget = Null;
+		A_StopSound (CHAN_IDLING);
+		A_StopSound (CHAN_MOVING);
+	}
+	
+	Override Void OnDestroy()
+	{
+		Super.OnDestroy();
+		RemoveHeadlights();
+		If (Turret) Turret.Destroy();
+		AttackStates.Delete(0,AttackStates.Size()); //Clean the array before removal, because the GC can't: https://github.com/ZDoom/gzdoom/issues/2019
+	}
+	
+	Override Void Activate (Actor Activator)
+	{
+		Super.Activate(Activator);
+		
+		If (Turret) //Pass it down to turrets as well.
+			Turret.Activate (Activator);
+	}
+	
+	Override Void Deactivate (Actor Activator)
+	{
+		Super.Deactivate(Activator);
+		
+		If (Turret) //Pass it down to turrets as well.
+			Turret.Deactivate (Activator);
+	}
+	
+	Enum VehicleSoundChannels
+	{
+		CHAN_IDLING = 23500,
+		CHAN_MOVING = 23501
+	}
+	
+	Enum VehicleCommands
+	{
+		ORDER_NONE = 0, //Null
+		ORDER_FOLLOW = 1, //Follow the player when having no target.
+		ORDER_WANDER = 2, //Wander around when having no target, instead of following the player.
+		ORDER_STAY = 3, //Stay in place until a target appears or you are ordered to start moving again. Then stand around again once the chase timer is out.
+		//ORDER_GOTOPOINT ? Perhaps, but maybe not, since I'm not sure how I could code the vehicles to head to a specified point.
+	};
+	
+	Mixin KAI_CheckFunctions;
+	Mixin KAI_MathFunctions;
+	
+	Const MARINE_RECURSIONS = 32; //How many times marine dropping vehicles can try dropping in an invalid spot before giving up.
+	Const DEFAULT_HEARDISTANCE = 4096; //Exactly what it says, the default hear distance the vehicles' and turrets' A_LookEx calls use.
+	Const DEFAULT_SEEDISTANCE = 8192; //The default sight distance.
+	
+	//AI variables
+	Actor DeathWarnZone; //The warning zone attached to the vehicle after it died, if any. Used to warn Smart Marines if the vehicle wreck is burning.
+	Actor NearestEnemy; //The enemy closest to the vehicle, if any.
+	Actor CorpseTarget; //The corpse that the vehicle is trying to crush.
+	Int ChaseTimer; //Makes the vehicle only chase its' target for a certain amount of time after it goes out of sight. Is also used to determine how long turreted vehicles stay in one place.
+	Int FearTimer; //Makes the vehicle keep running away from it's target for an additional random amount of time, so that it doesn't play peekaboo with enemies.
+	Int CurrentOrder; //The current order the vehicle is following.
+	Int StayStillDelay; //How long before the vehicle can stand still to attack again.
+	Array <State> AttackStates; //Can be used to store all of the attack state labels each vehicle has.
+	Double AggressionMultiplier; //Can be used to further increase the chance of KAI_CheckMissileRange returning true. The LOWER it is the more frequent the attacking.
+	Property AggressionMultiplier : AggressionMultiplier;
+	
+	//Internal variables
+	Array <Actor> DeathFlames; //Pointers to the flames created by the vehicle being gibbed.
+	Array <KAI_Headlight> Headlights; //Pointers to each headlight the vehicle has.
+	Bool HeadlightsOn; //Should the headlights be on ?
+	KAI_BaseTurret Turret; //The turret the vehicle has, used to actually spawn said turret.
+	Vector3 TurretOffsets; //The offsets of the turret relative to the vehicle.
+	Bool LightsOnAlready; //Used to stop the headlight code from constantly iterating through the headlights.
+	
+	Double MaxCorpseRadius, MaxCorpseHeight;
+	Property MaxCorpseRadius : MaxCorpseRadius;
+	Property MaxCorpseHeight : MaxCorpseHeight;
+	
+	//Flag variables
+	Private Int VehicleFlags;
+	FlagDef Transport : VehicleFlags, 0; //The vehicle is marked as being able to transport soldiers.
+	FlagDef NoRadio : VehicleFlags, 1; //The vehicle ignores orders given to it by the radio item.
+	FlagDef ScareMarines : VehicleFlags, 2; //The vehicle can automatically scare marines away, regardless of its' size or health.
+	Class<KAI_BaseTurret> VehicleTurret; //The pointer to the vehicles' turret, if any.
+	Property VehicleTurret : VehicleTurret;
+	
+	//Generic user variables
+	Bool User_NoHeadLights; //Vehicle doesn't use it's headlights, or if its' a prop, the headlights should be off.
+	//Bool User_NoTargetPrediction; //The vehicle will not calculate it's targets' movement and lead its' shots, this is only available to certain vehicles as not all of them have projectile attacks.
+	Double User_RetreatDistance; //The amount of distance the vehicle keeps from enemies.
+	Int User_ChaseTime; //How much time the vehicle spends looking for it's out-of-sight target before giving up.
+	String User_DefaultOrder; //The default order the vehicle follows upon spawning.
+	
+	States
+	{
+		StickAround: //Generic state shared by all vehicles, for when they are far enough from any enemies to be able to just sit and let their turrets do the work.
+			#### # 0
+			{
+				//Face sideways from your target, if any.
+				A_FaceTarget ();
+				If (Target)
+					Angle += RandomPick (75,80,85,90,95,10,105);
+			}
+			#### # 4 //If an enemy has gotten too close, the turret can't attack, or enough time has passed, then stop standing around.
+			{
+				If (ChaseTimer <= 0 || FindNearestEnemy (User_RetreatDistance/1.4) || Turret && (!Turret.CanAttack() || Turret.bDontStayAround))
+				{
+					ChaseTimer = 0;
+					Return ResolveState ("See");
+				}
+				
+				ChaseTimer--;
+				Return State (Null);
+			}
+			Goto StickAround+1;
+	}
+}
+
+Class KAI_BaseTurret : KAI_BaseVehicle Abstract
+{
+	Default
+	{
+		Speed 0;
+		FastSpeed 0;
+		RipLevelMin 2;
+		MaxStepHeight 0;
+		Mass 500;
+		KAI_BaseTurret.TurnAmount 0.15;
+		KAI_BaseTurret.TurnSoundRadius 2;
+		Tag "Military Vehicle Turret Base (You really shouldn't be seeing this in-game)";
+		DamageFactor "MarineGrenade", 0.9;
+		DamageFactor "Grenade", 0.9;
+		DamageFactor "MarineRifle", 0.75;
+		+NoFear; //Can't really move to run away.
+		+DontThrust;
+		+StandStill;
+		+LookAllAround;
+		+DontFollowPlayers;
+		+NoSpriteShadow;
+		+KAI_BaseVehicle.NoRadio;
+		-AvoidHazards;
+		-AvoidMelee;
+		-CanBlast; //Turrets are attached to their vehicle.
+		-CountKill; //And because of that, they don't count as kills either.
+	}
+	
+	Private Int TurretFlags;
+	FlagDef FallOnDeath : TurretFlags, 0; //Turret detached from its' vehicle upon death.
+	FlagDef DontStayAround : TurretFlags, 1; //Used to make the turret not make the vehicle stop to sit around and let the turret shoot, even if the latter has a target.
+	FlagDef NoTargetPrediction : TurretFlags, 2; //The turret will not calculate its' targets' movement and lead its' shots.
+	//Note: If your turret has bTransferDamage, any splash damage the vehicle itself receives will be effectively doubled due to the damage transfer.
+	//If you do not want this unintended consequence of the flag, then give the turret the +NORADIUSDMG flag !
+	FlagDef TransferDamage : TurretFlags, 3; //The turret will transfer damage taken to its' master (The vehicle it's on). Instead of taking any of its' own.
+	FlagDef NoCombatTraverse: TurretFlags, 4; //The stock combat traverse code will not run, can be used to give the turret its' own turn logic when firing.
+	
+	//Turret turning variables and properties.
+	Double MaxPitch, MinPitch, TurnAmount, TurnSoundRadius, CombatAngleTurnRate, CombatPitchTurnRate;
+	Sound TurnSound;
+	Property MaximumPitch : MaxPitch; //The maximum pitch the turret can go up to.
+	Property MinimumPitch : MinPitch; //The minimum pitch the turret can go down to.
+	Property TurnAmount : TurnAmount; //How much the turret turns to face the vehicle when it's not snapping into position.
+	Property TurnSoundRadius : TurnSoundRadius; //How much the turret has to turn since last tick for the sound to play.
+	Property TurnSound : TurnSound; //The sound the turret makes when it turns.
+	Property CombatAngleTurnRate : CombatAngleTurnRate; //How fast the turret changes its' angle to face its' target when in combat. In degrees per second.
+	Property CombatPitchTurnRate : CombatPitchTurnRate; //How fast the turret changes its' pitch to face its' target when in combat. In degrees per second.
+	
+	Int TurretSnapDelay; //Used for the turret rotating code, to make it so the turret snaps back to the vehicle after some time of not having a target.
+	Double TurretRotationOffset; //Can be used to offset the rotation of the turret by this exact amount. Used by turrets when they are destroyed, and by prop turrets.
+	Vector3 LastEnemyPosition; //Used by the target prediction. If the turret has a target with no velocity, it grabs their last position every tick to compare it to the current position.
+	Vector3 CurrentEnemyPosition;
+	
+	Double OldSoundAngle; //The turrets' angle in the last tick. Used for the turret turning sound.
+	
+	Enum ElevationStates
+	{
+		ELEVATION_TOOHIGH = -1, //The turret is aiming too high up.
+		ELEVATION_INBOUNDS = 0,	//The turret is within its' elevation limits.
+		ELEVATION_TOOLOW = 1	//The turret is aiming too low down.
+	}
+	Int ElevationState; //Look above for possible elevation states.
+	
+	Override Void PostBeginPlay ()
+	{
+		Actor.PostBeginPlay ();
+		UserVariableDefaults();
+		SpawnVehicleTurret();
+		If (!bFriendly) Species = 'MilitaryHostile';
+	}
+	
+	Override Void UserVariableDefaults ()
+	{
+		User_RetreatDistance = -1; //Turrets can't move or be scared anyway.
+		User_ChaseTime = 30*4;
+	}
+	
+	Override Bool CanAttack()
+	{
+		If (IsDead(Self)) Return False; 
+		If (ElevationState != ELEVATION_INBOUNDS) Return False;
+		
+		Return True;
+	}
+	
+	//Default turret checks. Is there even a target to shoot, and can the turret attack ?
+	Override Bool ShouldAttack (Bool NoStateJump)
+	{
+		If (!Target) Return False;
+		If (!CanAttack()) Return False;
+		
+		Return True;
+	}
+	
+	Override Bool StayStillAndShoot(Actor CheckSightFrom) {Return False;} //Turrets already can't move lol.
+	
+	Override Void Tick()
+	{
+		OldSoundAngle = Angle;
+		Super.Tick();
+		
+		//Keeps track of the current targets' position for the target prediction code.
+		If (Target && Target.Tics == Target.CurState.Tics)
+		{
+			LastEnemyPosition = CurrentEnemyPosition;
+			CurrentEnemyPosition = Target.Pos;
+		}
+		Else If (!Target)
+			LastEnemyPosition = CurrentEnemyPosition = (0,0,0);
+		
+		If (IsFrozen()) Return;
+		
+		Bool IsDead = IsDead (Self);
+		
+		//Combat turret traverse handling.
+		If (!bNoCombatTraverse && !IsDead)
+			If (IsInAttackState())
+				DoCombatTraverse (Target);
+		
+		//Play the turrets' mechanical whirring sound whenever it's not dead.
+		If (TurnSound && !IsDead)
+		{
+			//But only play it when the angle has changed a certain amount.
+			If (AbsAngle (Angle,OldSoundAngle) >= TurnSoundRadius
+			&& !(Master && AbsAngle(Master.Angle,Angle) <= 0.25)) //Stops the turn sound from playing when the turret is snapping to the vehicles' angle.
+				A_StartSound (TurnSound,CHAN_BODY,0,0.8,0.8);
+		}
+		
+		ElevationState = TurretOverPitchLimits();
+		If (ElevationState != ELEVATION_INBOUNDS) Pitch = Clamp (Pitch,MaxPitch,MinPitch); //Turrets can't move past their elevation limits.
+		
+		If (!Master || IsDead && bFallOnDeath) Return;
+		
+		SetOrigin (Vec3OffsetRelative(Master,(TurretOffsets.XY,Master.Height+TurretOffsets.Z),flags:V3R_ANGLEONLY),True);
+		A_Stop();
+		Floorclip = Master.Floorclip; //Copy floorclip offset for TERRAIN liquids.
+	}
+	
+	Override Void Die (Actor Source, Actor Inflictor, Int DmgFlags, Name MeansOfDeath)
+	{
+		If (Master && !(Self Is "KAI_BaseTurretProp")) //Prop turrets use TurretRotationOffset differently.
+			TurretRotationOffset = DeltaAngle (Master.Angle,Angle);
+		
+		Super.Die (Source, Inflictor, DmgFlags, MeansOfDeath);
+		bShootable = bNotAutoaimed = True;
+		If (bFallOnDeath) bNoSpriteShadow = False;
+		TurretSnapDelay = 0;
+	}
+	
+	Override Int DamageMobj (Actor Inflictor, Actor Source, Int Damage, Name MOD, Int Flags, Double Angle)
+	{
+		If (bTransferDamage && Master && !bNoDamage)
+		{
+			//TODO: Expose the internal ReactToDamage() function to ZScript in a PR one day. To call it from here.
+			//HACK: This is mostly a copied bit from this unexposed internal code: https://sourcegraph.com/github.com/ZDoom/gzdoom/-/blob/src/playsim/p_interaction.cpp?L894
+			If (Damage > 0 && OkayToSwitchTarget(Source))
+			{
+				If (!LastEnemy)
+					LastEnemy = Target; //Remember our last enemy.
+				
+				Target = Source;
+				Threshold = DefThreshold;
+			}
+			Return Master.DamageMobj (Inflictor, Source, Damage, MOD, Flags, Angle);
+		}
+		
+		Return Super.DamageMobj (Inflictor, Source, Damage, MOD, Flags, Angle);
+	}
+	
+	Override Void OnDestroy()
+	{
+		Super.OnDestroy();
+	}
+}
+
+//The code that actually draws the line between the projectiles' current and previous position was written by Boondorl, since my own version had problems with pitch and so on. 
+//It's a FastProjectile with custom trail spawning code, so don't bother using FastProjectile's own trail system, as this one works better for truly fast projectiles.
+Class KAI_BaseProjectile : FastProjectile
+{
+	Default
+	{
+		MissileHeight 8;
+		KAI_BaseProjectile.TrailLineSpacing 2;
+		Projectile;
+	}
+	
+	Override Void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		
+		If (Target) Species = Target.Species;
+	}
+	
+	//NOTE: Die() is not called on projectiles except during bounces, for some reason. And calling this code manually on death states wouldn't be too different from the current system.
+	/*Override Void Die (Actor Source, Actor Inflictor, Int DmgFlags, Name MeansOfDeath)
+	{
+		Super.Die (Source, Inflictor, DmgFlags, MeansOfDeath);
+		a_log ("called die()");
+		//Check if the projectile hit any liquid flat. If it did call the hit liquid virtual method.
+		Bool HitFloor = (Pos.Z <= FloorZ);
+		Bool HitCeiling = (Pos.Z + Height >= CeilingZ);
+		Int LiquidType;
+		If (HitFloor || HitCeiling)
+		{
+			LiquidType = CheckLiquid (HitFloor ? FloorPic : CeilingPic);
+			If (LiquidType != LIQUID_NONE)
+				ProjectileHitLiquid (LiquidType,HitCeiling);
+		}
+	}*/
+	
+	Override Void Tick ()
+	{
+		Vector3 OldPos = Pos;
+		Super.Tick();
+		
+		//bMissile is removed when a projectile explodes.
+		If (!bMissile || IsFrozen()) Return;
+		
+		If (TrailDelay)
+		{
+			TrailDelay--;
+			Return;
+		}
+		
+		If (bNoTrailLine)
+		{
+			Effect();
+			Return;
+		}
+		
+		If (TrailActor)
+		{
+			Vector3 Path = Level.Vec3Diff( Pos, OldPos );
+			Double Distance = Path.Length();
+			If (Distance <= 1) Return;
+			Path /= Distance;
+			
+			Double CurScaleX = ScaleAmountX;
+			Double CurScaleY = ScaleAmountY;
+			Double CurAlpha = FadeAmount;
+			
+			For( Double I = InitialTrailsSkipped; I < Distance; I += TrailLineSpacing )
+			{
+				If (MaxTrails != 0 && MaxTrails <= I) Break; //Too many trail actors.
+				
+				Let Trail = Spawn(TrailActor,level.Vec3Offset(pos, Path*i));
+				If (Trail)
+				{
+					TrailSpawn (Trail); //Return spawned trail.
+					//If it's time to begin scaling and fading the trail.
+					If (I >= TrailFadeAndScaleStart)
+					{
+						Trail.Scale.X += CurScaleX;
+						Trail.Scale.Y += CurScaleY;
+						Trail.Alpha += CurAlpha;
+						CurScaleX += ScaleAmountX;
+						CurScaleY += ScaleAmountY;
+						CurAlpha += FadeAmount;
+					}
+				}
+			}
+		}
+	}
+	
+	//Mostly ripped from the native FastProjectile, with some changes and additions.
+	Override Void Effect()
+	{
+		If (!bNoTrailLine) Return;
+		Class<Actor> Trail = TrailActor;
+		Actor Act;
+		If (Trail != Null)
+		{
+			Double HitZ = Pos.Z - 8;
+
+			If (HitZ < FloorZ)
+			{
+				HitZ = FloorZ;
+			}
+			// Do not clip this offset to the floor.
+			HitZ += MissileHeight;
+			
+			Act = Spawn (Trail, (Pos.XY, HitZ), ALLOW_REPLACE);
+			If (Act != Null)
+			{
+				TrailSpawn (Act);
+				If (bGetOwner && Target != Null)
+					Act.Target = Target;
+				Else
+					Act.Target = Self;
+				
+				//Act.Angle = Angle; //These are handled by TrailSpawn().
+				//Act.Pitch = Pitch;
+			}
+		}
+	}
+	
+	//Returns each trail actor spawned, allowing you to perform per-trail modifications.
+	Virtual Void TrailSpawn (Actor Trail)
+	{
+		If (!Trail) Return;
+		
+		Trail.Master = Self;
+		Trail.Angle = Angle;
+		Trail.Pitch = Pitch;
+		//Pass trail properties. Only really works for the dedicated trail class in particular, so it only runs if the trail is MVP_Tracer or a child class.
+		If (Trail Is "MVP_Tracer")
+		{
+			MVP_Tracer(Trail).SpawnOffsets.X = SpawnOffsetX;
+			MVP_Tracer(Trail).SpawnOffsets.Y = SpawnOffsetY;
+			MVP_Tracer(Trail).SpawnOffsets.Z = SpawnOffsetZ;
+		}
+	}
+	
+	//Virtual Void ProjectileHitLiquid (Int LiquidType, Bool HitCeiling){}
+	
+	//Allows to quickly set up a spawned liquid splash, and then returns a pointer the splash to allow for further modifications, like making it visually larger or calling A_QuakeEx from it.
+	Actor SpawnLiquidSplash (Int LiquidType = LIQUID_WATER, Sound SplashSound = "SFX/LiquidExplosion", Double Volume = 1.0, Double Attenuation = 0.5,
+	Int ExplosionDamage = 0, Double ExplosionRadius = 0, Double FullDamageRadius = 0, Name DamageType = "", Bool DontHarmSource = False)
+	{
+		Actor Splash = Spawn ("MVP_LiquidSplash",Pos);
+		
+		If (Splash)
+		{
+			//Set the shooter of the projectile for DontHarmSource to work.
+			If (bMissile)
+				Splash.Target = Target; //Projectiles store their shooter in the target pointer, so transfer the shooter to the splash.
+			Else
+				Splash.Target = Self; //Otherwise set the shooter to the actor calling the function, if it's not a projectile somehow.
+			
+			MVP_LiquidSplash(Splash).LiquidType = LiquidType;
+			MVP_LiquidSplash(Splash).SplashSound = SplashSound;
+			MVP_LiquidSplash(Splash).Volume = Volume;
+			MVP_LiquidSplash(Splash).Attenuation = Attenuation;
+			MVP_LiquidSplash(Splash).RadiusDamage = ExplosionDamage;
+			MVP_LiquidSplash(Splash).MaxTargetRange = ExplosionRadius;
+			MVP_LiquidSplash(Splash).MeleeRange = FullDamageRadius;
+			MVP_LiquidSplash(Splash).ExplosionDamageType = DamageType;
+			MVP_LiquidSplash(Splash).DontHarmSource = DontHarmSource;
+			Return Splash;
+		}
+		
+		Return Null;
+	}
+	
+	Bool DeflectProjectile (Actor Victim, Int DeflectChance, Double DamageReductionFactor, Double SlowDownFactor = 0,
+	Vector2 RandomAngle = (0,0), Vector2 RandomPitch = (0,0), Double Volume = 1, Double Attenuation = 0.9)
+	{
+		If (Random (0,255) < DeflectChance) Return False; //Fission mailed.
+		
+		Int Damage = GetMissileDamage(7,1); //Get your damage, be it a static number or a damage function.
+		Victim.DamageMobj (Self,Target,Int(Damage*DamageReductionFactor),DamageType); //Harm the caller even when deflected.
+		Angle -= 180; //Turn around.
+		Vel *= -1; //Opposite day today
+		Speed *= SlowDownFactor; //Slow down by a set amount. Can just be randomized in the parameters instead.
+		//Randomize the direction you'll fly to.
+		Angle += FRandom (RandomAngle.X,RandomAngle.Y);
+		Pitch += FRandom (RandomPitch.X,RandomPitch.Y);
+		Vel3DFromAngle (Speed,Angle,Pitch);
+		
+		//Spark effect.
+		TextureID NullTex;
+		For (Int I = 0; I < 24; I++)
+		{
+			A_SpawnParticleEx (
+			"yellow",
+			NullTex,
+			STYLE_Add,
+			lifetime:23,
+			size:3,
+			xoff:FRandom (6,-6),
+			yoff:FRandom (6,-6),
+			zoff:FRandom (6,-6),
+			velx:FRandom (1,-1),
+			vely:FRandom (1,-1),
+			velz:FRandom (1,3),
+			accelz: FRandom (-0.1,-0.25)
+			);
+		}
+		Victim.A_StartSound (BounceSound,flags:CHANF_OVERLAP,Volume,Attenuation); //Ricochet sound, uses the BounceSound property, naturally.
+		DontCollide = Victim; //You should no longer collide with the actor you just deflected, to avoid getting stuck inside it.
+		
+		Return True;
+	}
+	
+	//Has different values than UpdateTurretElevation().
+	Int UpdateProjectileElevation (Int FaceDown, Int FaceDown2, Int FaceStraight, Int FaceUp, Int FaceUp2)
+	{
+		If (Pitch >= 70)
+			Return FaceDown2;
+		Else If (Pitch >= 30 && Pitch < 70)
+			Return FaceDown;
+		Else If (Pitch < 30 && Pitch > -30)
+			Return FaceStraight;
+		Else If (Pitch <= -30 && Pitch > -70)
+			Return FaceUp;
+		Else If (Pitch <= -70)
+			Return FaceUp2;
+		
+		Return FaceStraight;
+	}
+	
+	Override Int SpecialMissileHit (Actor Victim)
+	{
+		If (Target && Target Is "KAI_BaseTurret" && Victim && Victim == Target.Master) Return 1; //If fired from a turret, ignore the vehicle it's attached on.
+		
+		Return -1;
+	}
+	
+	Actor DontCollide; //Stores an actor that will be ignored by SpecialMissileHit, this is here so deflecting projectiles don't deflect dozens of times when bouncing off.
+	
+	Mixin KAI_UniversalFunctions;
+	Mixin KAI_CheckFunctions;
+	Private Int ProjectileFlags;
+	FlagDef NoTrailLine : ProjectileFlags, 0; //The projectile uses the normal FastProjectile trail spawning code.
+	Class <Actor> TrailActor;
+	Property TrailActor : TrailActor;
+	
+	Int TrailDelay, MaxTrails, InitialTrailsSkipped, TrailFadeAndScaleStart;
+	Property TrailDelay : TrailDelay;
+	Property MaxTrails : MaxTrails;
+	Property InitialTrailsSkipped : InitialTrailsSkipped;
+	Property TrailFadeAndScaleStart : TrailFadeAndScaleStart;
+	
+	Double TrailLineSpacing;
+	Property TrailLineSpacing : TrailLineSpacing;
+	
+	Double ScaleAmountX, ScaleAmountY, FadeAmount;
+	Property ScaleAmountX : ScaleAmountX;
+	Property ScaleAmountY : ScaleAmountY;
+	Property FadeAmount : FadeAmount;
+	
+	Double SpawnOffsetX, SpawnOffsetY, SpawnOffsetZ;
+	Property SpawnOffsetX : SpawnOffsetX;
+	Property SpawnOffsetY : SpawnOffsetY;
+	Property SpawnOffsetZ : SpawnOffsetZ;
+}
+
+Class KAI_Headlight : DynamicLight
+{
+	Default
+	{
+		DynamicLight.Type "Point";
+		//+DynamicLight.Attenuate;
+		+DynamicLight.Spot;
+	}
+	
+	Bool Active; //The actual internal m_Active variable that reports if a dynamic light is on isn't exposed to ZScript.
+	Vector3 Offset; //This needs to be here because SetOffset() doesn't work right after a dynamic light spawns.
+	Bool IsBacklight;
+	
+	Override Void Tick()
+	{
+		//The actual location offsets of the lights are handled by the internal m_Ofs variable.
+		If (Target && KAI_BaseVehicle(Target).HeadlightsOn)
+		{
+			SetOrigin (Target.Pos, True);
+			Angle = IsBackLight ? Target.Angle-180 : Target.Angle;
+			Pitch = Target.Pitch;
+		}
+	}
+	
+	//White by default.
+	Override Void BeginPlay()
+	{
+		Super.BeginPlay();
+		
+		Args[LIGHT_RED] = 255;
+		Args[LIGHT_GREEN] = 255;
+		Args[LIGHT_BLUE] = 255;
+		Args[LIGHT_INTENSITY] = 256;
+	}
+	
+	Override Void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		Deactivate(Self); //Off by default.
+		SetOffset(Offset);
+	}
+}
+
+//The actor that warns marines around a specified area to run away from the zone in question, it uses the following properties and flags:
+//MaxTargetRange: Determines the exact size of the warning zone.
+//FIXME: Fix the really fucking stupid bug where when the zone alerts a marine, it will sometimes also alert other friendly NPCs and also make them target said zone.
+Class SmartMarineWarningZone : Actor
+{
+	Default
+	{
+		Radius 0.1; Height 0;
+		MaxTargetRange 256;
+		//+Friendly; //To get your grenade-type warning to work with the marines the Friendly flag is NEEDED, because otherwise friendly marines will sometimes end up running in place for some ungodly reason.
+		+Shootable; //This will hopefully stop marines running from these warnings from ever getting stuck and running in place.
+		+NoBlockmap; //Let's hope this doesn't somehow fuck something up on the marines :)
+		+NotAutoaimed
+		+NoBlood;
+		+NoDamage;
+		+NoGravity;
+		+NoTarget; //Praying this stops marines from EVER having these zones as their target after they are done running from them.
+	}
+	
+	Enum KAIMarineWarnFlags
+	{
+		MWRN_ALLIESTOO = 1 << 0, //Gives the warning to marines that are on the same side as the warning zone too, for stuff like indiscriminate AOE attacks. Use CopyFriendliness to make the zone share the allegience of its' creator.
+		MWRN_WARP = 1 << 1, //Does nothing here, look at WarnMarines() instead.
+		MWRN_PAINONLY = 1 << 2, //Specifies to marines that the AOE attack just causes pain, so they won't run away if on a turret, where they don't feel pain to begin with. This is basically only here because of the Army Car's pain ray.
+		MWRN_VEHICLEDEATH = 1 << 3, //Makes it so if the zone is attached to a vehicle, then it will destroy itself once the vehicle has no flames left from it being destroyed.
+	}
+	
+	Inventory Token;
+	Vector3 Offset;
+	Int Flags;
+	Mixin KAI_CheckFunctions;
+	Mixin KAI_MathFunctions;
+	
+	//Cool copy and paste courtesy of the god forsaken scope system.
+	//Is the marine on a turret ? Literally just a convoluted way to return if the OnTurret bool is true or false for the marine.
+	Bool MarineIsOnTurret (Actor Other)
+	{
+		If (!Other) Return False;
+		
+		Name MGMarine = "TurretMarine";
+		Let IsOnTurret = ServiceIterator.Find ("SM_SmartMarines").Next();
+		
+		If (Other.GetClassName() == MGMarine)
+			Return True;
+		
+		If (IsOnTurret.GetInt ("IsOnTurret",ObjectArg:Other))
+			Return True;
+		
+		Return False;
+	}
+	
+	Override Void BeginPlay ()
+	{
+		Super.BeginPlay ();
+		
+		String NoMarineAlert = "SM_DontWarnOthers";
+		If (CheckActorExists(NoMarineAlert))
+			GiveInventory (NoMarineAlert,1);
+	}
+	
+	Override Void Tick ()
+	{
+		Name TheMarine = "SmartMarine";
+		Name TheOtherMarine = "TurretMarine";
+		Name WarningToken = "SM_ImInDanger";
+		
+		If (IsFrozen()) Return;
+		
+		//Can be used to attach the zone to an actor.
+		If (Master)
+			//SetOrigin (Master.Pos,True);
+			//SetOrigin (Master.Vec3Offset (Offset.X * Cos(Angle) + Offset.Y * Sin (Angle),Offset.X * Sin (Angle) - Offset.Y * Cos (Angle),Offset.Z),True); //Copied from SpawnMarine().
+			SetOrigin (Vec3OffsetRelative (Master,Offset),True);
+		
+		If ((Flags & MWRN_VEHICLEDEATH) && Master && Master Is "KAI_BaseVehicle") //If you are set to disappear when the vehicle has no death flames left. 
+			If (!KAI_BaseVehicle(Master).DeathFlames.Size())
+				Destroy();
+		
+		If (!CheckActorExists(WarningToken)) Return;
+		BlockThingsIterator MarineFinder = BlockThingsIterator.Create (Self,MaxTargetRange);
+		
+		Actor Mobj;
+		
+		While (MarineFinder.Next())
+		{
+			Mobj = MarineFinder.Thing;
+			
+			If (!(Mobj.GetClassName() == TheMarine || Mobj.GetClassName() == TheOtherMarine)) Continue;
+			
+			//Don't warn marines on the same side as the warning zone.
+			If (!(Flags && MWRN_ALLIESTOO))
+			{
+				If (Mobj.Health > 0 && !Mobj.bDormant && IsHostile (Mobj) && Distance3DSquared(Mobj) <= MaxTargetRange*MaxTargetRange)
+				{
+					If (!(Flags & MWRN_PAINONLY) || (Flags & MWRN_PAINONLY) && !MarineIsOnTurret(Mobj))
+					{
+						Token = Mobj.GiveInventoryType (WarningToken);
+						If (Token) Token.Master = Self;
+					}
+				}
+			}
+			//Warn all marines in the vicinity.
+			Else
+			{
+				If (Mobj.Health > 0 && !Mobj.bDormant && Distance3DSquared(Mobj) <= MaxTargetRange*MaxTargetRange)
+				{
+					If (!(Flags & MWRN_PAINONLY) || (Flags & MWRN_PAINONLY) && !MarineIsOnTurret(Mobj))
+					{
+						Token = Mobj.GiveInventoryType (WarningToken);
+						If (Token) Token.Master = Self;
+					}
+				}
+			}
+		}
+	}
+	//DEBUG: Uncomment this to be able to see where the warning zones are at.
+	/*States
+	{
+		Spawn:
+			PLSS A 4 Bright;
+			Loop;
+	}*/
+}

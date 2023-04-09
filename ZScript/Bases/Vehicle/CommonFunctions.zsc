@@ -1,0 +1,1184 @@
+//$GZDB_SKIP
+//NOTE: This shit is really long, some of it will be moved over once I begin working on KAI. But still, different types of functions should probably begin being put in different files.
+
+//Functions that can be used outside of the KAI_BaseVehicle class.
+Mixin Class KAI_MathFunctions
+{
+	//=====|Talking in tongues|=====\\
+	//What does this do ? I have no fucking idea, Agent_Ash gave it to me to fix how much the truck slows down based on the mass of the object it hit while ramming.
+	Clearscope Double LinearMap (Double Val, Double O_Min, Double O_Max, Double N_Min, Double N_Max) 
+	{
+		Return (Val - O_Min) * (N_Max - N_Min) / (O_Max - O_Min) + N_Min;
+	}
+	
+	Enum Vec3RelFlags
+	{
+		V3R_NOANGLE = 1 << 1, //Do not rotate based on angle.
+		V3R_NOPITCH = 1 << 2, //Do not rotate based on pitch.
+		V3R_NOROLL	= 1 << 3, //Do not rotate based on roll.
+		
+		V3R_ANGLEONLY = V3R_NOPITCH|V3R_NOROLL
+	}
+	
+	//Like Vec3Offset, but also rotates the output vector based on the callers' angle.
+	Clearscope Vector3 Vec3OffsetRelative (Actor Other, Vector3 Offs, Bool NoPortal = False, Int Flags = 0)
+	{
+		Double Angle2, Pitch2, Roll2;
+		If (!(Flags & V3R_NOANGLE)) Angle2 = Other.Angle;
+		If (!(Flags & V3R_NOPITCH)) Pitch2 = Other.Pitch;
+		If (!(Flags & V3R_NOROLL)) Roll2 = Other.Roll;
+		
+		Quat Dir = Quat.FromAngles (Angle2,Pitch2,Roll2);
+		Return Level.Vec3Offset (Other.Pos,Dir * Offs,NoPortal);
+		//Return Other.Vec3Offset (Offs.X * Cos(Angle) + Offs.Y * Sin (Angle),Offs.X * Sin (Angle) - Offs.Y * Cos (Angle),Offs.Z,NoPortal);
+	}
+	
+	//Is the vector empty ? Not (0,0,0), but completely empty.
+	Clearscope Bool IsEmptyVector3 (Vector3 Vec)
+	{
+		Return (Vec != Vec);
+	}
+}
+
+Mixin Class KAI_UniversalFunctions
+{
+	Enum LiquidTypes
+	{
+		LIQUID_NONE = 0,
+		LIQUID_WATER = 1,
+		LIQUID_NUKAGE = 2,
+		LIQUID_BLOOD = 3,
+		LIQUID_LAVA = 4,
+		LIQUID_SLIME = 5
+	};
+	
+	Int CheckLiquid (TextureID Texture)
+	{
+		/*===============================================================
+		This class stores the names of the different textures used for each type of liquid.
+		These lists can be expanded as seen fit for your project, in case it has additional custom water/nukage/blood/lava/slime textures.
+		The lists already contain some names of liquid flats that don't exist in the vanilla game, for built-in mod compatibility.
+		Such as by having waterfall textures that don't exist like WFALL# and NFALL#.
+		===============================================================*/
+		Static Const String WaterTextures[] = {"FWATER1", "FWATER2", "FWATER3", "FWATER4", "WFALL1", "WFALL2", "WFALL3", "WFALL4"};
+		Static Const String NukageTextures[] = {"NUKAGE1", "NUKAGE2", "NUKAGE3", "NFALL1", "NFALL2", "NFALL3", "NFALL4"};
+		Static Const String BloodTextures[] = {"BLOOD1", "BLOOD2", "BLOOD3", "BFALL1", "BFALL2", "BFALL3", "BFALL4"};
+		Static Const String LavaTextures[] = {"LAVA1","LAVA2", "LAVA3", "LAVA4", "DBRAIN1", "DBRAIN2", "DBRAIN3", "DBRAIN4", "LFALL1", "LFALL2", "LFALL3", "LFALL4"};
+		Static Const String SlimeTextures[] = {"SLIME01","SLIME02", "SLIME03", "SLIME04", "SLIME05","SLIME06", "SLIME07", "SLIME08", "SFALL1", "SFALL2", "SFALL3", "SFALL4"};
+		
+		For (Int I = 0; I < WaterTextures.Size()-1; I++)
+			If (TexMan.CheckForTexture (WaterTextures[I]) == Texture)
+				Return LIQUID_WATER;
+		For (Int I = 0; I < NukageTextures.Size()-1; I++)
+			If (TexMan.CheckForTexture (NukageTextures[I]) == Texture)
+				Return LIQUID_NUKAGE;
+		For (Int I = 0; I < BloodTextures.Size()-1; I++)
+			If (TexMan.CheckForTexture (BloodTextures[I]) == Texture)
+				Return LIQUID_BLOOD;
+		For (Int I = 0; I < LavaTextures.Size()-1; I++)
+			If (TexMan.CheckForTexture (LavaTextures[I]) == Texture)
+				Return LIQUID_LAVA;
+		For (Int I = 0; I < SlimeTextures.Size()-1; I++)
+			If (TexMan.CheckForTexture (SlimeTextures[I]) == Texture)
+				Return LIQUID_SLIME;
+		
+		Return LIQUID_NONE;
+	}
+	
+	Array <Actor> TempAllyList; //Used to prevent friends of the explosions' source from being harmed.
+	
+	//Temporarily give NORADIUSDMG to allies, to stop them from being harmed by explosions.
+	//Used by exploding projectiles.
+	Void MakeAlliesImmuneToExplosion (Double Radius = 256)
+	{
+		If (Radius <= 0) Return;
+		BlockThingsIterator AllyFind = BlockThingsIterator.Create (Self,Radius);
+		
+		While (AllyFind.Next())
+		{
+			Actor Ally = AllyFind.Thing;
+			//Add friendly living monsters or players to the list. But only ones that aren't already exempt from splash damage.
+			If (Ally && Target && Ally != Target && Ally.Health > 0 && !Ally.bNoRadiusDmg)
+			{
+				If (Target.bFriendly || Target.Player)
+				{
+					If (!(Target.IsHostile(Ally)) && (Ally.bIsMonster || Ally.Player))
+						TempAllyList.Push (Ally);
+				}
+				//Unless the shooter is not friendly, in which case only count friendly actors of the same species as allies.
+				Else
+				{
+					If (!(Target.IsHostile(Ally)) && Target.Species && Ally.Species == Target.Species)
+						TempAllyList.Push (Ally);
+				}
+			}
+		}
+		
+		For (Int I = 0; I < TempAllyList.Size(); I++)
+			TempAllyList[I].bNoRadiusDmg = True;
+	}
+	
+	Void RemoveAllyExplosionImmunity()
+	{
+		For (Int I = 0; I < TempAllyList.Size(); I++)
+			TempAllyList[I].bNoRadiusDmg = False;
+		
+		TempAllyList.Clear();
+	}
+}
+
+//Generic status checks.
+Mixin Class KAI_CheckFunctions
+{
+	Bool CustomMarinesAvailable()
+	{
+		Let MarineCheck = SM_MarineChecker (EventHandler.Find("SM_MarineChecker"));
+		
+		If (!MarineCheck.NoCustomMarines)
+			Return True;
+		Else
+			Return False;
+	}
+	
+	Bool CheckActorExists (String ActorClass)
+	{
+		Class<Actor> Act = ActorClass;
+		Return !!Act;
+	}
+	
+	Bool IsDead (Actor Other)
+	{
+		If (!Other) Return False;
+		Return (Other.Player ? Other.Player.PlayerState == PST_DEAD : Other.Health <= 0);
+	}
+	
+	Bool IsIndestructible (Actor Other)
+	{
+		If (!Other) Return False;
+		Return (Other.bInvulnerable || Other.bNoDamage/* || (!Other.bShootable)*/);
+	}
+	
+	Bool HasGodMode (Actor Other)
+	{
+		If (!Other) Return False;
+		Return (Other.Player && Other.Player.Cheats & (CF_GODMODE | CF_GODMODE2));
+	}
+	
+	Bool IsInanimateObject (Actor Other)
+	{
+		If (!Other) Return False;
+		Return (!Other.bIsMonster && !Other.Player);
+	}
+	
+	Bool IsCollidable (Actor Other, Actor Caller = Null)
+	{
+		If (!Other) Return False;
+		Return ((Other.bSolid && !Other.bNoBlockmap)
+		//The ThruBits check is untested, since nobody uses ThruBits lmao.
+		&& !(Caller && Caller.bAllowThruBits && Other.bAllowThruBits && Caller.ThruBits & Other.ThruBits));
+	}
+	
+	Bool IsPatrolling (Actor Other)
+	{
+		If (!Other) Return False;
+		Return (Other.Goal || Other.Target Is "PatrolPoint");
+	}
+	
+	Bool IsFlying (Actor Other)
+	{
+		If (!Other) Return False;
+		
+		If (!Other.Player && Other.bFloat) // Flying monster.
+			Return True;
+		Else If (Other.Player) //Flying player
+		{
+			If (Other.bFly || Other.bFlyCheat || Other.Player.Cheats & CF_NOCLIP2)
+				Return True;
+		}
+		
+		Return False;
+	}
+	
+	Bool IsInState (Actor Other, StateLabel CheckFor = "Spawn")
+	{
+		If (!Other) Return False; 
+		Return (Other.InStateSequence(Other.CurState,Other.FindState (CheckFor)));
+	}
+	
+	//Can the other actor be targeted ? If the other actor has NOTARGET, but is already being targeted by the caller, then it returns true.
+	Bool CanBeTargeted (Actor Caller, Actor Other)
+	{
+		If (!Other) Return False;
+		If (Other.bNeverTarget) Return False;
+		Return (Other == Caller.Target || !Other.bNoTarget && !(Other.Player && Other.Player.Cheats & CF_NOTARGET));
+	}
+	
+	//Is the other actor hostile?
+	Bool KAI_IsHostile (Actor Caller, Actor Other)
+	{
+		If (!Caller || !Other) Return False;
+		
+		If (Caller.bFriendly) //It's as shrimple as that.
+			Return Caller.IsHostile (Other);
+		//Enemy vehicles are the reason this function exists.
+		//They generally don't attack other non-enemy military NPCs. But they will do so if those NPCs are targetting them, or another enemy military NPC.
+		Else
+		{
+			//Non-friendly actors always hate players and their allies.
+			If (Other.Player || Other.bFriendly)
+				Return True;
+			
+			//Don't consider own species hostile.
+			//If (Caller.bNoInfightSpecies && Caller.Species == Other.Species)
+			//	{console.printf ("that's my own species");Return False;} //DEBUG
+			
+			//Is the other actor targetting you or your turret ?
+			If (Other.Target && (Other.Target == Caller || Other.Target == KAI_BaseVehicle(Caller).Turret))
+				Return True;
+			
+			//Is the other actor targetting an actor with the same species as you ? Then they are an enemy as far as you are concerned.
+			If (Other.Target && (Caller.bNoInfightSpecies && Caller.Species == Other.Target.Species))
+				Return True;
+		}
+		
+		Return False;
+	}
+}
+
+//Vehicle functions
+Extend Class KAI_BaseVehicle
+{
+	//=====|Status checks|=====\\
+	/*Used to check if marines can spawn in the specified position, the radius and height parameters are for vehicles like the truck,
+	that- ugh, nevermind, I can't put into words what this does.*/
+	Bool ValidPositionAt (Vector2 Offset = (0,0), Double TempRadius = 32, Double TempHeight = 56)
+	{
+		//Store the previous position and dimensions of the vehicle.
+		Vector3 PrevPos = Pos;
+		Double PrevRadius = Radius;
+		Double PrevHeight = Height;
+		
+		A_SetSize (TempRadius,TempHeight);
+		SetXYZ (Vec3OffsetRelative (Self,(Offset,Pos.Z),flags:V3R_ANGLEONLY));
+		
+		Bool Ok = CheckPosition (Pos.XY);
+		
+		A_SetSize (PrevRadius,PrevHeight);
+		SetXYZ (PrevPos);
+		
+		Return Ok;
+	}
+	
+	//Add a function that determines if the vehicles' target is a VERY powerful enemy.
+	Bool IsPowerful (Actor Other)
+	{
+		Name CustomMarine = 'SmartMarine';
+		Name CustomTurretMarine = "TurretMarine";
+		Name TurretWeapon = 'SmartMarineMGWeapon';
+		
+		If (!Other)
+			Return False;
+		
+		//Is the other actor a smart marine or player on a turret ?
+		If (CustomMarinesAvailable() && (Other Is CustomMarine && MarineIsOnTurret (Other)
+		|| Other Is CustomTurretMarine
+		|| Other.Player && Other.Player.ReadyWeapon && Other.Player.ReadyWeapon.GetClassName() == TurretWeapon))
+			Return True;
+		
+		//Does the actor have 2500 health or more, is sufficiently large, or can reflect projectiles ?
+		If ((Other.SpawnHealth() >= 2500 || Other.Health >= 2500) || (Other.Height >= 80 && Other.Radius >= 72) || Other.bReflective)
+			Return True;
+		
+		Return False;
+	}
+	
+	//Checks if the vehicle is in any of the attack states defined, and if it is, it also returns a pointer to that state.
+	State IsInAttackState()
+	{
+		State FoundState = State (Null);
+		
+		If (InStateSequence (CurState,MissileState) || InStateSequence (CurState,MeleeState)) Return CurState;
+		
+		//Loop through available states.
+		For (Int I = AttackStates.Size()-1; 0 <= I; I--)
+		{
+			//The state in the array matches the current state we are in.
+			If (InStateSequence (CurState,AttackStates[I]))
+			{
+				FoundState = AttackStates[I];
+				Break;
+			}
+		}
+		
+		Return FoundState;
+	}
+	
+	//Returns true if the specified actor can resurrect corpses like an Archvile does.
+	Bool IsNecromancer (Actor Other)
+	{
+		If (!Other) Return False;
+		
+		If (Other.FindState ("Heal")) Return True; //I checked several mods with Archvile-type monsters. And all of them have a Heal state. Making this the only universal way to check for them.
+		
+		Return False;
+	}
+	
+	//=====|Spawn functions|=====\\
+	Enum KAIFlameFlags
+	{
+		FSP_WARNMARINES = 1 << 0, //If any flames are succesfully created around the vehicle, should a marine warning zone be made ?
+		FSP_VEHICLEDEATH = 1 << 1 //Mark the warning zone as needing to vanish once all of the flames have evaporated.
+	}
+	
+	//FIXME: Fix a bug where sometimes no flames will spawn, not sure why it happens, but it seems to occur in crammed spaces usually.
+	//Creates multiple flames within the bounding box of the vehicle. Used to create flaming wrecks when vehicles are gibbed.
+	//Flags: The flags that control the spawning behavior, look at KAIFlameFlags for more info. Default flags are FSP_WARNMARINES and FSP_VEHICLEDEATH.
+	//Amount: The random amount of flames that will be created, the X component is the minimum amount of flames, and Y is the maximum.
+	//Lifespan: The random lifespan each flame has in tics, the default is 35*30 (30 seconds). The X component is the minimum lifespan a flame can have, and Y is the maximum.
+	Void SpawnDeathFlames (Int Flags = FSP_WARNMARINES|FSP_VEHICLEDEATH, Vector2 Amount = (5,12), Vector2 Lifespan = (24*TICRATE,105*TICRATE))
+	{
+		Int RandomFlames = Random (Int(Amount.X),Int(Amount.Y));
+		Actor Flame;
+		Vector3 SpawnPos;
+		//Spawn a random amount of flames around the APC wreck.
+		For (Int I = 0; I < RandomFlames; I++)
+		{
+			SpawnPos = (FRandom (-Radius*1.75,Radius*1.75),FRandom (-Radius,Radius),0);
+			SpawnPos.Z = GetZAt (SpawnPos.X,SpawnPos.Y) + 8 + FRandom (0, Height - 8);
+			//If the random position relative to the vehicle is valid.
+			If (Level.IsPointInLevel (Vec3Offset(SpawnPos.X,SpawnPos.Y,SpawnPos.Z)))
+				Flame = Spawn ("MVP_Flame",Vec3Offset(SpawnPos.X,SpawnPos.Y,SpawnPos.Z)); //Then spawn the flame.
+			
+			If (Flame)
+			{
+				Flame.Master = Self; //So the flame knows what actor to warp to.
+				MVP_Flame(Flame).Offsets = SpawnPos;
+				Flame.ReactionTime = Int(FRandom (Lifespan.X,LifeSpan.Y));
+				DeathFlames.Push (Flame); //Add the valid flame to the list.
+			}
+		}
+		
+		//Clean up the null entries in the array.
+		For (Int I = DeathFlames.Size()-1; I >= 0; I--)
+			If (!DeathFlames[I]) DeathFlames.Delete(I); //Remove null entries.
+		
+		//Create a warning zone if any flames actually spawned.
+		If (Flags & FSP_WARNMARINES && DeathFlames.Size())
+			If (Flags & FSP_VEHICLEDEATH)
+				DeathWarnZone = WarnMarines (MWRN_WARP|MWRN_ALLIESTOO|MWRN_VEHICLEDEATH,Radius*1.75+48,towho:Self);
+			Else
+				DeathWarnZone = WarnMarines (MWRN_WARP|MWRN_ALLIESTOO,Radius*1.75+48,towho:Self);
+	}
+	
+	//High quality code rips.
+	Enum DynamicLightArgs
+	{
+	   LIGHT_RED = 0,
+	   LIGHT_GREEN = 1,
+	   LIGHT_BLUE = 2,
+	   LIGHT_INTENSITY = 3,
+	   LIGHT_SECONDARY_INTENSITY = 4,
+	   LIGHT_SCALE = 3,
+	}
+	
+	//VHSF = Vehicle Headlight Spawn Function
+	Enum HeadlightSpawnFlags
+	{
+		VHSF_BACKLIGHT = 1 << 0 //Is this a backlight ? If yes, the angle it faces relative to the vehicle is inverted, so that it faces behind the vehicle.
+	}
+	
+	//Spawns a headlight with the specified parameters. Then returns a pointer to it.
+	//AttachTo: The actor to attach the headlight to, this is just the caller usually.
+	//Offsets: The XYZ offsets to pass to the light. This doesn't call SetOffset() on the dynamic light because m_Ofs doesn't change before PostBeginPlay().
+	//Flags: The flags to pass to the headlight.
+	//LightColor: The RGB color of the headlight. This isn't a Color variable since that's not what dynamic light actors use. Default is white.
+	//Intensity: The intensity of the headlight. Default is 256.
+	//SpotlightAngles: The inner (X) and outer (Y) angle of the headlight. Default is (10,25), the default of the DynamicLight class.
+	KAI_Headlight SpawnVehicleHeadlight (Actor AttachTo, Vector3 Offsets, Int Flags = 0, Vector3 LightColor = (255,255,255), Int Intensity = 256, Vector2 SpotlightAngles = (10,25))
+	{
+		If (!AttachTo) AttachTo = Self; //Just in case.
+		KAI_Headlight Headlight = KAI_Headlight(Spawn ("KAI_Headlight",Pos,ALLOW_REPLACE));
+		
+		Headlight.Target = AttachTo; //Dynamic light actors use their target pointer to store who they are attached to.
+		Headlight.Offset = Offsets;
+		If (Flags & VHSF_BACKLIGHT) Headlight.IsBacklight = True;
+		
+		//XYZ = RGB
+		Headlight.Args[LIGHT_RED] = Int(LightColor.X);
+		Headlight.Args[LIGHT_GREEN] = Int(LightColor.Y);
+		Headlight.Args[LIGHT_BLUE] = Int(LightColor.Z);
+		Headlight.Args[LIGHT_INTENSITY] = Intensity;
+		
+		//X is the inner angle. Y is the outer angle.
+		Headlight.SpotInnerAngle = SpotlightAngles.X;
+		Headlight.SpotOuterAngle = SpotlightAngles.Y;
+		
+		Return Headlight;
+	}
+	
+	//=====|Marine related functions|=====\\
+	//Is the marine on a turret ? Literally just a convoluted way to return if the OnTurret bool is true or false for the marine.
+	Bool MarineIsOnTurret (Actor Other)
+	{
+		If (!Other) Return False;
+		
+		Name MGMarine = "TurretMarine";
+		Let IsOnTurret = ServiceIterator.Find ("SM_SmartMarines").Next();
+		
+		If (Other.GetClassName() == MGMarine)
+			Return True;
+		
+		If (IsOnTurret.GetInt ("IsOnTurret",ObjectArg:Other))
+			Return True;
+		
+		Return False;
+	}
+	
+	//Spawn a smart marine (Cool and smart), or fall back to spawning ZDoom marines (Cringe and dumb) if unavailable.
+	Actor SpawnMarine (Vector3 Position = (0,0,0), Bool SetMaster = False)
+	{
+		Name CustomMarine = 'SmartMarine';
+		Class<Actor> WhatToSpawn;
+		Actor Spawnee;
+		Bool b;
+		
+		If (CustomMarinesAvailable())
+			WhatToSpawn = CustomMarine;
+		//Smart Marines aren't loaded, so spawn shitty ZDoom marines instead.
+		Else
+			WhatToSpawn = "MarineChaingun";
+		
+		//[b,Spawnee] = A_SpawnItemEx (WhatToSpawn,Position.X,Position.Y,GetZAt (Position.X,Position.Y),flags:SXF_NOCHECKPOSITION | SetMaster ? SXF_SETMASTER : 0);
+		//Position = Vec2Offset (Position.X * Cos (Angle) + Position.Y * Sin (Angle),Position.X * Sin (Angle) - Position.Y * Cos (Angle));
+		//Spawnee = Spawn (WhatToSpawn,Vec3Offset (Position.X * Cos(Angle) + Position.Y * Sin (Angle),Position.X * Sin (Angle) - Position.Y * Cos (Angle),(Position.Z == 0 ? GetZAt (Position.X,Position.Y) : Position.Z)));
+		Spawnee = Spawn (WhatToSpawn,Vec3OffsetRelative (Self,Position,flags:V3R_ANGLEONLY),ALLOW_REPLACE);
+		If (Target != Goal)
+			Spawnee.CopyFriendliness (Self,True);
+		Else
+			Spawnee.CopyFriendliness (Self,False);
+		Spawnee.bSummonedMonster = True; //Mark marines as being spawned from another actor.
+		Spawnee.Angle = Self.Angle;
+		If (SetMaster)
+			Spawnee.Master = Self;
+		//At least try to make the default ZDoom marines a bit smarter.
+		If (WhatToSpawn != CustomMarine)
+		{
+			Spawnee.Speed = 16;
+			Spawnee.bSeeFriendlyMonsters = True;
+			Spawnee.FriendlySeeBlocks = 16;
+			Spawnee.bAvoidMelee = True;
+		}
+		
+		Return Spawnee;
+	}
+	
+	Enum KAIMarineWarnFlags
+	{
+		MWRN_ALLIESTOO = 1 << 0, //The warning zone should warn marines friendly to the caller as well.
+		MWRN_WARP = 1 << 1, //The warning zone should stick to the actor specified by the ToWho parameter.
+		MWRN_PAINONLY = 1 << 2, //The warning zone is just warning the marines of an attack that only causes pain (e.g the Pain Ray).
+		MWRN_VEHICLEDEATH = 1 << 3, //Despawn the warning zone if the vehicles DeathFlames array is empty.
+	}
+	
+	//Spawns a warning zone for smart marines that gives them a token, which tells them to run away from the warning zone.
+	//Since it is basically a fancy wrapper for giving the "SM_ImInDanger" token, you could make your own actors to also support that token.
+	//Flags: The flags that determine the behavior of the warning zone. Info on the flags is above. Default flag is MWRN_WARP.
+	//Range: The range of the warning zone (NO WAYU !?1?1?1?!@?@?!/@/3/$3?3??543?), default is 256.
+	//ToWho: What actor should the zone be attached to ?
+	//Offsets: The offsets which the warning zone uses when warping to the specified actor. Default is no offsets.
+	Actor WarnMarines (Int Flags = MWRN_WARP, Double Range = 256, Actor ToWho = Null, Vector3 Offsets = (0,0,0))
+	{
+		If (!CustomMarinesAvailable()) Return Null;
+		Vector3 SpawnPos = ToWho ? Vec3OffsetRelative(ToWho,Offsets) : Self.Pos;
+		Actor WarnZone = Spawn ("SmartMarineWarningZone",SpawnPos);
+		
+		WarnZone.CopyFriendliness (Self,False);
+		If (Flags & MWRN_WARP) WarnZone.Master = ToWho;
+		If (Flags & MWRN_ALLIESTOO) SmartMarineWarningZone(WarnZone).Flags |= MWRN_ALLIESTOO;
+		If (Flags & MWRN_PAINONLY) SmartMarineWarningZone(WarnZone).Flags |= MWRN_PAINONLY; //I had forgot to make the function handle this warning zone flag for two months lmfao.
+		If (Flags & MWRN_VEHICLEDEATH) SmartMarineWarningZone(WarnZone).Flags = MWRN_VEHICLEDEATH;
+		WarnZone.MaxTargetRange = Range;
+		SmartMarineWarningZone(WarnZone).Offset = Offsets;
+		
+		Return WarnZone; //Return a pointer to the created warning zone.
+	}
+	
+	//Only warn a specific marine, and return if the warning token was successfully given to them.
+	Bool WarnSpecificMarine (Actor Marine)
+	{
+		Name WarningToken = "SM_ImInDanger";
+		Inventory Token;
+		
+		If (!Marine) //No marine to warn.
+			Return False;
+		
+		Token = Marine.GiveInventoryType (WarningToken); //Give the token to the marine.
+		If (Token)
+			Token.Master = Self;
+		
+		If (!(Marine.FindInventory (WarningToken)) || !(Marine.CountInv (WarningToken) <= 0)) //The marine didn't get a token.
+			Return False;
+		
+		Return True;
+	}
+	
+	//=====|Vehicle behaviors|=====\\
+	Enum KAILookFlags
+	{
+		KAIL_CHASETARGET = 1 << 0, //If the actor already has a target. Then go to the specified see state. For when the internal A_LookEx() doesn't do it itself.
+		KAIL_NOTEMPSTAND = 1 << 1, //Should the actor not temporarily stay still if friendly (Not begin moving due to player fire) between A_LookEx() calls ?
+	}
+	
+	//Generic wrapper for A_LookEx shared by all vehicles.
+	//Flags, MinSeeDist, MaxSeeDist, MaxHearDist, FOV, Label: These properties are all directly transfered to A_LookEx, so work the same as they do in that function.
+	//ExtraFlags: The extra flags that modified KAI_Look's behavior. Look above for available flags.
+	Void KAI_Look (Int Flags = 0, Double MinSeeDist = 0, Double MaxSeeDist = 0, Double MaxHearDist = 0, Double FOV = 0, StateLabel Label = Null, Int ExtraFlags = 0)
+	{
+		//HACK: This shit is probably a super hacky way to just get turrets that are already targeting an actor in their Spawn state to actually attack it.
+		If (ExtraFlags & KAIL_CHASETARGET && Target)
+		{
+			If (Label)
+				SetStateLabel (Label); //Go to specified state.
+			Else
+				SetState (SeeState); //Go to default See state.
+		}
+		Bool Stand = bStandStill;
+		If (!(ExtraFlags & KAIL_NOTEMPSTAND))
+		{
+			Stand = bStandStill;
+			bStandStill = True;
+		}
+		A_LookEx (Flags, MinSeeDist, MaxSeeDist, MaxHearDist, FOV, Label);
+		If (!(ExtraFlags & KAIL_NOTEMPSTAND)) bStandStill = Stand;
+	}
+	
+	Enum KAIChaseFlags
+	{
+		KAIC_ATTACKWHENSCARED = 1 << 0, //The vehicle will still be very likely to attack when scared of an enemy.
+		KAIC_NORANDOMTURN = 	1 << 1, //Turns on CHF_NORANDOMTURN on the A_Chase calls.
+		KAIC_NOCHASE = 			1 << 2, //Don't run any code related to the vehicle moving. Useful for the turrets.
+		KAIC_CORPSESEEKER = 	1 << 3,	//The vehicle will actively go after corpses to crush them if it has nothing else to do.
+		KAIC_NOTURRETRETARGET =	1 << 4, //The vehicle will never target the hull of a vehicle instead of its' turret. Even if doing so would be better.
+	}
+	
+	//Generic chase function shared by all vehicles.
+	//Flags: Look above for available flags.
+	//FollowDist: The distance below which the vehicle will stop trying to follow the player, to not get in their way.
+	Void KAI_Chase (Int Flags = 0, Double FollowDist = 384)
+	{
+		Bool AlreadyRetreating; //The vehicle is already running away from something that doesn't involve the enemy avoiding code, so don't bother to run from nearby enemies.
+		Double PowerfulEnemyRetreatRange = (User_RetreatDistance*4)*(User_RetreatDistance*4); //Vehicles stay 4 times further away from powerful enemies than normal ones.
+		
+		//Temporarily store the values that are changed by the fear code.
+		Double OldAggro = AggressionMultiplier;
+		
+		//Vehicles get scared if they have a living, visible target, and are either defenseless or the target is too powerful.
+		If (!bNoFear)
+		{
+			If (Target && !CanAttack() || Target && IsPowerful (Target) && Distance3DSquared (Target) <= PowerfulEnemyRetreatRange)
+				If (!IsDead (Target) && IsVisible(Target, True))
+				{
+					FearTimer = Random (2,64);
+					bFrightened = AlreadyRetreating = True;
+				}
+				Else
+					bFrightened = False;
+			Else
+				bFrightened = False;
+			
+			If (FearTimer)
+			{
+				FearTimer--;
+				bFrightened = AlreadyRetreating = True;
+			}
+			
+			If ((Flags & KAIC_ATTACKWHENSCARED) && bFrightened)
+				AggressionMultiplier *= 0.5;
+		}
+		
+		If (!(Flags & KAIC_NOCHASE))
+		{
+			FollowPlayerControl (FollowDist);
+			
+			//Vehicles try to stay away from enemies that are too close.
+			Actor OldTarget;
+			If (!(IsPatrolling(Self) && bChaseGoal)) NearestEnemy = FindNearestEnemy (User_RetreatDistance); //Only retreat from enemies if NOT set to patrol AND ignore targets.
+			//Have a close enemy, and not already retreating from something like a powerful target.
+			If (NearestEnemy && !AlreadyRetreating)
+			{
+				OldTarget = Target;
+				Target = NearestEnemy;
+				bFrightened = True;
+				FearTimer = Random (2,48);
+				A_Chase (Null,Null,CHF_DONTIDLE | ((Flags & KAIC_NORANDOMTURN) ? CHF_NORANDOMTURN : 0)); //So move away from the nearest enemy.
+				Target = OldTarget;
+			}
+			//If the vehicle turrets' target is too high, move away from it to allow the turret to shoot it.
+			Else If (Turret && Turret.Target && Turret.ElevationState == Turret.ELEVATION_TOOHIGH)
+			{
+				OldTarget = Target;
+				Target = Turret.Target;
+				bFrightened = True;
+				FearTimer = Random (8,32);
+				A_Chase (Null,Null,CHF_DONTIDLE | ((Flags & KAIC_NORANDOMTURN) ? CHF_NORANDOMTURN : 0));
+				Target = OldTarget;
+			}
+			//Archvile trolling mode activated.
+			Else If (!Target && !IsPatrolling(Self) && !NearestEnemy && CurrentOrder == ORDER_WANDER && (Flags & KAIC_CORPSESEEKER))
+			{
+				//Don't have a corpse to crush already.
+				If (!CorpseTarget)
+				{
+					CorpseTarget = FindNearestCorpse();
+					
+					If (!CorpseTarget) //Still no corpse found.
+						A_Chase (Null,Null,CHF_DONTIDLE | ((Flags & KAIC_NORANDOMTURN) ? CHF_NORANDOMTURN : 0));
+					Else
+						KAI_MoveTowards (CorpseTarget);
+				}
+				//There is an available corpse to head to and crush.
+				Else
+					KAI_MoveTowards (CorpseTarget);
+			}
+			Else
+				A_Chase (Null,Null,CHF_DONTIDLE | ((Flags & KAIC_NORANDOMTURN) ? CHF_NORANDOMTURN : 0));
+		}
+		
+		If (!(Flags & KAIC_NOTURRETRETARGET)) RetargetVehicleHull();
+		Actor CheckFrom = Turret;
+		If (!CheckFrom) CheckFrom = Self; 
+		If (StayStillAndShoot (CheckFrom)) Return;
+		
+		If (ShouldAttack()) //Run the unique attack decision code of the vehicle.
+		{
+			AggressionMultiplier = OldAggro; //Reset aggression chance.
+			ChaseTimer = 0;
+			CorpseTarget = Null;
+			Return; //End the function if the vehicle should attack.
+		}
+		AggressionMultiplier = OldAggro; //Reset aggression chance.
+		
+		HandleChaseTimer();
+	}
+	
+	Void HandleChaseTimer() //Made into a separate function so it can be called independently by turrets and such.
+	{
+		//They also eventually stop chasing their target after it's out of sight for long enough.
+		If (User_ChaseTime > 0)
+		{
+			If (ChaseTimer >= User_ChaseTime)
+			{
+				A_ClearTarget();
+				ChaseTimer = 0;
+				//Vehicles ordered to stay also go back to standing still once the timer runs out.
+				If (CurrentOrder == ORDER_STAY)
+				{
+					SetStateLabel ("Spawn");
+					Return;
+				}
+			}
+			
+			If (!IsPatrolling(Self))
+			{
+				If (!Target || Target && !CheckSight (Target,SF_SEEPASTBLOCKEVERYTHING))
+					ChaseTimer++;
+				//Target is visible again, reset the timer.
+				Else
+					ChaseTimer = 0;
+			}
+		}
+	}
+	
+	Double LastTurnDir;
+	Int TurnCount; //Keeps track of how many turns in a row an actor calling KAI_MoveTowards with CHF_NORANDOMTURN should make.
+	//IDEA: Since I may just end up having this as a wholesale replacement. Maybe I should also implement support for patrol points, CANTLEAVEFLOORPIC, and CHF_FASTCHASE ?
+	//FIXME: There's some flickering between different sprite angles, try fixing it.
+	//Originally written by Custodian. Modified by me (inkoalawetrust). Makes the actor move towards the specified actor.
+	//Other: The actor to move to.
+	//DetourFactor: How long the actor is allowed to move in a direction after hitting an obstacle, before heading straight for the target again.
+	//AngleLimit: How much the actor can turn per detour. Used to not have it snap back 180 or anything like that.
+	//ChaseFlags: What flags from A_Chase should the function use ? Currently only supports CHF_DONTMOVE, CHF_NODIRECTIONTURN, CHF_NORANDOMTURN, and CHF_STOPIFBLOCKED.
+	void KAI_MoveTowards (Actor Other, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0)
+	{
+		If (!Other || ChaseFlags & CHF_DONTMOVE) Return;
+		double LastAngle = angle;
+		double NextAngle = LastAngle;
+		
+		//MoveCount is greater than 0 when avoiding an obstacle
+		if (MoveCount)
+		{
+			MoveCount--;
+		}
+		else
+		{
+			lastturndir = 0;
+			//move directly towards Other
+			if (Other && !(ChaseFlags & CHF_NORANDOMTURN)) NextAngle = KAI_GetAngleTo(Other,AngleLimit);
+		}
+		
+		//When CHF_NORANDOMTURN is on. The actor can take a set amount of turns before no longer turning to face its' target.
+		If (ChaseFlags & CHF_NORANDOMTURN && Other && --TurnCount > 0) NextAngle = KAI_GetAngleTo(Other,AngleLimit);
+ 
+		//absolute position of next movement
+		vector2 NextPos = Vec2Angle(speed, NextAngle);
+		bool moved = TryMove(NextPos, 0, false);
+ 
+		//if I hit an obstacle while avoiding another, try moving straight towards Other
+		if (!moved && MoveCount)
+		{
+			MoveCount = Int(random(16,32)*DetourFactor);
+			if (Other) NextAngle = KAI_GetAngleTo(Other,AngleLimit);
+			NextPos = Vec2Angle(speed, NextAngle);
+			moved = TryMove(NextPos, 0, false);
+		}
+		
+		//If there's a limit to how much the actor can turn per step. Decide an amount of turns for CHF_NORANDOMTURN to make after it hits an obstacle.
+		If (!moved && AngleLimit > 0 && ChaseFlags & CHF_NORANDOMTURN)
+		{
+			Switch (AngleLimit)
+			{
+				Case 20:
+					TurnCount = Random (2,4);
+					Break;
+				Case 10:
+					TurnCount = Random (3,6);
+					Break;
+				Case 5:
+					TurnCount = Random (8,12);
+					Break;
+				Default:
+					Break;
+			}
+		}
+ 
+		//test movement angles until I find one that works, avoid that obstacle for MoveCount tics
+		if (!moved && !(ChaseFlags & CHF_STOPIFBLOCKED))
+		{
+			MoveCount = Int(random(16,32)*DetourFactor);
+ 
+			//try moving the same relative direction as last time
+			if (lastturndir == 0) lastTurnDir = random(0,1) ? 1.0 : -1.0;
+			
+			//find viable movement direction
+			for (double i = 1; i < 6; i++)
+			{
+				NextAngle = LastAngle + (i * 48 * lastturndir);
+				NextPos = Vec2Angle(speed, NextAngle);
+				moved = TryMove(NextPos, 0, false);
+				if (moved) break;
+ 
+				lastTurnDir *= -1.0;
+ 
+				NextAngle = LastAngle + (i * 48 * lastturndir);
+				NextPos = Vec2Angle(speed, NextAngle);
+				moved = TryMove(NextPos, 0, false);
+				if (moved) break;
+			}
+		}
+ 
+		//face movement direction
+		If (!(ChaseFlags & CHF_NODIRECTIONTURN)) angle = Normalize180(NextAngle);
+		
+		/*If (!(Flags & MTFF_NOANGLESNAP)) Broken attempt at fixing the sprite flickering issue https://streamable.com/7y2uv2
+		{
+			Angle = GetNearestCardinalAngle (True),AngleTo (Players[ConsolePlayer].Camera));
+		}*/
+	}
+	
+	//Written by Lewisk3.
+	//Mathemagically gets the nearest sprite angle (https://zdoom.org/wiki/Sprite#Angles) based on the actors' current angle.
+	Double GetNearestCardinalAngle (Bool SixteenAngles = False)
+	{
+		Double NAngle = Normalize180(Angle) + 180;
+		Double Parts = 360 / (SixteenAngles ? 16.0 : 8.0);
+		Return (Round(NAngle / Parts) * Parts);
+	}
+	
+	//Gets the angle to the other actor, and also has a limit that can be used to get the angle to the other actor up to a certain point.
+	//Basically this is what A_Face()'s max_turn property does, sans the actual angle change on the caller.
+	Double KAI_GetAngleTo (Actor Other, Double AngleLimit = 10)
+	{
+		If (!Other) Return 0;
+		If (AngleLimit == 0) Return AngleTo (Other);
+		Double AngleTo = AngleTo (Other);
+		Double Delta = -DeltaAngle (Angle,AngleTo);
+		
+		If (AngleLimit != 0)
+		{
+			If (Delta > 0)
+				Return Angle - AngleLimit;
+			Else
+				Return Angle + AngleLimit;
+		}
+		
+		Return 0;
+	}
+	
+	Enum RetargetHullFlags
+	{
+		RVHF_NOTARGETCHANGE 		= 1 << 0, //This function should only return if the hull should be targeted, instead of also doing the actual retargeting.
+		RVHF_NOTRANSFERDAMAGECHECK	= 1 << 1, //The function should not retarget hulls larger than their bTransferDamage turret.
+		RVHF_NOWEAKHULLCHECK		= 1 << 2, //The function should not retarget hulls weaker than whatever turret the caller is targeting.
+	}
+	
+	//Makes vehicles target the hulls of vehicles instead of their turrets' under certain conditions:
+	//If the turret has bTransferDamage and is smaller than the vehicle it's attached to. Since attacking the turret only harms the vehicle, might as well shoot the bigger hull instead.
+	//If the hulls' health is less than the health of the turret being targeted. Would be quicker to kill the vehicle than the turret.
+	//Flags: Look above for a list of flags.
+	Bool RetargetVehicleHull (Int Flags = 0)
+	{
+		If (!Target || !Master) Return False;
+		
+		If (Target Is "KAI_BaseTurret" && Target.Master)
+		{
+			//If the damage that the targeted turret takes is transfered to the vehicle anyway (bTransferDamage).
+			If (!(Flags & RVHF_NOTRANSFERDAMAGECHECK) && KAI_BaseTurret(Target).bTransferDamage)
+			{
+				//And the vehicle the turret is attached to is overall bigger than the turret.
+				If (Master.Radius > Target.Radius && Master.Height > Turret.Height)
+				{
+					If (!(Flags & RVHF_NOTARGETCHANGE)) Target = Target.Master; //Then target the vehicle the turret is attached to.
+					Return True;
+				}
+			}
+			//If the turret doesn't have bTransferDamage, and it's health is higher than the hulls'.
+			If (!(Flags & RVHF_NOWEAKHULLCHECK) && !KAI_BaseTurret(Target).bTransferDamage && Target.Master.Health < (Target.Health*0.8))
+			{
+				If (!(Flags & RVHF_NOTARGETCHANGE)) Target = Target.Master; //Then target the vehicle the turret is attached to.
+				Return True;
+			}
+		}
+		Return False;
+	}
+	
+	//This stupid copy and paste has to literally only exist because P_HitFriend breaks friendly turrets with allies below or above them.
+	//The function is more or less the same as it's native counterpart, give or take the syntax and code comments, and it being slower by being non-native.
+	Bool KAI_CheckMissileRange (Actor Other)
+	{
+		Double Dist;
+		
+		If (CurSector.Flags & Sector.SECF_NOATTACK) Return False;
+		
+		If (!CheckSight (Other, SF_SEEPASTBLOCKEVERYTHING)) Return False;
+		
+		If (bJustHit)
+		{
+			bJustHit = False;
+			
+			If (!bFriendly) Return True;
+			If (IsDead(Other)) Return False;
+			If (!IsFriend(Other)) Return True;
+			
+			If (Other.Player)
+				Return (Random2[PR_Defect]() > 128);
+			Else
+				Return !(Other.bJustHit && Random2[PR_Defect]() > 128);
+		}
+		
+		If (ReactionTime) Return False;
+		
+		If (IsFriend (Other)) Return False;
+		
+		//If (bFriendly && HitFriend ()) Return False; //This line right here, this is the only reason this stupid duplicate of P_CheckMissileRange has to exist.
+		
+		Dist = Distance2D (Other) - 64;
+		
+		If (!MeleeState)
+			Dist -= 128;
+		
+		If (MaxTargetRange > 0 && Dist > MaxTargetRange) Return False;
+		
+		If (MeleeState && Dist < MeleeThreshold) Return False;
+		
+		If (bMissileMore) Dist *= 0.5;
+		If (bMissileEvenMore) Dist *= 0.125;
+		Dist *= AggressionMultiplier;
+		
+		Int MMC = Int(MinMissileChance * G_SkillPropertyFloat(SKILLP_Aggressiveness));
+		Return Random2[PR_CheckMissileRange]() >= Min(Int(Dist), MMC);
+	}
+	
+	//Used to make vehicles able to run over and grind corpses like crushers.
+	Void KAI_CrushCorpses (Double RadiusMultiplier = 1.75)
+	{
+		BlockThingsIterator Crusher = BlockThingsIterator.Create (Self);
+		Actor Mobj;
+		
+		While (Crusher.Next())
+		{
+			Mobj = Crusher.Thing;
+			If (!Mobj) Continue; //No actor to crush.
+			//This runs before the bDontGib check, so that vehicles can remove corpse targets if they were already crushed.
+			If (Mobj == CorpseTarget) CorpseTarget = Null; //If the corpse you crushed was one you were targeting already, then remove the pointer to it.
+			If (!IsDead (Mobj)) Continue; //Actor isn't dead already.
+			If (Mobj.bDontGib) Continue; //Has already been crushed.
+			If (Mobj.Pos.Z > Mobj.FloorZ) Continue; //Corpse is off the ground. Like if it's falling.
+			If (Mobj.Default.bFloat) Continue; //Don't crush floating corpses, particularly recently killed Lost Souls, which end up producing floating gibs.
+			If (Mobj.Radius > MaxCorpseRadius || Mobj.Height > MaxCorpseHeight) Continue; //Actor is too big.
+			If (Distance3DSquared (Mobj) > ((Radius*2)*RadiusMultiplier) * ((Radius*2)*RadiusMultiplier)) Continue;
+			
+			Mobj.Grind (False); //Crush corpse, but not items.
+		}
+	}
+	
+	//As a friendly vehicle, only follow the player until within a certain distance from them, to prevent the player from being dogpiled by vehicles.
+	Void FollowPlayerControl (Double MaxDist = 384)
+	{
+		If (!PlayerInGame[FriendPlayer] || CurrentOrder == ORDER_WANDER)
+			Return;
+		
+		If (bFriendly)
+			bDontFollowPlayers = (Distance3DSquared (Players[FriendPlayer].Mo) <= MaxDist*MaxDist);
+	}
+	
+	//Increase an integer value based on the amount of enemies and how powerful they are, to use for AOE attacks.
+	//Probably needs a rewrite in the future, besides being a bit basic. The specific checks for the callers' target are also a little sussy.
+	//Range: The range around which to check for enemies.
+	//AvoidAllies: Deduct points from the score for any allies in the AOE.
+	Int AttackByQuantity (Double Range = 256, Bool AvoidAllies = False)
+	{
+		Actor Mobj;
+		Int Chance;
+		Bool IsHostile, IsVisible; //Caching
+		
+		BlockThingsIterator FindEnemies = BlockThingsIterator.Create (Self,Range);
+		
+		While (FindEnemies.Next())
+		{
+			Mobj = FindEnemies.Thing;
+			
+			If (IsDead (Mobj) || IsInanimateObject (Mobj) && Mobj == Self) Continue;
+			
+			IsHostile = IsHostile (Mobj); IsVisible = IsVisible (Mobj,False);
+			If (AvoidAllies && !IsHostile && IsVisible)
+			{
+				If (Mobj.bIsMonster) Chance -= 5;
+				If (Mobj.Player) Chance -= 25;
+				Continue;
+			}
+			
+			If (Mobj != Target && Mobj.Distance3DSquared (Target) <= Range*Range && IsHostile && IsVisible)
+			{
+				If (Mobj.Health >= 10)
+					Chance += 5;
+				Else
+					Chance += 1;
+				
+				If (IsPowerful (Mobj))
+					Chance += 25;
+			}
+		}
+		
+		Return Chance;
+	}
+	
+	//TODO: Perhaps this should be moved outside of KAI_BaseVehicle, especially once I begin working on the KAI library.
+	//Finds the closest actor in an array of actors.
+	//ActorList: The array of actors to find the closest one from. Usually scrubbed from a blockmap iterator.
+	//Pos: The position from which the distance check is performed on each actor.
+	//MaxRange: If this is not 0, any actors in the list further than this distance are automatically eliminated.
+	Actor GetClosestActor (Out Array <Actor> ActorList, Vector3 Pos, Double MaxRange = 0)
+	{
+		If (!ActorList) Return Null;
+		Array <Actor> TempList;
+		TempList.Move (ActorList);
+		Double NearestDistance = INT.MAX;
+		
+		If (MaxRange > 0)
+		{
+			For (Int I = TempList.Size()-1; I >= 0; I--)
+			{
+				If (Level.Vec3Diff(Pos,TempList[I].Pos).LengthSquared() > MaxRange)
+					TempList.Delete(I);
+			}
+		}
+		
+		Actor ClosestActor;
+		For (Int I = TempList.Size()-1; I >= 0; I--)
+		{
+			Double CurrentDistance = Level.Vec3Diff(Pos,TempList[I].Pos).LengthSquared();
+			If (NearestDistance > CurrentDistance)
+			{
+				NearestDistance = CurrentDistance;
+				ClosestActor = TempList[I];
+			}
+		}
+		
+		Return ClosestActor;
+	}
+	
+	//Finds the furthest actor from an array of actors.
+	//ActorList: The array of actors to find the closest one from. Usually scrubbed from a blockmap iterator.
+	//Pos: The position from which the distance check is performed on each actor.
+	//MinDist: If this is not 0, any actors in the list closer than this distance are automatically eliminated.
+	Actor GetFurthestActor (Out Array <Actor> ActorList, Vector3 Pos, Double MinDist = 0)
+	{
+		If (!ActorList) Return Null;
+		Array <Actor> TempList;
+		TempList.Move (ActorList);
+		Double FurthestDistance;
+		
+		If (MinDist > 0)
+		{
+			For (Int I = TempList.Size()-1; I >= 0; I--)
+			{
+				If (Level.Vec3Diff(Pos,TempList[I].Pos).LengthSquared() < MinDist)
+					TempList.Delete(I);
+			}
+		}
+		
+		Actor FurthestActor;
+		For (Int I = TempList.Size()-1; I >= 0; I--)
+		{
+			Double CurrentDistance = Level.Vec3Diff(Pos,TempList[I].Pos).LengthSquared();
+			If (FurthestDistance < CurrentDistance)
+			{
+				FurthestDistance = CurrentDistance;
+				FurthestActor = TempList[I];
+			}
+		}
+		
+		Return FurthestActor;
+	}
+	
+	//Does exactly what it says, finds the nearest enemy that can be targeted and is visible, and returns a pointer to it.
+	Actor FindNearestEnemy (Double Range = 256)
+	{
+		If (Range <= -1) Return Null; //Return nothing at negative ranges.
+		
+		Array <Actor> NearbyEnemies;
+		Double NearestDistance = INT.MAX;
+		BlockThingsIterator FindEnemies = BlockThingsIterator.Create (Self,Range);
+		
+		While (FindEnemies.Next())
+		{
+			Actor Mobj = FindEnemies.Thing;
+			
+			//Skip this actor if it's dead, cannot be targeted, is not a monster nor a player, or is not even an enemy.
+			If (!Mobj || IsDead (Mobj) || IsInanimateObject(Mobj) || !CanBeTargeted (Self, Mobj) || !KAI_IsHostile (Self, Mobj)) Continue;
+			
+			If (Distance3DSquared (Mobj) > Range*Range) Continue; //Out of range.
+			
+			If (!CheckSight (Mobj)) Continue; //And at last, check if the enemy is even visible.
+			
+			NearbyEnemies.Push(Mobj); //Add it to the list.
+		}
+		Return GetClosestActor (NearbyEnemies,Self.Pos);
+	}
+	
+	Enum FindCorpseFlags
+	{
+		FNCF_RAISABLEONLY	= 1 << 0, //Only look for corpses that can be resurrected.
+		FNCF_NOSIZECHECK	= 1 << 1, //Ignore the MaxCorpseRadius and MaxCorpseHeight properties.
+		FNCF_STOPFORVILES	= 1 << 2, //Abort the check if a friendly Archvile-type NPC is in the search radius. This is handled here to not have to run another iterator just for the Vile search.
+	}
+	
+	Actor FindNearestCorpse (Int Flags = FNCF_RAISABLEONLY|FNCF_STOPFORVILES)
+	{
+		Array <Actor> NearbyCorpses;
+		Double NearestDistance = INT.MAX;
+		
+		BlockThingsIterator CorpseSearch = BlockThingsIterator.Create (Self,1024);
+		
+		While (CorpseSearch.Next())
+		{
+			Actor Mobj = CorpseSearch.Thing;
+			
+			//Skip this actor if it's invalid or yourself.
+			If (!Mobj || Mobj == Self) Continue;
+
+			//Don't crush anything if a friendly necromancer is nearby.
+			If (Flags & FNCF_STOPFORVILES && !IsDead(Mobj) && IsNecromancer(Mobj) && !KAI_IsHostile (Self, Mobj) && CheckSight (Mobj)) Return Null;
+			
+			//Skip this actor if it's already your corpse target, is alive, is already crushed, is not a dead corpse, or cannot be targeted.
+			If (Mobj == CorpseTarget || !IsDead (Mobj) || Mobj.bDontGib || Mobj.bDontCorpse || !CanBeTargeted (Self, Mobj)) Continue;
+			
+			If (!Mobj.bIsMonster && !Mobj.Player) Continue; //Ignore destroyed props.
+			
+			If (Flags & FNCF_RAISABLEONLY && !Mobj.CanRaise()) Continue; //Cannot even be resurrected.
+			
+			If (Mobj.Pos.Z > Mobj.FloorZ) Continue; //Corpse is off the ground. Like if it's falling.
+			
+			If (!(Flags & FNCF_NOSIZECHECK) && Mobj.Radius > MaxCorpseRadius || Mobj.Height > MaxCorpseHeight) Continue; //Actor is too big.
+			
+			If (!CheckSight (Mobj)) Continue; //And at last, check if the corpse is even visible.
+			
+			NearbyCorpses.Push(Mobj); //Add it to the list.
+		}
+		
+		Return GetClosestActor (NearbyCorpses,Self.Pos);
+	}
+	
+	//Throws actors away from the caller, the code is mostly copied from BlastActor.
+	Void FlingActor (Actor Victim, Double Speed, Bool Harmless, Bool PushImmovables = False)
+	{
+		Double Ang = AngleTo(Victim);
+		Vector2 Move = AngleToVector(Ang, Speed);
+		
+		Victim.Vel.XY = Move;
+		Victim.Vel.Z = 500. / Victim.Mass;
+		
+		If (Victim.Player)
+		{
+			// Players handled automatically
+		}
+		Else If (!Harmless)
+		{
+			Victim.bBlasted = True;
+		}
+		
+		If (Victim.bTouchy) // Touchy objects die when blasted
+		{
+			Victim.bArmed = False; // Disarm
+			Victim.DamageMobj(Self, Self, Victim.Health, 'Melee', DMG_FORCED|DMG_EXPLOSION);
+		}
+	}
+	
+		//=====|Headlight functions|=====\\
+		//Turn the vehicles' headlights on.
+		Void TurnHeadlightsOn()
+		{
+			If (LightsOnAlready) Return;
+			LightLevel = 64; //Light up the vehicle.
+			If (Turret) Turret.LightLevel = 64; //And the turret, if any.
+			For (Int I = HeadLights.Size()-1; I >= 0; I--)
+			{
+				If (Headlights[I])
+				{
+					Headlights[I].Activate(Self);
+					Headlights[I].Active = True;
+				}
+			}
+			If (GetAge() > 1) LightsOnAlready = True; //1 tic delay to allow the lights to spawn in the first place.
+		}
+		
+		//Turn them off.
+		Void TurnHeadlightsOff()
+		{
+			LightLevel = 0;
+			If (Turret) Turret.LightLevel = 0;
+			For (Int I = HeadLights.Size()-1; I >= 0; I--)
+			{
+				If (Headlights[I])
+				{
+					Headlights[I].Deactivate(Self);
+					Headlights[I].Active = False;
+				}
+			}
+			LightsOnAlready = False;
+		}
+		
+		//Remove them when the vehicle is killed or removed.
+		Void RemoveHeadlights()
+		{
+			For (Int I = HeadLights.Size()-1; I >= 0; I--)
+			{
+				If (Headlights[I])
+				{
+					Headlights[I].Destroy();
+					Headlights.Delete(I);
+				}
+			}
+			LightsOnAlready = False;
+		}
+}

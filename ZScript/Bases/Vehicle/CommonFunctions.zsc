@@ -130,16 +130,6 @@ Mixin Class KAI_UniversalFunctions
 //Generic status checks.
 Mixin Class KAI_CheckFunctions
 {
-	Bool CustomMarinesAvailable()
-	{
-		Let MarineCheck = SM_MarineChecker (EventHandler.Find("SM_MarineChecker"));
-		
-		If (!MarineCheck.NoCustomMarines)
-			Return True;
-		Else
-			Return False;
-	}
-	
 	Bool CheckActorExists (String ActorClass)
 	{
 		Class<Actor> Act = ActorClass;
@@ -269,29 +259,6 @@ Extend Class KAI_BaseVehicle
 		Return Ok;
 	}
 	
-	//Add a function that determines if the vehicles' target is a VERY powerful enemy.
-	Bool IsPowerful (Actor Other)
-	{
-		Name CustomMarine = 'SmartMarine';
-		Name CustomTurretMarine = "TurretMarine";
-		Name TurretWeapon = 'SmartMarineMGWeapon';
-		
-		If (!Other)
-			Return False;
-		
-		//Is the other actor a smart marine or player on a turret ?
-		If (CustomMarinesAvailable() && (Other Is CustomMarine && MarineIsOnTurret (Other)
-		|| Other Is CustomTurretMarine
-		|| Other.Player && Other.Player.ReadyWeapon && Other.Player.ReadyWeapon.GetClassName() == TurretWeapon))
-			Return True;
-		
-		//Does the actor have 2500 health or more, is sufficiently large, or can reflect projectiles ?
-		If ((Other.SpawnHealth() >= 2500 || Other.Health >= 2500) || (Other.Height >= 80 && Other.Radius >= 72) || Other.bReflective)
-			Return True;
-		
-		Return False;
-	}
-	
 	//Checks if the vehicle is in any of the attack states defined, and if it is, it also returns a pointer to that state.
 	State IsInAttackState()
 	{
@@ -324,51 +291,6 @@ Extend Class KAI_BaseVehicle
 	}
 	
 	//=====|Spawn functions|=====\\
-	Enum KAIFlameFlags
-	{
-		FSP_WARNMARINES = 1 << 0, //If any flames are succesfully created around the vehicle, should a marine warning zone be made ?
-		FSP_VEHICLEDEATH = 1 << 1 //Mark the warning zone as needing to vanish once all of the flames have evaporated.
-	}
-	
-	//FIXME: Fix a bug where sometimes no flames will spawn, not sure why it happens, but it seems to occur in crammed spaces usually.
-	//Creates multiple flames within the bounding box of the vehicle. Used to create flaming wrecks when vehicles are gibbed.
-	//Flags: The flags that control the spawning behavior, look at KAIFlameFlags for more info. Default flags are FSP_WARNMARINES and FSP_VEHICLEDEATH.
-	//Amount: The random amount of flames that will be created, the X component is the minimum amount of flames, and Y is the maximum.
-	//Lifespan: The random lifespan each flame has in tics, the default is 35*30 (30 seconds). The X component is the minimum lifespan a flame can have, and Y is the maximum.
-	Void SpawnDeathFlames (Int Flags = FSP_WARNMARINES|FSP_VEHICLEDEATH, Vector2 Amount = (5,12), Vector2 Lifespan = (24*TICRATE,105*TICRATE))
-	{
-		Int RandomFlames = Random (Int(Amount.X),Int(Amount.Y));
-		Actor Flame;
-		Vector3 SpawnPos;
-		//Spawn a random amount of flames around the APC wreck.
-		For (Int I = 0; I < RandomFlames; I++)
-		{
-			SpawnPos = (FRandom (-Radius*1.75,Radius*1.75),FRandom (-Radius,Radius),0);
-			SpawnPos.Z = GetZAt (SpawnPos.X,SpawnPos.Y) + 8 + FRandom (0, Height - 8);
-			//If the random position relative to the vehicle is valid.
-			If (Level.IsPointInLevel (Vec3Offset(SpawnPos.X,SpawnPos.Y,SpawnPos.Z)))
-				Flame = Spawn ("MVP_Flame",Vec3Offset(SpawnPos.X,SpawnPos.Y,SpawnPos.Z)); //Then spawn the flame.
-			
-			If (Flame)
-			{
-				Flame.Master = Self; //So the flame knows what actor to warp to.
-				MVP_Flame(Flame).Offsets = SpawnPos;
-				Flame.ReactionTime = Int(FRandom (Lifespan.X,LifeSpan.Y));
-				DeathFlames.Push (Flame); //Add the valid flame to the list.
-			}
-		}
-		
-		//Clean up the null entries in the array.
-		For (Int I = DeathFlames.Size()-1; I >= 0; I--)
-			If (!DeathFlames[I]) DeathFlames.Delete(I); //Remove null entries.
-		
-		//Create a warning zone if any flames actually spawned.
-		If (Flags & FSP_WARNMARINES && DeathFlames.Size())
-			If (Flags & FSP_VEHICLEDEATH)
-				DeathWarnZone = WarnMarines (MWRN_WARP|MWRN_ALLIESTOO|MWRN_VEHICLEDEATH,Radius*1.75+48,towho:Self);
-			Else
-				DeathWarnZone = WarnMarines (MWRN_WARP|MWRN_ALLIESTOO,Radius*1.75+48,towho:Self);
-	}
 	
 	//High quality code rips.
 	Enum DynamicLightArgs
@@ -416,112 +338,6 @@ Extend Class KAI_BaseVehicle
 		Return Headlight;
 	}
 	
-	//=====|Marine related functions|=====\\
-	//Is the marine on a turret ? Literally just a convoluted way to return if the OnTurret bool is true or false for the marine.
-	Bool MarineIsOnTurret (Actor Other)
-	{
-		If (!Other) Return False;
-		
-		Name MGMarine = "TurretMarine";
-		Let IsOnTurret = ServiceIterator.Find ("SM_SmartMarines").Next();
-		
-		If (Other.GetClassName() == MGMarine)
-			Return True;
-		
-		If (IsOnTurret.GetInt ("IsOnTurret",ObjectArg:Other))
-			Return True;
-		
-		Return False;
-	}
-	
-	//Spawn a smart marine (Cool and smart), or fall back to spawning ZDoom marines (Cringe and dumb) if unavailable.
-	Actor SpawnMarine (Vector3 Position = (0,0,0), Bool SetMaster = False)
-	{
-		Name CustomMarine = 'SmartMarine';
-		Class<Actor> WhatToSpawn;
-		Actor Spawnee;
-		Bool b;
-		
-		If (CustomMarinesAvailable())
-			WhatToSpawn = CustomMarine;
-		//Smart Marines aren't loaded, so spawn shitty ZDoom marines instead.
-		Else
-			WhatToSpawn = "MarineChaingun";
-		
-		//[b,Spawnee] = A_SpawnItemEx (WhatToSpawn,Position.X,Position.Y,GetZAt (Position.X,Position.Y),flags:SXF_NOCHECKPOSITION | SetMaster ? SXF_SETMASTER : 0);
-		//Position = Vec2Offset (Position.X * Cos (Angle) + Position.Y * Sin (Angle),Position.X * Sin (Angle) - Position.Y * Cos (Angle));
-		//Spawnee = Spawn (WhatToSpawn,Vec3Offset (Position.X * Cos(Angle) + Position.Y * Sin (Angle),Position.X * Sin (Angle) - Position.Y * Cos (Angle),(Position.Z == 0 ? GetZAt (Position.X,Position.Y) : Position.Z)));
-		Spawnee = Spawn (WhatToSpawn,Vec3OffsetRelative (Self,Position,flags:V3R_ANGLEONLY),ALLOW_REPLACE);
-		If (Target != Goal)
-			Spawnee.CopyFriendliness (Self,True);
-		Else
-			Spawnee.CopyFriendliness (Self,False);
-		Spawnee.bSummonedMonster = True; //Mark marines as being spawned from another actor.
-		Spawnee.Angle = Self.Angle;
-		If (SetMaster)
-			Spawnee.Master = Self;
-		//At least try to make the default ZDoom marines a bit smarter.
-		If (WhatToSpawn != CustomMarine)
-		{
-			Spawnee.Speed = 16;
-			Spawnee.bSeeFriendlyMonsters = True;
-			Spawnee.FriendlySeeBlocks = 16;
-			Spawnee.bAvoidMelee = True;
-		}
-		
-		Return Spawnee;
-	}
-	
-	Enum KAIMarineWarnFlags
-	{
-		MWRN_ALLIESTOO = 1 << 0, //The warning zone should warn marines friendly to the caller as well.
-		MWRN_WARP = 1 << 1, //The warning zone should stick to the actor specified by the ToWho parameter.
-		MWRN_PAINONLY = 1 << 2, //The warning zone is just warning the marines of an attack that only causes pain (e.g the Pain Ray).
-		MWRN_VEHICLEDEATH = 1 << 3, //Despawn the warning zone if the vehicles DeathFlames array is empty.
-	}
-	
-	//Spawns a warning zone for smart marines that gives them a token, which tells them to run away from the warning zone.
-	//Since it is basically a fancy wrapper for giving the "SM_ImInDanger" token, you could make your own actors to also support that token.
-	//Flags: The flags that determine the behavior of the warning zone. Info on the flags is above. Default flag is MWRN_WARP.
-	//Range: The range of the warning zone (NO WAYU !?1?1?1?!@?@?!/@/3/$3?3??543?), default is 256.
-	//ToWho: What actor should the zone be attached to ?
-	//Offsets: The offsets which the warning zone uses when warping to the specified actor. Default is no offsets.
-	Actor WarnMarines (Int Flags = MWRN_WARP, Double Range = 256, Actor ToWho = Null, Vector3 Offsets = (0,0,0))
-	{
-		If (!CustomMarinesAvailable()) Return Null;
-		Vector3 SpawnPos = ToWho ? Vec3OffsetRelative(ToWho,Offsets) : Self.Pos;
-		Actor WarnZone = Spawn ("SmartMarineWarningZone",SpawnPos);
-		
-		WarnZone.CopyFriendliness (Self,False);
-		If (Flags & MWRN_WARP) WarnZone.Master = ToWho;
-		If (Flags & MWRN_ALLIESTOO) SmartMarineWarningZone(WarnZone).Flags |= MWRN_ALLIESTOO;
-		If (Flags & MWRN_PAINONLY) SmartMarineWarningZone(WarnZone).Flags |= MWRN_PAINONLY; //I had forgot to make the function handle this warning zone flag for two months lmfao.
-		If (Flags & MWRN_VEHICLEDEATH) SmartMarineWarningZone(WarnZone).Flags = MWRN_VEHICLEDEATH;
-		WarnZone.MaxTargetRange = Range;
-		SmartMarineWarningZone(WarnZone).Offset = Offsets;
-		
-		Return WarnZone; //Return a pointer to the created warning zone.
-	}
-	
-	//Only warn a specific marine, and return if the warning token was successfully given to them.
-	Bool WarnSpecificMarine (Actor Marine)
-	{
-		Name WarningToken = "SM_ImInDanger";
-		Inventory Token;
-		
-		If (!Marine) //No marine to warn.
-			Return False;
-		
-		Token = Marine.GiveInventoryType (WarningToken); //Give the token to the marine.
-		If (Token)
-			Token.Master = Self;
-		
-		If (!(Marine.FindInventory (WarningToken)) || !(Marine.CountInv (WarningToken) <= 0)) //The marine didn't get a token.
-			Return False;
-		
-		Return True;
-	}
-	
 	//=====|Vehicle behaviors|=====\\
 	Enum KAILookFlags
 	{
@@ -550,143 +366,6 @@ Extend Class KAI_BaseVehicle
 		}
 		A_LookEx (Flags, MinSeeDist, MaxSeeDist, MaxHearDist, FOV, Label);
 		If (!(ExtraFlags & KAIL_NOTEMPSTAND)) bStandStill = Stand;
-	}
-	
-	Enum KAIChaseFlags
-	{
-		KAIC_ATTACKWHENSCARED = 1 << 0, //The vehicle will still be very likely to attack when scared of an enemy.
-		KAIC_NORANDOMTURN = 	1 << 1, //Turns on CHF_NORANDOMTURN on the A_Chase calls.
-		KAIC_NOCHASE = 			1 << 2, //Don't run any code related to the vehicle moving. Useful for the turrets.
-		KAIC_CORPSESEEKER = 	1 << 3,	//The vehicle will actively go after corpses to crush them if it has nothing else to do.
-		KAIC_NOTURRETRETARGET =	1 << 4, //The vehicle will never target the hull of a vehicle instead of its' turret. Even if doing so would be better.
-	}
-	
-	//Generic chase function shared by all vehicles.
-	//Flags: Look above for available flags.
-	//FollowDist: The distance below which the vehicle will stop trying to follow the player, to not get in their way.
-	Void KAI_Chase (Int Flags = 0, Double FollowDist = 384)
-	{
-		Bool AlreadyRetreating; //The vehicle is already running away from something that doesn't involve the enemy avoiding code, so don't bother to run from nearby enemies.
-		Double PowerfulEnemyRetreatRange = (User_RetreatDistance*4)*(User_RetreatDistance*4); //Vehicles stay 4 times further away from powerful enemies than normal ones.
-		
-		//Temporarily store the values that are changed by the fear code.
-		Double OldAggro = AggressionMultiplier;
-		
-		//Vehicles get scared if they have a living, visible target, and are either defenseless or the target is too powerful.
-		If (!bNoFear)
-		{
-			If (Target && !CanAttack() || Target && IsPowerful (Target) && Distance3DSquared (Target) <= PowerfulEnemyRetreatRange)
-				If (!IsDead (Target) && IsVisible(Target, True))
-				{
-					FearTimer = Random (2,64);
-					bFrightened = AlreadyRetreating = True;
-				}
-				Else
-					bFrightened = False;
-			Else
-				bFrightened = False;
-			
-			If (FearTimer)
-			{
-				FearTimer--;
-				bFrightened = AlreadyRetreating = True;
-			}
-			
-			If ((Flags & KAIC_ATTACKWHENSCARED) && bFrightened)
-				AggressionMultiplier *= 0.5;
-		}
-		
-		If (!(Flags & KAIC_NOCHASE))
-		{
-			FollowPlayerControl (FollowDist);
-			
-			//Vehicles try to stay away from enemies that are too close.
-			Actor OldTarget;
-			If (!(IsPatrolling(Self) && bChaseGoal)) NearestEnemy = FindNearestEnemy (User_RetreatDistance); //Only retreat from enemies if NOT set to patrol AND ignore targets.
-			//Have a close enemy, and not already retreating from something like a powerful target.
-			If (NearestEnemy && !AlreadyRetreating)
-			{
-				OldTarget = Target;
-				Target = NearestEnemy;
-				bFrightened = True;
-				FearTimer = Random (2,48);
-				A_Chase (Null,Null,CHF_DONTIDLE | ((Flags & KAIC_NORANDOMTURN) ? CHF_NORANDOMTURN : 0)); //So move away from the nearest enemy.
-				Target = OldTarget;
-			}
-			//If the vehicle turrets' target is too high, move away from it to allow the turret to shoot it.
-			Else If (Turret && Turret.Target && Turret.ElevationState == Turret.ELEVATION_TOOHIGH)
-			{
-				OldTarget = Target;
-				Target = Turret.Target;
-				bFrightened = True;
-				FearTimer = Random (8,32);
-				A_Chase (Null,Null,CHF_DONTIDLE | ((Flags & KAIC_NORANDOMTURN) ? CHF_NORANDOMTURN : 0));
-				Target = OldTarget;
-			}
-			//Archvile trolling mode activated.
-			Else If (!Target && !IsPatrolling(Self) && !NearestEnemy && CurrentOrder == ORDER_WANDER && (Flags & KAIC_CORPSESEEKER))
-			{
-				//Don't have a corpse to crush already.
-				If (!CorpseTarget)
-				{
-					CorpseTarget = FindNearestCorpse();
-					
-					If (!CorpseTarget) //Still no corpse found.
-						A_Chase (Null,Null,CHF_DONTIDLE | ((Flags & KAIC_NORANDOMTURN) ? CHF_NORANDOMTURN : 0));
-					Else
-						KAI_MoveTowards (CorpseTarget);
-				}
-				//There is an available corpse to head to and crush.
-				Else
-					KAI_MoveTowards (CorpseTarget);
-			}
-			Else
-				A_Chase (Null,Null,CHF_DONTIDLE | ((Flags & KAIC_NORANDOMTURN) ? CHF_NORANDOMTURN : 0));
-		}
-		
-		If (!(Flags & KAIC_NOTURRETRETARGET)) RetargetVehicleHull();
-		Actor CheckFrom = Turret;
-		If (!CheckFrom) CheckFrom = Self; 
-		If (StayStillAndShoot (CheckFrom)) Return;
-		
-		If (ShouldAttack()) //Run the unique attack decision code of the vehicle.
-		{
-			AggressionMultiplier = OldAggro; //Reset aggression chance.
-			ChaseTimer = 0;
-			CorpseTarget = Null;
-			Return; //End the function if the vehicle should attack.
-		}
-		AggressionMultiplier = OldAggro; //Reset aggression chance.
-		
-		HandleChaseTimer();
-	}
-	
-	Void HandleChaseTimer() //Made into a separate function so it can be called independently by turrets and such.
-	{
-		//They also eventually stop chasing their target after it's out of sight for long enough.
-		If (User_ChaseTime > 0)
-		{
-			If (ChaseTimer >= User_ChaseTime)
-			{
-				A_ClearTarget();
-				ChaseTimer = 0;
-				//Vehicles ordered to stay also go back to standing still once the timer runs out.
-				If (CurrentOrder == ORDER_STAY)
-				{
-					SetStateLabel ("Spawn");
-					Return;
-				}
-			}
-			
-			If (!IsPatrolling(Self))
-			{
-				If (!Target || Target && !CheckSight (Target,SF_SEEPASTBLOCKEVERYTHING))
-					ChaseTimer++;
-				//Target is visible again, reset the timer.
-				Else
-					ChaseTimer = 0;
-			}
-		}
 	}
 	
 	Double LastTurnDir;
@@ -919,57 +598,6 @@ Extend Class KAI_BaseVehicle
 			
 			Mobj.Grind (False); //Crush corpse, but not items.
 		}
-	}
-	
-	//As a friendly vehicle, only follow the player until within a certain distance from them, to prevent the player from being dogpiled by vehicles.
-	Void FollowPlayerControl (Double MaxDist = 384)
-	{
-		If (!PlayerInGame[FriendPlayer] || CurrentOrder == ORDER_WANDER)
-			Return;
-		
-		If (bFriendly)
-			bDontFollowPlayers = (Distance3DSquared (Players[FriendPlayer].Mo) <= MaxDist*MaxDist);
-	}
-	
-	//Increase an integer value based on the amount of enemies and how powerful they are, to use for AOE attacks.
-	//Probably needs a rewrite in the future, besides being a bit basic. The specific checks for the callers' target are also a little sussy.
-	//Range: The range around which to check for enemies.
-	//AvoidAllies: Deduct points from the score for any allies in the AOE.
-	Int AttackByQuantity (Double Range = 256, Bool AvoidAllies = False)
-	{
-		Actor Mobj;
-		Int Chance;
-		Bool IsHostile, IsVisible; //Caching
-		
-		BlockThingsIterator FindEnemies = BlockThingsIterator.Create (Self,Range);
-		
-		While (FindEnemies.Next())
-		{
-			Mobj = FindEnemies.Thing;
-			
-			If (IsDead (Mobj) || IsInanimateObject (Mobj) && Mobj == Self) Continue;
-			
-			IsHostile = IsHostile (Mobj); IsVisible = IsVisible (Mobj,False);
-			If (AvoidAllies && !IsHostile && IsVisible)
-			{
-				If (Mobj.bIsMonster) Chance -= 5;
-				If (Mobj.Player) Chance -= 25;
-				Continue;
-			}
-			
-			If (Mobj != Target && Mobj.Distance3DSquared (Target) <= Range*Range && IsHostile && IsVisible)
-			{
-				If (Mobj.Health >= 10)
-					Chance += 5;
-				Else
-					Chance += 1;
-				
-				If (IsPowerful (Mobj))
-					Chance += 25;
-			}
-		}
-		
-		Return Chance;
 	}
 	
 	//TODO: Perhaps this should be moved outside of KAI_BaseVehicle, especially once I begin working on the KAI library.

@@ -7,41 +7,35 @@ first tick. Which is literally worse than the turrets spawning on the ground.*/
 //Add a system in the base turrets' ShouldAttack(), where if the target is obstructed, the turret will instead try aiming up or down instead of the middle.
 //Add smoke that can come off of vehicles when they are low on health.
 
-Class KAI_BaseVehicle : Actor Abstract
+Class KAI_BaseVehicle : KAI_Actor Abstract
 {
 	Default
 	{
-		//Properties, in essense most of these are just the properties for the army car, which is the weakest vehicle.
-		XScale 0.65;
-		YScale 0.541666; //0.65 / 1.2
+		
 		Radius 40;
 		Height 54;
 		DeathHeight 54;
 		CameraHeight 48;
 		Mass 4500;
-		RipLevelMin 3;
 		Speed 8;
 		FastSpeed 16;
-		FriendlySeeBlocks 48; // 6144 map units, armed vehicles should have a longer range to be able to attack from across the map. 80; //A bit over 10000 map unit sight range
+		FriendlySeeBlocks 32; // 4096 map units, longer than the default of 1280 map units.
 		MaxStepHeight 32;
 		MaxTargetRange 10000;
 		KAI_BaseVehicle.MaxCorpseRadius 64;
 		KAI_BaseVehicle.MaxCorpseHeight 48;
 		KAI_BaseVehicle.AggressionMultiplier 1.0;
-		Species "Military";
 		Obituary "%o managed to be killed by an abstract class, congratulations %o, we are all very proud of you. Or maybe a modder forgot to define a custom obituary.";
-		Tag "Military Vehicle Base (You really shouldn't be seeing this in-game)";
+		Tag "Vehicle Base (You really shouldn't be seeing this in-game)";
 		
 		//Flags
 		Monster;
 		+NoForwardFall; //Doesn't make sense for a tank or some shit to slide forward after dying.
 		//+AvoidMelee;
 		+AvoidHazards;
-		+SeeFriendlyMonsters; //Of course this is on for enemy vehicles.
+		+SeeFriendlyMonsters;
 		+Telestomp;
 		+NoInfightSpecies;
-		//+DontSquash; Not on for all vehicles by default, but will be useful for more powerful vehicles like the tank.
-		//+DontBlast; Also reserved for the tank.
 		+DontMorph; //This is just here because ZDoom's morphing code is a mess internally, and having any of the vehicles morph would definitely break something.
 		+DontDrain; //How would you suck the life out of an inanimate object ?
 		+DontCorpse; //Keeps the vehicles' normal collision even after they are destroyed.
@@ -50,31 +44,6 @@ Class KAI_BaseVehicle : Actor Abstract
 		+FloorClip;
 		+AddLightLevel; //Used for the headlight system.
 		-CanUseWalls; //Vehicles shouldn't be able to use walls, well, not the large ones anyway.
-		
-		//Damage factors that act as the vehicles "armor".
-		DamageFactor 0.9; //Generic damage factor for all damage.
-		DamageFactor "Drowning", 0.0;
-		DamageFactor "Poison", 0.0;
-		DamageFactor "PoisonCloud", 0.0;
-		DamageFactor "Melee", 0.2; //May change this to have melee damage do nothing to the vehicles, unless it exceeds a certain ammount.
-		DamageFactor "Electric", 0.2;
-		DamageFactor "ExplosiveImpact", 0.75;
-		DamageFactor "Explosion", 0.75;
-		DamageFactor "Explosive", 0.75;
-		DamageFactor "Grenade", 0.7;
-		DamageFactor "HitScan", 0.8; //The generic damage type of hitscan attacks.
-		DamageFactor "Fire", 0.8;
-		DamageFactor "Crush", 1.5;
-		DamageFactor "Disintegrate", 1.5;
-		DamageFactor "Railgun", 2.0;
-		DamageFactor "Falling", 1.25;
-		//Damage factors specific to the Smart Marines.
-		DamageFactor "MarineHMG", 0.8;
-		DamageFactor "MarineGrenade", 0.7;
-		DamageFactor "MarineRifle", 0.7;
-		//Vehicle damage factors
-		DamageFactor "Autocannon", 0.8;
-		DamageFactor "RifleBullet", 0.8;
 	}
 	
 	/*Allows each vehicle to define the defaults for its' own user variables. This is better than the //$UserDefaultValue editor key,
@@ -333,6 +302,7 @@ Class KAI_BaseVehicle : Actor Abstract
 	Property MaxCorpseHeight : MaxCorpseHeight;
 	
 	//Flag variables
+	//TODO: Rename NoRadio to NoOrders or something. Since this is KAI code now, not MVP code. Oh also overhaul the order system.
 	Private Int VehicleFlags;
 	FlagDef Transport : VehicleFlags, 0; //The vehicle is marked as being able to transport soldiers.
 	FlagDef NoRadio : VehicleFlags, 1; //The vehicle ignores orders given to it by the radio item.
@@ -383,10 +353,7 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 		Mass 500;
 		KAI_BaseTurret.TurnAmount 0.15;
 		KAI_BaseTurret.TurnSoundRadius 2;
-		Tag "Military Vehicle Turret Base (You really shouldn't be seeing this in-game)";
-		DamageFactor "MarineGrenade", 0.9;
-		DamageFactor "Grenade", 0.9;
-		DamageFactor "MarineRifle", 0.75;
+		Tag "Vehicle Turret Base (You really shouldn't be seeing this in-game)";
 		+NoFear; //Can't really move to run away.
 		+DontThrust;
 		+StandStill;

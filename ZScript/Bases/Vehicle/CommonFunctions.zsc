@@ -2,14 +2,15 @@
 //NOTE: This shit is really long, some of it will be moved over once I begin working on KAI. But still, different types of functions should probably begin being put in different files.
 
 //Functions that can be used outside of the KAI_BaseVehicle class.
-Mixin Class KAI_MathFunctions
+Class KAI_Math
 {
 	//=====|Talking in tongues|=====\\
 	//What does this do ? I have no fucking idea, Agent_Ash gave it to me to fix how much the truck slows down based on the mass of the object it hit while ramming.
-	Clearscope Double LinearMap (Double Val, Double O_Min, Double O_Max, Double N_Min, Double N_Max) 
+	Clearscope Static Double LinearMap (Double Val, Double O_Min, Double O_Max, Double N_Min, Double N_Max) 
 	{
 		Return (Val - O_Min) * (N_Max - N_Min) / (O_Max - O_Min) + N_Min;
 	}
+	//==============================\\
 	
 	Enum Vec3RelFlags
 	{
@@ -21,7 +22,7 @@ Mixin Class KAI_MathFunctions
 	}
 	
 	//Like Vec3Offset, but also rotates the output vector based on the callers' angle.
-	Clearscope Vector3 Vec3OffsetRelative (Actor Other, Vector3 Offs, Bool NoPortal = False, Int Flags = 0)
+	Clearscope Static Vector3 Vec3OffsetRelative (Actor Other, Vector3 Offs, Bool NoPortal = False, Int Flags = 0)
 	{
 		Double Angle2, Pitch2, Roll2;
 		If (!(Flags & V3R_NOANGLE)) Angle2 = Other.Angle;
@@ -30,11 +31,10 @@ Mixin Class KAI_MathFunctions
 		
 		Quat Dir = Quat.FromAngles (Angle2,Pitch2,Roll2);
 		Return Level.Vec3Offset (Other.Pos,Dir * Offs,NoPortal);
-		//Return Other.Vec3Offset (Offs.X * Cos(Angle) + Offs.Y * Sin (Angle),Offs.X * Sin (Angle) - Offs.Y * Cos (Angle),Offs.Z,NoPortal);
 	}
 	
 	//Is the vector empty ? Not (0,0,0), but completely empty.
-	Clearscope Bool IsEmptyVector3 (Vector3 Vec)
+	Clearscope Static Bool IsEmptyVector3 (Vector3 Vec)
 	{
 		Return (Vec != Vec);
 	}
@@ -208,7 +208,7 @@ Extend Class KAI_BaseVehicle
 		Double PrevHeight = Height;
 		
 		A_SetSize (TempRadius,TempHeight);
-		SetXYZ (Vec3OffsetRelative (Self,(Offset,Pos.Z),flags:V3R_ANGLEONLY));
+		SetXYZ (KAI_Math.Vec3OffsetRelative (Self,(Offset,Pos.Z),flags:KAI_Math.V3R_ANGLEONLY));
 		
 		Bool Ok = CheckPosition (Pos.XY);
 		

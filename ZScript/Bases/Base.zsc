@@ -2,7 +2,6 @@
 if you want to make something that's not an NPC, but can still use the mixin code the library includes.*/
 Class KAI_MixinActor : Actor Abstract
 {
-	Mixin KAI_MathFunctions;
 	Mixin KAI_UniversalFunctions;
 	Mixin KAI_CheckFunctions;
 }
@@ -249,7 +248,7 @@ Class KAI_Tracer : Actor
 	{
 		Super.PostBeginPlay();
 		
-		SetOrigin (Vec3OffsetRelative (Self,SpawnOffsets),False);
+		SetOrigin (KAI_Math.Vec3OffsetRelative (Self,SpawnOffsets),False);
 	}
 	Override Void Tick()
 	{
@@ -259,6 +258,5 @@ Class KAI_Tracer : Actor
 			Destroy();
 	}
 	
-	Mixin KAI_MathFunctions;
 	Vector3 SpawnOffsets;
 }

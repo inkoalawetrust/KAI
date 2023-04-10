@@ -12,13 +12,15 @@ Class KAI_Actor : Actor Abstract
 }
 
 //TODO: Optimize the fast tracer code by storing the tracers in an array and moving them, instead of spawning new ones every tick.
+//IDEA: Make a custom ripping system, where the ripper rips once per actor. Simplifying the damage process, and make it easier to make LOF checks for rippers.
 //NOTE: This code is kinda mostly made for bullets and other such projectiles, hence the bullet tracer-like code and deflection system. But can be used for fireballs and the likes just fine !
 //The base projectile for KAI actors, it's not necessary to really use this. But it does have some advantages:
 //It's based on FastProjectile, so it can properly move both with fast and slow velocities.
 /*It's got a toggleable custom trail system. The default trail spawn code for FastProjectile works for actors faster than normal projectiles.
 But begins breaking up with truly fast projectiles, this custom trail code doesn't. You can reenable the stock FastProjectile trails.*/
-//It has a deflection function, which makes the projectile deflect like a bullet. You can define deflections per-actor deflections in the projectiles' SpecialMissileHit(0.
+//It has a deflection function, which makes the projectile deflect like a bullet.
 //It has code that allows you to change the visual pitch of the projectile based on its' actual pitch. Similar to what KAI_BaseTurret allows for on the vehicle base.
+//Has a virtual that is called for each trail spawned, with a pointer to the trail.
 Class KAI_BaseProjectile : FastProjectile
 {
 	Default
@@ -35,23 +37,6 @@ Class KAI_BaseProjectile : FastProjectile
 		If (Target) Species = Target.Species; //MAYDO: Have this rely on a flag ? It's kinda here because of the MVP where it was ripped from.
 	}
 	
-	//NOTE: Die() is not called on projectiles except during bounces, for some reason. And calling this code manually on death states wouldn't be too different from the current system.
-	/*Override Void Die (Actor Source, Actor Inflictor, Int DmgFlags, Name MeansOfDeath)
-	{
-		Super.Die (Source, Inflictor, DmgFlags, MeansOfDeath);
-		a_log ("called die()");
-		//Check if the projectile hit any liquid flat. If it did call the hit liquid virtual method.
-		Bool HitFloor = (Pos.Z <= FloorZ);
-		Bool HitCeiling = (Pos.Z + Height >= CeilingZ);
-		Int LiquidType;
-		If (HitFloor || HitCeiling)
-		{
-			LiquidType = CheckLiquid (HitFloor ? FloorPic : CeilingPic);
-			If (LiquidType != LIQUID_NONE)
-				ProjectileHitLiquid (LiquidType,HitCeiling);
-		}
-	}*/
-	
 	Override Void Tick ()
 	{
 		Vector3 OldPos = Pos;
@@ -66,7 +51,7 @@ Class KAI_BaseProjectile : FastProjectile
 			Return;
 		}
 		
-		If (bNoTrailLine)
+		If (bNoTrailLine) //Used stock FastProjectile trail. Simple as.
 		{
 			Effect();
 			Return;
@@ -147,7 +132,7 @@ Class KAI_BaseProjectile : FastProjectile
 		Trail.Master = Self;
 		Trail.Angle = Angle;
 		Trail.Pitch = Pitch;
-		//Pass trail properties. Only really works for the dedicated trail class in particular, so it only runs if the trail is MVP_Tracer or a child class.
+		//Pass trail properties. Only really works for the dedicated trail class in particular, so it only runs if the trail is KAI_Tracer or a child class.
 		If (Trail Is "KAI_Tracer")
 		{
 			KAI_Tracer(Trail).SpawnOffsets.X = SpawnOffsetX;
@@ -155,8 +140,6 @@ Class KAI_BaseProjectile : FastProjectile
 			KAI_Tracer(Trail).SpawnOffsets.Z = SpawnOffsetZ;
 		}
 	}
-	
-	//Virtual Void ProjectileHitLiquid (Int LiquidType, Bool HitCeiling){}
 	
 	//DOCUMENT: The actual parameters on this function. Here in the code, and on the GitHub wiki I'll set up once the KAI is tidy and finished enough.
 	Bool DeflectProjectile (Actor Victim, Int DeflectChance, Double DamageReductionFactor, Double SlowDownFactor = 0,
@@ -175,6 +158,7 @@ Class KAI_BaseProjectile : FastProjectile
 		Vel3DFromAngle (Speed,Angle,Pitch);
 		
 		//Spark effect.
+		//MAYDO: Make spark effect customizable ? Potentially through an OnDeflection() virtual.
 		TextureID NullTex;
 		For (Int I = 0; I < 24; I++)
 		{

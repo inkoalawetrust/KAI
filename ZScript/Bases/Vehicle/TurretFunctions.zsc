@@ -332,62 +332,6 @@ Extend Class KAI_BaseTurret
 	}
 }
 
-//Note: This is a pistol that fires a specified line of fire raycast. Used to debug if the LineTracer in question returns BadLOF properly.
-Class KAI_LOFDebugGun : Pistol
-{
-	Default
-	{
-		Weapon.SlotNumber 1;
-		+Weapon.CheatNotWeapon;
-	}
-	
-	//Change the tracer spawned by New() to test different line of fire checks.
-	Action Void A_FireDebugTrace ()
-	{
-		A_StartSound ("Weapon/DebugFire",CHAN_WEAPON);
-		Let Check = New ("KAI_ProjectileLOFCheck");
-		
-		Vector3 Direction = (AngleToVector(Angle, Cos(Pitch)), -Sin(Pitch));
-		Vector3 ShotPos =(Pos.X,Pos.Y,Pos.Z+(Height/2));
-		
-		Double Distance = PLAYERMISSILERANGE; //8192 map units
-		Check.Shooter = Self;
-		Check.Trace (ShotPos,CurSector,Direction,Distance,0);
-		
-		Vector3 HitPos = Check.Results.HitPos;
-		KAI_LOFRaycast.VisualizeTracePath (ShotPos, HitPos, Check.Results.Distance);
-		
-		Console.Printf ("FirePos %d %d %d, hitpos %d %d %d",shotpos.x,shotpos.y,shotpos.z,hitpos.x,hitpos.y,hitpos.z);
-		
-		If (Check.BadLOF)
-		{
-			A_Log ("KAI_LOFDebugGun: The line of fire check returned a bad LOF.");
-			Check.Destroy();
-			Return;
-		}
-		
-		A_Log ("KAI_LOFDebugGun: The line of fire check returned a good LOF.");
-		Check.Destroy();
-		Return;
-	}
-	
-	States
-	{
-		Select:
-			TNT1 A 0 A_Overlay (666,"ToolGunLoop");
-			TNT1 A 1 A_Raise (100);
-			Goto Select+1;
-		Fire:
-			TNT1 A 4 A_FireDebugTrace();
-			TNT1 A 16;
-			Goto Ready;
-		ToolgunLoop:
-			LDBG A 12;
-			LDBG BCDE 8;
-			Loop;
-	}
-}
-
 //This is the base class for making custom LineTracer-based line of fire checks for vehicles. This is better than the old method of a do-all LOF check method.
 //It contains some basic LOF-related checks methods. Along with access to the KAIs' generic actor checks.
 Class KAI_LOFRaycast : LineTracer

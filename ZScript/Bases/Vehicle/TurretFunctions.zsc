@@ -599,31 +599,6 @@ Class KAI_LOFActorFinder : KAI_LOFRaycast
 	}
 }
 
-//A generic check used to find where a projectile will roughly land, to place a warning zone for marines there.
-//This is here because KAI projectiles usually go through allies.
-Class KAI_GenericWarnMarineCheck : KAI_LOFRaycast
-{
-	Int BlockMode; //Works like the variable in KAI_LOFActorFinder.
-	Override ETraceStatus TraceCallback()
-	{
-		Actor Mobj = Results.HitActor;
-		
-		//Standard KAI projectiles go through allies.
-		If (Mobj && (IsInanimateObject (Mobj) || Shooter && KAI_IsHostile (Shooter,Mobj)))
-			Return Trace_Stop;
-		
-		//The trace specifically hit a projectile blocking line. e.g a window linedef or a polyobject.
-		If (Results.HitLine && Results.HitLine.Flags & Line.ML_BLOCKEVERYTHING || BlockMode != 0 && BlockingLineInTheWay (Results.HitLine,BlockMode))
-			Return Trace_Stop;
-		
-		//Level geometry is in the way.
-		If (HitLevelGeometry (Results))
-			Return Trace_Stop;
-		
-		Return Trace_Skip;
-	}
-}
-
 //Generic projectile LOF check for non-ripping projectiles, should be applicable to most projectiles.
 //PropHealthThreshold: If a destructible prop actor with this much health or less is standing in the way, then shoot at it anyway.
 //SplashRadius: If the check hit level geometry, but the target is within the specified specified distance from the hit spot. Then don't return BadLOF.
@@ -676,7 +651,7 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 		}
 		
 		//Solid corpse of an enemy in the way, shell can't go through.
-		If (Mobj && !OtherInBlast && KAI_IsHostile(Shooter,Mobj) && IsSolidCorpse(Mobj))
+		If (Mobj && !OtherInBlast && KAIVehicle_IsHostile(Shooter,Mobj) && IsSolidCorpse(Mobj))
 		{
 			BadLOF = True;
 			Return Trace_Stop;

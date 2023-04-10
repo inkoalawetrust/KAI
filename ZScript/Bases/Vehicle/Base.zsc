@@ -2,12 +2,9 @@
 /*Try and fix the vehicle turrets to be at the top of their vehicle even at the first tick of their existance.
 The first fix I tried was immediately warping the turret to its vehicle. Which somehow turns the turrets into the vehicle they are attached on in the
 first tick. Which is literally worse than the turrets spawning on the ground.*/
-//Remake the .50 cal bullet and 30mm shell sprites. So that the whole round, casing included, isn't fired. Maybe add the casings as a visual effect instead.
 
 //IDEA:
-//Maybe give the APCs' 2 big turrets 16 rotations instead of 8. Due to the combat traverse code ? The main concern here is file size.
 //Add a system in the base turrets' ShouldAttack(), where if the target is obstructed, the turret will instead try aiming up or down instead of the middle.
-//Make marines able to get back into the APC and Army Truck from their backs. Not sure how this would even work. Probably needs a rewrite of the marines.
 //Add smoke that can come off of vehicles when they are low on health.
 
 Class KAI_BaseVehicle : Actor Abstract
@@ -689,35 +686,6 @@ Class KAI_BaseProjectile : FastProjectile
 	}
 	
 	//Virtual Void ProjectileHitLiquid (Int LiquidType, Bool HitCeiling){}
-	
-	//Allows to quickly set up a spawned liquid splash, and then returns a pointer the splash to allow for further modifications, like making it visually larger or calling A_QuakeEx from it.
-	Actor SpawnLiquidSplash (Int LiquidType = LIQUID_WATER, Sound SplashSound = "SFX/LiquidExplosion", Double Volume = 1.0, Double Attenuation = 0.5,
-	Int ExplosionDamage = 0, Double ExplosionRadius = 0, Double FullDamageRadius = 0, Name DamageType = "", Bool DontHarmSource = False)
-	{
-		Actor Splash = Spawn ("MVP_LiquidSplash",Pos);
-		
-		If (Splash)
-		{
-			//Set the shooter of the projectile for DontHarmSource to work.
-			If (bMissile)
-				Splash.Target = Target; //Projectiles store their shooter in the target pointer, so transfer the shooter to the splash.
-			Else
-				Splash.Target = Self; //Otherwise set the shooter to the actor calling the function, if it's not a projectile somehow.
-			
-			MVP_LiquidSplash(Splash).LiquidType = LiquidType;
-			MVP_LiquidSplash(Splash).SplashSound = SplashSound;
-			MVP_LiquidSplash(Splash).Volume = Volume;
-			MVP_LiquidSplash(Splash).Attenuation = Attenuation;
-			MVP_LiquidSplash(Splash).RadiusDamage = ExplosionDamage;
-			MVP_LiquidSplash(Splash).MaxTargetRange = ExplosionRadius;
-			MVP_LiquidSplash(Splash).MeleeRange = FullDamageRadius;
-			MVP_LiquidSplash(Splash).ExplosionDamageType = DamageType;
-			MVP_LiquidSplash(Splash).DontHarmSource = DontHarmSource;
-			Return Splash;
-		}
-		
-		Return Null;
-	}
 	
 	Bool DeflectProjectile (Actor Victim, Int DeflectChance, Double DamageReductionFactor, Double SlowDownFactor = 0,
 	Vector2 RandomAngle = (0,0), Vector2 RandomPitch = (0,0), Double Volume = 1, Double Attenuation = 0.9)

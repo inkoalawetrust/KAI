@@ -14,6 +14,8 @@ Let alone how to make a smooth transition to the MVP being a mod based on this l
 But there are also some I want to make specifically for this codebase, like MAYDO.*/
 //Speaking of documentation, begin writing some on a Github wiki, of the functions, classes etc. Once I port over the actual code from the MVP first of course.
 //Add a method to produce warning zones for KAI actors, what they do with that info is up to them. The info should use inventory tokens for cross-mod compat. No the current MVP system won't do AT ALL.
+//Some ideas from the previous failed attempt at setting up the library were cool. Bring them back once this second attempt hopefully succedes.
+//Remove "branding" from the MVP. Like most mentions to it, or the base vehicle prop classes being tagged as "MILITARY Vehicle Prop" specifically.
 
 //IDEA:
 //Add a projectile array that is updated every time a projectile appears and vanishes from the world. Only do this when I rewrite the Smart Marines.
@@ -37,5 +39,3 @@ Likewise, the code that is meant to be shared by all NPCs also goes here.*/
 	/*This will stay empty until I get around to remaking the Smart Marines. Once the rewrite starts,
 	I will begin moving any generic code to this base.*/
 	#Include "ZScript/Bases/Humanoid/Base.zsc"
-
-//TODO: This is temporary until the transition finishes.

@@ -42,49 +42,6 @@ Mixin Class KAI_MathFunctions
 
 Mixin Class KAI_UniversalFunctions
 {
-	Enum LiquidTypes
-	{
-		LIQUID_NONE = 0,
-		LIQUID_WATER = 1,
-		LIQUID_NUKAGE = 2,
-		LIQUID_BLOOD = 3,
-		LIQUID_LAVA = 4,
-		LIQUID_SLIME = 5
-	};
-	
-	Int CheckLiquid (TextureID Texture)
-	{
-		/*===============================================================
-		This class stores the names of the different textures used for each type of liquid.
-		These lists can be expanded as seen fit for your project, in case it has additional custom water/nukage/blood/lava/slime textures.
-		The lists already contain some names of liquid flats that don't exist in the vanilla game, for built-in mod compatibility.
-		Such as by having waterfall textures that don't exist like WFALL# and NFALL#.
-		===============================================================*/
-		Static Const String WaterTextures[] = {"FWATER1", "FWATER2", "FWATER3", "FWATER4", "WFALL1", "WFALL2", "WFALL3", "WFALL4"};
-		Static Const String NukageTextures[] = {"NUKAGE1", "NUKAGE2", "NUKAGE3", "NFALL1", "NFALL2", "NFALL3", "NFALL4"};
-		Static Const String BloodTextures[] = {"BLOOD1", "BLOOD2", "BLOOD3", "BFALL1", "BFALL2", "BFALL3", "BFALL4"};
-		Static Const String LavaTextures[] = {"LAVA1","LAVA2", "LAVA3", "LAVA4", "DBRAIN1", "DBRAIN2", "DBRAIN3", "DBRAIN4", "LFALL1", "LFALL2", "LFALL3", "LFALL4"};
-		Static Const String SlimeTextures[] = {"SLIME01","SLIME02", "SLIME03", "SLIME04", "SLIME05","SLIME06", "SLIME07", "SLIME08", "SFALL1", "SFALL2", "SFALL3", "SFALL4"};
-		
-		For (Int I = 0; I < WaterTextures.Size()-1; I++)
-			If (TexMan.CheckForTexture (WaterTextures[I]) == Texture)
-				Return LIQUID_WATER;
-		For (Int I = 0; I < NukageTextures.Size()-1; I++)
-			If (TexMan.CheckForTexture (NukageTextures[I]) == Texture)
-				Return LIQUID_NUKAGE;
-		For (Int I = 0; I < BloodTextures.Size()-1; I++)
-			If (TexMan.CheckForTexture (BloodTextures[I]) == Texture)
-				Return LIQUID_BLOOD;
-		For (Int I = 0; I < LavaTextures.Size()-1; I++)
-			If (TexMan.CheckForTexture (LavaTextures[I]) == Texture)
-				Return LIQUID_LAVA;
-		For (Int I = 0; I < SlimeTextures.Size()-1; I++)
-			If (TexMan.CheckForTexture (SlimeTextures[I]) == Texture)
-				Return LIQUID_SLIME;
-		
-		Return LIQUID_NONE;
-	}
-	
 	Array <Actor> TempAllyList; //Used to prevent friends of the explosions' source from being harmed.
 	
 	//Temporarily give NORADIUSDMG to allies, to stop them from being harmed by explosions.
@@ -203,8 +160,11 @@ Mixin Class KAI_CheckFunctions
 		Return (Other == Caller.Target || !Other.bNoTarget && !(Other.Player && Other.Player.Cheats & CF_NOTARGET));
 	}
 	
-	//Is the other actor hostile?
-	Bool KAI_IsHostile (Actor Caller, Actor Other)
+	//TODO: Add a flag that is needed to explicitly enable this special logic ?
+	//Is the other actor hostile? This is special hostile check logic for NPCs hostile to the player.
+	//The native IsHostile() just leaves the return up to the infighting settings.
+	//But this function checks if the other fellow enemy NPC is targetting the vehicle or one of its' turrets, or an 
+	Bool KAIVehicle_IsHostile (Actor Caller, Actor Other)
 	{
 		If (!Caller || !Other) Return False;
 		
@@ -239,8 +199,7 @@ Mixin Class KAI_CheckFunctions
 Extend Class KAI_BaseVehicle
 {
 	//=====|Status checks|=====\\
-	/*Used to check if marines can spawn in the specified position, the radius and height parameters are for vehicles like the truck,
-	that- ugh, nevermind, I can't put into words what this does.*/
+	//Used to check if the specified position with the specified hitbox size is valid.
 	Bool ValidPositionAt (Vector2 Offset = (0,0), Double TempRadius = 32, Double TempHeight = 56)
 	{
 		//Store the previous position and dimensions of the vehicle.
@@ -683,7 +642,7 @@ Extend Class KAI_BaseVehicle
 			Actor Mobj = FindEnemies.Thing;
 			
 			//Skip this actor if it's dead, cannot be targeted, is not a monster nor a player, or is not even an enemy.
-			If (!Mobj || IsDead (Mobj) || IsInanimateObject(Mobj) || !CanBeTargeted (Self, Mobj) || !KAI_IsHostile (Self, Mobj)) Continue;
+			If (!Mobj || IsDead (Mobj) || IsInanimateObject(Mobj) || !CanBeTargeted (Self, Mobj) || !KAIVehicle_IsHostile (Self, Mobj)) Continue;
 			
 			If (Distance3DSquared (Mobj) > Range*Range) Continue; //Out of range.
 			
@@ -716,7 +675,7 @@ Extend Class KAI_BaseVehicle
 			If (!Mobj || Mobj == Self) Continue;
 
 			//Don't crush anything if a friendly necromancer is nearby.
-			If (Flags & FNCF_STOPFORVILES && !IsDead(Mobj) && IsNecromancer(Mobj) && !KAI_IsHostile (Self, Mobj) && CheckSight (Mobj)) Return Null;
+			If (Flags & FNCF_STOPFORVILES && !IsDead(Mobj) && IsNecromancer(Mobj) && !KAIVehicle_IsHostile (Self, Mobj) && CheckSight (Mobj)) Return Null;
 			
 			//Skip this actor if it's already your corpse target, is alive, is already crushed, is not a dead corpse, or cannot be targeted.
 			If (Mobj == CorpseTarget || !IsDead (Mobj) || Mobj.bDontGib || Mobj.bDontCorpse || !CanBeTargeted (Self, Mobj)) Continue;

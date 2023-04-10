@@ -2,7 +2,7 @@ Class KAI_BaseProp : KAI_BaseVehicle Abstract
 {
 	Default
 	{
-		Tag "Military Vehicle Prop Base (You really shouldn't be seeing this in-game)";
+		Tag "Vehicle Prop Base (You really shouldn't be seeing this in-game)";
 		+NotAutoaimed;
 		+CastSpriteShadow;
 		+DoHarmSpecies;
@@ -62,7 +62,7 @@ Class KAI_BaseTurretProp : KAI_BaseTurret
 {
 	Default
 	{
-		Tag "Military Vehicle Turret Prop Base (You really shouldn't be seeing this in-game)";
+		Tag "Vehicle Turret Prop Base (You really shouldn't be seeing this in-game)";
 		+NotAutoaimed;
 		+NoSpriteShadow;
 		//+NeverTarget; //There should not be a reason to target a prop.

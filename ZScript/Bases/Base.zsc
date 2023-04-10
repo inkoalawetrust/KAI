@@ -10,3 +10,271 @@ Class KAI_MixinActor : Actor Abstract
 Class KAI_Actor : Actor Abstract
 {
 }
+
+//TODO: Optimize the fast tracer code by storing the tracers in an array and moving them, instead of spawning new ones every tick.
+//NOTE: This code is kinda mostly made for bullets and other such projectiles, hence the bullet tracer-like code and deflection system. But can be used for fireballs and the likes just fine !
+//The base projectile for KAI actors, it's not necessary to really use this. But it does have some advantages:
+//It's based on FastProjectile, so it can properly move both with fast and slow velocities.
+/*It's got a toggleable custom trail system. The default trail spawn code for FastProjectile works for actors faster than normal projectiles.
+But begins breaking up with truly fast projectiles, this custom trail code doesn't. You can reenable the stock FastProjectile trails.*/
+//It has a deflection function, which makes the projectile deflect like a bullet. You can define deflections per-actor deflections in the projectiles' SpecialMissileHit(0.
+//It has code that allows you to change the visual pitch of the projectile based on its' actual pitch. Similar to what KAI_BaseTurret allows for on the vehicle base.
+Class KAI_BaseProjectile : FastProjectile
+{
+	Default
+	{
+		MissileHeight 8;
+		KAI_BaseProjectile.TrailLineSpacing 2;
+		Projectile;
+	}
+	
+	Override Void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		
+		If (Target) Species = Target.Species; //MAYDO: Have this rely on a flag ? It's kinda here because of the MVP where it was ripped from.
+	}
+	
+	//NOTE: Die() is not called on projectiles except during bounces, for some reason. And calling this code manually on death states wouldn't be too different from the current system.
+	/*Override Void Die (Actor Source, Actor Inflictor, Int DmgFlags, Name MeansOfDeath)
+	{
+		Super.Die (Source, Inflictor, DmgFlags, MeansOfDeath);
+		a_log ("called die()");
+		//Check if the projectile hit any liquid flat. If it did call the hit liquid virtual method.
+		Bool HitFloor = (Pos.Z <= FloorZ);
+		Bool HitCeiling = (Pos.Z + Height >= CeilingZ);
+		Int LiquidType;
+		If (HitFloor || HitCeiling)
+		{
+			LiquidType = CheckLiquid (HitFloor ? FloorPic : CeilingPic);
+			If (LiquidType != LIQUID_NONE)
+				ProjectileHitLiquid (LiquidType,HitCeiling);
+		}
+	}*/
+	
+	Override Void Tick ()
+	{
+		Vector3 OldPos = Pos;
+		Super.Tick();
+		
+		//bMissile is removed when a projectile explodes.
+		If (!bMissile || IsFrozen()) Return;
+		
+		If (TrailDelay)
+		{
+			TrailDelay--;
+			Return;
+		}
+		
+		If (bNoTrailLine)
+		{
+			Effect();
+			Return;
+		}
+		
+		//CREDIT: Boondorl wrote the original code that draws a line of tracers between the current and previous position.
+		If (TrailActor)
+		{
+			Vector3 Path = Level.Vec3Diff( Pos, OldPos );
+			Double Distance = Path.Length();
+			If (Distance <= 1) Return;
+			Path /= Distance;
+			
+			Double CurScaleX = ScaleAmountX;
+			Double CurScaleY = ScaleAmountY;
+			Double CurAlpha = FadeAmount;
+			
+			For( Double I = InitialTrailsSkipped; I < Distance; I += TrailLineSpacing )
+			{
+				If (MaxTrails != 0 && MaxTrails <= I) Break; //Too many trail actors.
+				
+				Let Trail = Spawn(TrailActor,level.Vec3Offset(pos, Path*i));
+				If (Trail)
+				{
+					TrailSpawn (Trail); //Return spawned trail.
+					//If it's time to begin scaling and fading the trail.
+					If (I >= TrailFadeAndScaleStart)
+					{
+						Trail.Scale.X += CurScaleX;
+						Trail.Scale.Y += CurScaleY;
+						Trail.Alpha += CurAlpha;
+						CurScaleX += ScaleAmountX;
+						CurScaleY += ScaleAmountY;
+						CurAlpha += FadeAmount;
+					}
+				}
+			}
+		}
+	}
+	
+	//Mostly ripped from the native FastProjectile, with some changes and additions.
+	Override Void Effect()
+	{
+		If (!bNoTrailLine) Return;
+		Class<Actor> Trail = TrailActor;
+		Actor Act;
+		If (Trail != Null)
+		{
+			Double HitZ = Pos.Z - 8;
+
+			If (HitZ < FloorZ)
+			{
+				HitZ = FloorZ;
+			}
+			// Do not clip this offset to the floor.
+			HitZ += MissileHeight;
+			
+			Act = Spawn (Trail, (Pos.XY, HitZ), ALLOW_REPLACE);
+			If (Act != Null)
+			{
+				TrailSpawn (Act);
+				If (bGetOwner && Target != Null)
+					Act.Target = Target;
+				Else
+					Act.Target = Self;
+				
+				//Act.Angle = Angle; //These are handled by TrailSpawn().
+				//Act.Pitch = Pitch;
+			}
+		}
+	}
+	
+	//Returns each trail actor spawned, allowing you to perform per-trail modifications.
+	Virtual Void TrailSpawn (Actor Trail)
+	{
+		If (!Trail) Return;
+		
+		Trail.Master = Self;
+		Trail.Angle = Angle;
+		Trail.Pitch = Pitch;
+		//Pass trail properties. Only really works for the dedicated trail class in particular, so it only runs if the trail is MVP_Tracer or a child class.
+		If (Trail Is "KAI_Tracer")
+		{
+			KAI_Tracer(Trail).SpawnOffsets.X = SpawnOffsetX;
+			KAI_Tracer(Trail).SpawnOffsets.Y = SpawnOffsetY;
+			KAI_Tracer(Trail).SpawnOffsets.Z = SpawnOffsetZ;
+		}
+	}
+	
+	//Virtual Void ProjectileHitLiquid (Int LiquidType, Bool HitCeiling){}
+	
+	//DOCUMENT: The actual parameters on this function. Here in the code, and on the GitHub wiki I'll set up once the KAI is tidy and finished enough.
+	Bool DeflectProjectile (Actor Victim, Int DeflectChance, Double DamageReductionFactor, Double SlowDownFactor = 0,
+	Vector2 RandomAngle = (0,0), Vector2 RandomPitch = (0,0), Double Volume = 1, Double Attenuation = 0.9)
+	{
+		If (Random (0,255) < DeflectChance) Return False; //Fission mailed.
+		
+		Int Damage = GetMissileDamage(7,1); //Get your damage, be it a static number or a damage function.
+		Victim.DamageMobj (Self,Target,Int(Damage*DamageReductionFactor),DamageType); //Harm the caller even when deflected.
+		Angle -= 180; //Turn around.
+		Vel *= -1; //Opposite day today
+		Speed *= SlowDownFactor; //Slow down by a set amount. Can just be randomized in the parameters instead.
+		//Randomize the direction you'll fly to.
+		Angle += FRandom (RandomAngle.X,RandomAngle.Y);
+		Pitch += FRandom (RandomPitch.X,RandomPitch.Y);
+		Vel3DFromAngle (Speed,Angle,Pitch);
+		
+		//Spark effect.
+		TextureID NullTex;
+		For (Int I = 0; I < 24; I++)
+		{
+			A_SpawnParticleEx (
+			"yellow",
+			NullTex,
+			STYLE_Add,
+			lifetime:23,
+			size:3,
+			xoff:FRandom (6,-6),
+			yoff:FRandom (6,-6),
+			zoff:FRandom (6,-6),
+			velx:FRandom (1,-1),
+			vely:FRandom (1,-1),
+			velz:FRandom (1,3),
+			accelz: FRandom (-0.1,-0.25)
+			);
+		}
+		Victim.A_StartSound (BounceSound,flags:CHANF_OVERLAP,Volume,Attenuation); //Ricochet sound, uses the BounceSound property, naturally.
+		DontCollide = Victim; //You should no longer collide with the actor you just deflected, to avoid getting stuck inside it.
+		
+		Return True;
+	}
+	
+	//Has different values than UpdateTurretElevation().
+	Int UpdateProjectileElevation (Int FaceDown, Int FaceDown2, Int FaceStraight, Int FaceUp, Int FaceUp2)
+	{
+		If (Pitch >= 70)
+			Return FaceDown2;
+		Else If (Pitch >= 30 && Pitch < 70)
+			Return FaceDown;
+		Else If (Pitch < 30 && Pitch > -30)
+			Return FaceStraight;
+		Else If (Pitch <= -30 && Pitch > -70)
+			Return FaceUp;
+		Else If (Pitch <= -70)
+			Return FaceUp2;
+		
+		Return FaceStraight;
+	}
+	
+	Override Int SpecialMissileHit (Actor Victim)
+	{
+		If (!Victim || Victim && Victim == DontCollide) Return 1;
+		//MAYDO: This makes the now bad assumption that projectile is for vehicles only- actually no. I think this may be fine ?
+		//If not, maybe replace this with a dynamic array of specific actors the projectile should't collide with.
+		If (Target && Target Is "KAI_BaseTurret" && Victim && Victim == Target.Master) Return 1; //If fired from a turret, ignore the vehicle it's attached on.
+		
+		Return -1;
+	}
+	
+	Actor DontCollide; //Stores an actor that will be ignored by SpecialMissileHit, so deflected projectiles don't deflect dozens of times when bouncing off. Sorse spaghetti has nothing on Doom spaghet.
+	
+	Mixin KAI_UniversalFunctions;
+	Mixin KAI_CheckFunctions;
+	Private Int ProjectileFlags;
+	FlagDef NoTrailLine : ProjectileFlags, 0; //The projectile uses the normal FastProjectile trail spawning code.
+	Class <Actor> TrailActor;
+	Property TrailActor : TrailActor;
+	
+	Int TrailDelay, MaxTrails, InitialTrailsSkipped, TrailFadeAndScaleStart;
+	Property TrailDelay : TrailDelay;
+	Property MaxTrails : MaxTrails;
+	Property InitialTrailsSkipped : InitialTrailsSkipped;
+	Property TrailFadeAndScaleStart : TrailFadeAndScaleStart;
+	
+	Double TrailLineSpacing;
+	Property TrailLineSpacing : TrailLineSpacing;
+	
+	Double ScaleAmountX, ScaleAmountY, FadeAmount;
+	Property ScaleAmountX : ScaleAmountX;
+	Property ScaleAmountY : ScaleAmountY;
+	Property FadeAmount : FadeAmount;
+	
+	Double SpawnOffsetX, SpawnOffsetY, SpawnOffsetZ;
+	Property SpawnOffsetX : SpawnOffsetX;
+	Property SpawnOffsetY : SpawnOffsetY;
+	Property SpawnOffsetZ : SpawnOffsetZ;
+}
+
+//A generic tracer effect particle.
+//MAYDO: A flag to enable state progression ? Maybe not. The entire point is for this actor to be as "light" as ZScript allows.
+Class KAI_Tracer : Actor
+{
+	Default {RenderStyle "Add"; Scale 0.5; ReactionTime 1; +NoBlockmap; +NoInteraction;}
+	
+	Override Void PostBeginPlay ()
+	{
+		Super.PostBeginPlay();
+		
+		SetOrigin (Vec3OffsetRelative (Self,SpawnOffsets),False);
+	}
+	Override Void Tick()
+	{
+		If (IsFrozen()) Return;
+		//Super.Tick(); //Not needed.
+		If (GetAge() >= ReactionTime)
+			Destroy();
+	}
+	
+	Mixin KAI_MathFunctions;
+	Vector3 SpawnOffsets;
+}

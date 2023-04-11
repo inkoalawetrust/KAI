@@ -28,6 +28,8 @@ Class KAI_Actor : Actor Abstract
 		+FloorClip;
 	}
 	
+	Mixin KAI_CheckFunctions; //Of course all KAI NPCs have access to the library's check functions.
+	
 	//=====|Virtual functions|=====\\
 	//NOTE: The code on these virtuals is basically just the default. Different base classes will likely add on this base code or replace it entirely.
 	Override Void PostBeginPlay()
@@ -39,6 +41,14 @@ Class KAI_Actor : Actor Abstract
 	/*Allows actors to define the defaults for their own user variables. This is better than the //$UserDefaultValue editor key,
 	because it allows default user variable values to be set for actors that are spawned in-game as well, not just ones placed in UDB*/
 	Virtual Void UserVariableDefaults(){}
+	
+	//TODO: Maybe have this check for SECF_NOATTACK sectors ? Or not, since it would trigger vehicles to run away from enemies in them.
+	//Used by the chase functions of each NPC type to check for all the different methods each actor has to attack.
+	Virtual Bool CanAttack()
+	{
+		If ((MissileState || MeleeState) && !IsDead(Self)) Return True; //Actors just check if they have an attack state and are alive by default. More or less stock ZDoom.
+		Return False;
+	}
 }
 
 //TODO: Optimize the fast tracer code by storing the tracers in an array and moving them, instead of spawning new ones every tick.

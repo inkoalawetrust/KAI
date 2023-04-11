@@ -1,3 +1,4 @@
+//$GZDB_SKIP
 //AI functions shared by all NPC types.
 Extend Class KAI_Actor
 {
@@ -85,6 +86,133 @@ Extend Class KAI_Actor
 		
 		Int MMC = Int(MinMissileChance * G_SkillPropertyFloat(SKILLP_Aggressiveness));
 		Return Random2[PR_CheckMissileRange]() >= Min(Int(Dist), MMC);
+	}
+	
+	//=====|Sight and locomotion|=====\\
+	Enum KAILookFlags
+	{
+		KAIL_CHASETARGET = 1 << 0, //If the actor already has a target. Then go to the specified see state. For when the internal A_LookEx() doesn't do it itself.
+		KAIL_NOTEMPSTAND = 1 << 1, //Should the actor not temporarily stay still if friendly (Not begin moving due to player fire) between A_LookEx() calls ?
+	}
+	
+	//Generic wrapper for A_LookEx shared by all actors.
+	//Flags, MinSeeDist, MaxSeeDist, MaxHearDist, FOV, Label: These properties are all directly transferred to A_LookEx, so  they work the same as in that function.
+	//ExtraFlags: The extra flags that modify KAI_Look's behavior. Look above for available flags.
+	Void KAI_Look (Int Flags = 0, Double MinSeeDist = 0, Double MaxSeeDist = 0, Double MaxHearDist = 0, Double FOV = 0, StateLabel Label = Null, Int ExtraFlags = 0)
+	{
+		//HACK: This shit is probably a super hacky way to just get actors that are already targeting an actor in their Spawn state to actually attack it.
+		If (ExtraFlags & KAIL_CHASETARGET && Target)
+		{
+			If (Label)
+				SetStateLabel (Label); //Go to specified state.
+			Else
+				SetState (SeeState); //Go to default See state.
+		}
+		Bool Stand = bStandStill;
+		If (!(ExtraFlags & KAIL_NOTEMPSTAND))
+		{
+			Stand = bStandStill;
+			bStandStill = True;
+		}
+		A_LookEx (Flags, MinSeeDist, MaxSeeDist, MaxHearDist, FOV, Label);
+		If (!(ExtraFlags & KAIL_NOTEMPSTAND)) bStandStill = Stand;
+	}
+	
+	Double LastTurnDir;
+	Int TurnCount; //Keeps track of how many turns in a row an actor calling KAI_MoveTowards with CHF_NORANDOMTURN should make.
+	//IDEA: Since I may just end up having this as a wholesale replacement. Maybe I should also implement support for patrol points, CANTLEAVEFLOORPIC, and CHF_FASTCHASE ?
+	//TODO: Add a flag to make the caller move AWAY from the specified actor.
+	//FIXME: There's some flickering between different sprite angles, try fixing it.
+	//Originally written by Custodian. Modified by me (inkoalawetrust). Makes the actor move towards the specified actor.
+	//Other: The actor to move to.
+	//DetourFactor: How long the actor is allowed to move in a direction after hitting an obstacle, before heading straight for the target again.
+	//AngleLimit: How much the actor can turn per detour. Used to not have it snap back 180 or anything like that.
+	//ChaseFlags: What flags from A_Chase should the function use ? Currently only supports CHF_DONTMOVE, CHF_NODIRECTIONTURN, CHF_NORANDOMTURN, and CHF_STOPIFBLOCKED.
+	void KAI_MoveTowards (Actor Other, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0)
+	{
+		If (!Other || ChaseFlags & CHF_DONTMOVE) Return;
+		double LastAngle = angle;
+		double NextAngle = LastAngle;
+		
+		//MoveCount is greater than 0 when avoiding an obstacle
+		if (MoveCount)
+		{
+			MoveCount--;
+		}
+		else
+		{
+			lastturndir = 0;
+			//move directly towards Other
+			if (Other && !(ChaseFlags & CHF_NORANDOMTURN)) NextAngle = GetAngleTo(Other,AngleLimit);
+		}
+		
+		//When CHF_NORANDOMTURN is on. The actor can take a set amount of turns before no longer turning to face its' target.
+		If (ChaseFlags & CHF_NORANDOMTURN && Other && --TurnCount > 0) NextAngle = GetAngleTo(Other,AngleLimit);
+ 
+		//absolute position of next movement
+		vector2 NextPos = Vec2Angle(speed, NextAngle);
+		bool moved = TryMove(NextPos, 0, false);
+ 
+		//if I hit an obstacle while avoiding another, try moving straight towards Other
+		if (!moved && MoveCount)
+		{
+			MoveCount = Int(random(16,32)*DetourFactor);
+			if (Other) NextAngle = GetAngleTo(Other,AngleLimit);
+			NextPos = Vec2Angle(speed, NextAngle);
+			moved = TryMove(NextPos, 0, false);
+		}
+		
+		//If there's a limit to how much the actor can turn per step. Decide an amount of turns for CHF_NORANDOMTURN to make after it hits an obstacle.
+		If (!moved && AngleLimit > 0 && ChaseFlags & CHF_NORANDOMTURN)
+		{
+			Switch (AngleLimit)
+			{
+				Case 20:
+					TurnCount = Random (2,4);
+					Break;
+				Case 10:
+					TurnCount = Random (3,6);
+					Break;
+				Case 5:
+					TurnCount = Random (8,12);
+					Break;
+				Default:
+					Break;
+			}
+		}
+ 
+		//test movement angles until I find one that works, avoid that obstacle for MoveCount tics
+		if (!moved && !(ChaseFlags & CHF_STOPIFBLOCKED))
+		{
+			MoveCount = Int(random(16,32)*DetourFactor);
+ 
+			//try moving the same relative direction as last time
+			if (lastturndir == 0) lastTurnDir = random(0,1) ? 1.0 : -1.0;
+			
+			//find viable movement direction
+			for (double i = 1; i < 6; i++)
+			{
+				NextAngle = LastAngle + (i * 48 * lastturndir);
+				NextPos = Vec2Angle(speed, NextAngle);
+				moved = TryMove(NextPos, 0, false);
+				if (moved) break;
+ 
+				lastTurnDir *= -1.0;
+ 
+				NextAngle = LastAngle + (i * 48 * lastturndir);
+				NextPos = Vec2Angle(speed, NextAngle);
+				moved = TryMove(NextPos, 0, false);
+				if (moved) break;
+			}
+		}
+ 
+		//face movement direction
+		If (!(ChaseFlags & CHF_NODIRECTIONTURN)) angle = Normalize180(NextAngle);
+		
+		/*If (!(Flags & MTFF_NOANGLESNAP)) Broken attempt at fixing the sprite flickering issue https://streamable.com/7y2uv2
+		{
+			Angle = GetNearestCardinalAngle (True),AngleTo (Players[ConsolePlayer].Camera));
+		}*/
 	}
 	
 	//=====|Miscelleneous AI functions|=====\\

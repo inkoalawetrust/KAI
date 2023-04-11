@@ -1,3 +1,4 @@
+//$GZDB_SKIP
 //Non AI related functions 
 Extend Class KAI_Actor
 {
@@ -57,5 +58,53 @@ Extend Class KAI_Actor
 		Projectile.Angle += FRandom (SpreadHorz.X,SpreadHorz.Y);
 		Projectile.Pitch += FRandom (SpreadVert.X,SpreadVert.Y);
 		Projectile.Vel3DFromAngle (Projectile.Speed,Projectile.Angle,Projectile.Pitch);
+	}
+	
+	//Used to check if the specified position with the specified hitbox size is valid.
+	Bool ValidPositionAt (Vector2 Offset = (0,0), Double TempRadius = 32, Double TempHeight = 56)
+	{
+		//Store the previous position and dimensions of the vehicle.
+		Vector3 PrevPos = Pos;
+		Double PrevRadius = Radius;
+		Double PrevHeight = Height;
+		
+		A_SetSize (TempRadius,TempHeight);
+		SetXYZ (KAI_Math.Vec3OffsetRelative (Self,(Offset,Pos.Z),flags:KAI_Math.V3R_ANGLEONLY));
+		
+		Bool Ok = CheckPosition (Pos.XY);
+		
+		A_SetSize (PrevRadius,PrevHeight);
+		SetXYZ (PrevPos);
+		
+		Return Ok;
+	}
+	
+	//CREDIT: Written by Lewisk3.
+	//Mathemagically gets the nearest sprite angle (https://zdoom.org/wiki/Sprite#Angles) based on the actors' current angle.
+	Double GetNearestCardinalAngle (Bool SixteenAngles = False)
+	{
+		Double NAngle = Normalize180(Angle) + 180;
+		Double Parts = 360 / (SixteenAngles ? 16.0 : 8.0);
+		Return (Round(NAngle / Parts) * Parts);
+	}
+	
+	//Gets the angle to the other actor, and also has a limit that can be used to get the angle to the other actor up to a certain point.
+	//Basically this is what A_Face()'s max_turn property does, sans the actual angle change on the caller.
+	Double GetAngleTo (Actor Other, Double AngleLimit = 10)
+	{
+		If (!Other) Return 0;
+		If (AngleLimit == 0) Return AngleTo (Other);
+		Double AngleTo = AngleTo (Other);
+		Double Delta = -DeltaAngle (Angle,AngleTo);
+		
+		If (AngleLimit != 0)
+		{
+			If (Delta > 0)
+				Return Angle - AngleLimit;
+			Else
+				Return Angle + AngleLimit;
+		}
+		
+		Return 0;
 	}
 }

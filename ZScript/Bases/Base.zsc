@@ -8,6 +8,37 @@ Class KAI_MixinActor : Actor Abstract
 
 Class KAI_Actor : Actor Abstract
 {
+	Default
+	{
+		//Properties
+		//These are the default player pawns' dimensions, and also my old Smart Marines' dimensions by extension.
+		Radius 16;
+		Height 56;
+		CameraHeight 48; //I think that's about eye level ?
+		Mass 100; //Generally, I (inkoalawetrust) basically measure ZDooms' mass units as 1 unit being 1 kilogram.
+		Speed 8;
+		FriendlySeeBlocks 48; //4096 map units, longer than the default of 1280 map units.
+		MaxTargetRange 8196; //Maximum range the actor can attack enemies from.
+		Obituary "%o managed to be killed by an abstract class, congratulations %o, we are all very proud of you. Or maybe a modder forgot to define a custom obituary.";
+		
+		//Flags
+		Monster; //Of course.
+		+AvoidHazards; //Obviously this is on by default for an intelligent NPC base. However, from what I've seen in the code and playtested, this flag doesn't actually do anything on its' own.
+		+SeeFriendlyMonsters; //Hostile KAI NPCs can see friendly monsters by default.
+		+FloorClip;
+	}
+	
+	//=====|Virtual functions|=====\\
+	//NOTE: The code on these virtuals is basically just the default. Different base classes will likely add on this base code or replace it entirely.
+	Override Void PostBeginPlay()
+	{
+		Super.PostBeginPlay ();
+		UserVariableDefaults(); //User variables cannot be handled in BeginPlay().
+	}
+	
+	/*Allows actors to define the defaults for their own user variables. This is better than the //$UserDefaultValue editor key,
+	because it allows default user variable values to be set for actors that are spawned in-game as well, not just ones placed in UDB*/
+	Virtual Void UserVariableDefaults(){}
 }
 
 //TODO: Optimize the fast tracer code by storing the tracers in an array and moving them, instead of spawning new ones every tick.

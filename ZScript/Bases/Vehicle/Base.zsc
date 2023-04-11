@@ -19,21 +19,17 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 		Mass 4500;
 		Speed 8;
 		FastSpeed 16;
-		FriendlySeeBlocks 32; // 4096 map units, longer than the default of 1280 map units.
+		FriendlySeeBlocks 48; // 6144 map units, longer than the GZDoom default of 1280 map units, and longer than the KAI_Actor default of 4096 map units.
 		MaxStepHeight 32;
 		MaxTargetRange 10000;
 		KAI_BaseVehicle.MaxCorpseRadius 64;
 		KAI_BaseVehicle.MaxCorpseHeight 48;
 		KAI_BaseVehicle.AggressionMultiplier 1.0;
-		Obituary "%o managed to be killed by an abstract class, congratulations %o, we are all very proud of you. Or maybe a modder forgot to define a custom obituary.";
 		Tag "Vehicle Base (You really shouldn't be seeing this in-game)";
 		
 		//Flags
-		Monster;
 		+NoForwardFall; //Doesn't make sense for a tank or some shit to slide forward after dying.
 		//+AvoidMelee;
-		+AvoidHazards;
-		+SeeFriendlyMonsters;
 		+Telestomp;
 		+NoInfightSpecies;
 		+DontMorph; //This is just here because ZDoom's morphing code is a mess internally, and having any of the vehicles morph would definitely break something.
@@ -41,14 +37,11 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 		+DontCorpse; //Keeps the vehicles' normal collision even after they are destroyed.
 		+NoBlood; //https://www.youtube.com/watch?v=K63AVSCPcSI
 		+NoPain;
-		+FloorClip;
 		+AddLightLevel; //Used for the headlight system.
 		-CanUseWalls; //Vehicles shouldn't be able to use walls, well, not the large ones anyway.
 	}
 	
-	/*Allows each vehicle to define the defaults for its' own user variables. This is better than the //$UserDefaultValue editor key,
-	because it allows default user variable values to be set for actors that are spawned in-game as well, not just ones placed in UDB*/
-	Virtual Void UserVariableDefaults ()
+	Override Void UserVariableDefaults ()
 	{
 		If (User_RetreatDistance == 0) User_RetreatDistance = 768;
 		If (User_ChaseTime == 0) User_ChaseTime = (35/2)*30; //This is 35/2, because it assumes that the default See state on the vehicles has 2 tic long states.
@@ -131,7 +124,6 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	Override Void PostBeginPlay()
 	{
 		Super.PostBeginPlay();
-		UserVariableDefaults();
 		SpawnVehicleTurret();
 		SpawnHeadlights();
 		
@@ -392,8 +384,7 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 	
 	Override Void PostBeginPlay ()
 	{
-		Actor.PostBeginPlay ();
-		UserVariableDefaults();
+		KAI_Actor.PostBeginPlay ();
 		SpawnVehicleTurret();
 		If (!bFriendly) Species = 'MilitaryHostile';
 	}

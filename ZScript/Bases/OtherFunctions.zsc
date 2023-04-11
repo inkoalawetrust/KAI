@@ -1,0 +1,61 @@
+//Non AI related functions 
+Extend Class KAI_Actor
+{
+	//Allows NPCs to lead their shots based on their targets' movement, regardless of whether or not it's a player or monster. Unlike VelIntercept().
+	//This is called after the projectile has been spawned, to modify its' trajectory post-spawn. Code is also run in the NPCs' tick for target position updates.
+	//Projectile: The projectile to modify.
+	//SpreadHorz/SpreadVert: Maximum and minimum horizontal and vertical spread, stored in Vector2s.
+	//MinDist: The minimum distance below which target prediction won't be used. And the projectile will be fired straight at the target instead.
+	Void HandleTargetPrediction (Actor Projectile, Vector2 SpreadHorz = (0,0), Vector2 SpreadVert = (0,0), Double MinDist = 1024)
+	{
+		Vector3 OldVel;
+		If (!Projectile || !Target) Return;
+		
+		//No movement prediction, so just shoot normally and move on.
+		If (bNoTargetPrediction || Distance3DSquared(Target) <= MinDist*MinDist)
+		{
+			NormalProjectileFire (Projectile,SpreadHorz,SpreadVert);
+			Return;
+		}
+		
+		//Target has no velocity for VelIntercept to work with. This is almost always the case for normal NPCs, which move using small teleport steps, instead of actual movement.
+		If ((Target.Vel.X == 0 && Target.Vel.Y == 0 && Target.Vel.Z == 0))
+		{
+			OldVel = Target.Vel;
+			
+			If (Target.CurState.Tics)
+				Target.Vel = Level.Vec3Diff (LastEnemyPosition,CurrentEnemyPosition) / Target.CurState.Tics;
+			Else //Fallback to prevent division by zero.
+				Target.Vel = Level.Vec3Diff (LastEnemyPosition,CurrentEnemyPosition);
+			
+			If ((Target.Vel.X == 0 && Target.Vel.Y == 0 && Target.Vel.Z == 0)) //Still no velocity
+			{
+				NormalProjectileFire (Projectile,SpreadHorz,SpreadVert);
+				Target.Vel = OldVel; //Revert velocity.
+				Return;
+			}
+			Projectile.VelIntercept (Target);
+			Projectile.Angle += FRandom (SpreadHorz.X,SpreadHorz.Y);
+			Projectile.Pitch += FRandom (SpreadVert.X,SpreadVert.Y);
+			Projectile.Vel3DFromAngle (Projectile.Speed,Projectile.Angle,Projectile.Pitch);
+			Target.Vel = OldVel;
+		}
+		//Target has velocity, like if it's a player or a custom actor with velocity-based movement.
+		Else
+		{
+			Projectile.VelIntercept (Target);
+			Projectile.Angle += FRandom (SpreadHorz.X,SpreadHorz.Y);
+			Projectile.Pitch += FRandom (SpreadVert.X,SpreadVert.Y);
+			Projectile.Vel3DFromAngle (Projectile.Speed,Projectile.Angle,Projectile.Pitch);
+		}
+	}
+	
+	//Adds projectile spread and adjusts the projectiles' velocity accordingly. Basically just normal shooting with no prediction.
+	Void NormalProjectileFire (Actor Projectile, Vector2 SpreadHorz, Vector2 SpreadVert)
+	{
+		Projectile.A_FaceMovementDirection();
+		Projectile.Angle += FRandom (SpreadHorz.X,SpreadHorz.Y);
+		Projectile.Pitch += FRandom (SpreadVert.X,SpreadVert.Y);
+		Projectile.Vel3DFromAngle (Projectile.Speed,Projectile.Angle,Projectile.Pitch);
+	}
+}

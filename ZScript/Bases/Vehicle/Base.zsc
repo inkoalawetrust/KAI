@@ -339,11 +339,10 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 	Private Int TurretFlags;
 	FlagDef FallOnDeath : TurretFlags, 0; //Turret detached from its' vehicle upon death.
 	FlagDef DontStayAround : TurretFlags, 1; //Used to make the turret not make the vehicle stop to sit around and let the turret shoot, even if the latter has a target.
-	FlagDef NoTargetPrediction : TurretFlags, 2; //The turret will not calculate its' targets' movement and lead its' shots.
 	//Note: If your turret has bTransferDamage, any splash damage the vehicle itself receives will be effectively doubled due to the damage transfer.
 	//If you do not want this unintended consequence of the flag, then give the turret the +NORADIUSDMG flag !
-	FlagDef TransferDamage : TurretFlags, 3; //The turret will transfer damage taken to its' master (The vehicle it's on). Instead of taking any of its' own.
-	FlagDef NoCombatTraverse: TurretFlags, 4; //The stock combat traverse code will not run, can be used to give the turret its' own turn logic when firing.
+	FlagDef TransferDamage : TurretFlags, 2; //The turret will transfer damage taken to its' master (The vehicle it's on). Instead of taking any of its' own.
+	FlagDef NoCombatTraverse: TurretFlags, 3; //The stock combat traverse code will not run, can be used to give the turret its' own turn logic when firing.
 	
 	//Turret turning variables and properties.
 	Double MaxPitch, MinPitch, TurnAmount, TurnSoundRadius, CombatAngleTurnRate, CombatPitchTurnRate;
@@ -358,9 +357,6 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 	
 	Int TurretSnapDelay; //Used for the turret rotating code, to make it so the turret snaps back to the vehicle after some time of not having a target.
 	Double TurretRotationOffset; //Can be used to offset the rotation of the turret by this exact amount. Used by turrets when they are destroyed, and by prop turrets.
-	Vector3 LastEnemyPosition; //Used by the target prediction. If the turret has a target with no velocity, it grabs their last position every tick to compare it to the current position.
-	Vector3 CurrentEnemyPosition;
-	
 	Double OldSoundAngle; //The turrets' angle in the last tick. Used for the turret turning sound.
 	
 	Enum ElevationStates
@@ -408,15 +404,6 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 	{
 		OldSoundAngle = Angle;
 		Super.Tick();
-		
-		//Keeps track of the current targets' position for the target prediction code.
-		If (Target && Target.Tics == Target.CurState.Tics)
-		{
-			LastEnemyPosition = CurrentEnemyPosition;
-			CurrentEnemyPosition = Target.Pos;
-		}
-		Else If (!Target)
-			LastEnemyPosition = CurrentEnemyPosition = (0,0,0);
 		
 		If (IsFrozen()) Return;
 		

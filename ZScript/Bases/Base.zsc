@@ -49,6 +49,21 @@ Class KAI_Actor : Actor Abstract
 		AttackStates.Clear(); //Clean the array before removal, because the GC can't: https://github.com/ZDoom/gzdoom/issues/2019
 	}
 	
+	Override Void Tick()
+	{
+		Super.Tick();
+		If (IsFrozen()) Return;
+		
+		//Keeps track of the current targets' position for the target prediction code.
+		If (Target && Target.Tics == Target.CurState.Tics)
+		{
+			LastEnemyPosition = CurrentEnemyPosition;
+			CurrentEnemyPosition = Target.Pos;
+		}
+		Else If (!Target)
+			LastEnemyPosition = CurrentEnemyPosition = (Double.NaN,Double.NaN,Double.NaN);
+	}
+	
 	/*Allows actors to define the defaults for their own user variables. This is better than the //$UserDefaultValue editor key,
 	because it allows default user variable values to be set for actors that are spawned in-game as well, not just ones placed in UDB*/
 	Virtual Void UserVariableDefaults(){}
@@ -106,9 +121,16 @@ Class KAI_Actor : Actor Abstract
 	//Actor properties and flags.
 	Double AggressionMultiplier; //Can be used to further increase the chance of KAI_CheckMissileRange returning true. The LOWER it is the more frequent the attacking.
 	Property AggressionMultiplier : AggressionMultiplier;
+	Private Int NPCFlags;
+	FlagDef NoTargetPrediction : NPCFlags, 0; //The NPC will not calculate its' targets' movement and lead its' shots.
 	
 	//Actor variables
 	Array <State> AttackStates; //Can be used to store all of the attack state labels an actor has. Such as for actors with multiple attacks besides a missile and melee attack, like vanilla monsters only have.
+	Vector3 LastEnemyPosition; //Used by the target prediction. If the turret has a target with no velocity, it grabs their last position every tick to compare it to the current position.
+	Vector3 CurrentEnemyPosition;
+	
+	//Constants
+	//Const NullVector = (Double.NaN,Double.NaN,Double.NaN);
 }
 
 //TODO: Optimize the fast tracer code by storing the tracers in an array and moving them, instead of spawning new ones every tick.

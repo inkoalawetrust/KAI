@@ -42,11 +42,46 @@ Class KAI_Actor : Actor Abstract
 	because it allows default user variable values to be set for actors that are spawned in-game as well, not just ones placed in UDB*/
 	Virtual Void UserVariableDefaults(){}
 	
+	/*PLAYTEST: For the time being I'm focusing on the vehicles (This code IS a rip from the MVP after all.)
+	So I have not actually playtested if the default CanAttack() and ShouldAttack() code works like the native code. Since the vehicles just override it.
+	I'll begin putting more attention to the non-vehicle NPC code once I begin rewriting the Smart Marines, to code them more properly this time.*/
 	//TODO: Maybe have this check for SECF_NOATTACK sectors ? Or not, since it would trigger vehicles to run away from enemies in them.
 	//Used by the chase functions of each NPC type to check for all the different methods each actor has to attack.
 	Virtual Bool CanAttack()
 	{
 		If ((MissileState || MeleeState) && !IsDead(Self)) Return True; //Actors just check if they have an attack state and are alive by default. More or less stock ZDoom.
+		Return False;
+	}
+	
+	//Called in NPCs' chase functions to handle the unique attack decision code of each actor.
+	//This is basically a customizable version of the native attack decision code: https://github.com/ZDoom/gzdoom/blob/e3f8230035f08116d1a62c74aaa78b9c0408df6e/src/playsim/p_enemy.cpp#L2574-L2601
+	//NOTE: The virtual needs to do the jump to an attack state itself !
+	//NoStateJump: If true, then the actor should not call SetStateLabel.
+	Virtual Bool ShouldAttack (Bool NoStateJump = False)
+	{
+		If (HandleNativeFright())
+		{
+			If (MeleeState && KAI_CheckMeleeRange (Target))
+			{
+				If (AttackSound)
+					S_StartSound (AttackSound, CHAN_WEAPON, 0, 1, ATTN_NORM);
+				
+				If (!NoStateJump) SetState (MeleeState);
+				Return True;
+			}
+			
+			If (MissileState)
+			{
+				If (IsFast(Self) && MoveCount)
+					Return False;
+				
+				If (!KAI_CheckMissileRange (Target))
+					Return False;
+				
+				If (!NoStateJump) SetState (MissileState);
+				Return True;
+			}
+		}
 		Return False;
 	}
 }

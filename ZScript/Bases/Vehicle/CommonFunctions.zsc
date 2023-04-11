@@ -124,7 +124,7 @@ Mixin Class KAI_CheckFunctions
 	{
 		If (!Other) Return False;
 		Return ((Other.bSolid && !Other.bNoBlockmap)
-		//The ThruBits check is untested, since nobody uses ThruBits lmao.
+		//PLAYTEST: The ThruBits check is untested, since nobody uses ThruBits lmao.
 		&& !(Caller && Caller.bAllowThruBits && Other.bAllowThruBits && Caller.ThruBits & Other.ThruBits));
 	}
 	
@@ -163,10 +163,20 @@ Mixin Class KAI_CheckFunctions
 		Return (Other == Caller.Target || !Other.bNoTarget && !(Other.Player && Other.Player.Cheats & CF_NOTARGET));
 	}
 	
+	//Returns if the calling actor is fast.
+	//https://github.com/ZDoom/gzdoom/blob/master/src/playsim/p_mobj.cpp?L4892#L4892-L4897
+	Bool IsFast (Actor Other)
+	{
+		If (Other.bAlwaysFast) Return True;
+		If (Other.bNeverFast) Return False;
+		Return !!G_SkillPropertyInt (SKILLP_FastMonsters);
+	}
+	
 	//TODO: Add a flag that is needed to explicitly enable this special logic ?
 	//Is the other actor hostile? This is special hostile check logic for NPCs hostile to the player.
 	//The native IsHostile() just leaves the return up to the infighting settings.
 	//But this function checks if the other fellow enemy NPC is targetting the vehicle or one of its' turrets, or an actor of the same species.
+	//TODO: Actually, wouldn't it be better to make this into an IsTargettingAllies() function, with an optional flag to enable the check for enemy NPCs ?
 	Bool KAIVehicle_IsHostile (Actor Caller, Actor Other)
 	{
 		If (!Caller || !Other) Return False;
@@ -490,54 +500,6 @@ Extend Class KAI_BaseVehicle
 			}
 		}
 		Return False;
-	}
-	
-	//KAI: Bring back the improvements to this function from the failed first branch. Also bring back KAI_CheckMeleeRange.
-	//This stupid copy and paste has to literally only exist because P_HitFriend breaks friendly turrets with allies below or above them.
-	//The function is more or less the same as it's native counterpart, give or take the syntax and code comments, and it being slower by being non-native.
-	Bool KAI_CheckMissileRange (Actor Other)
-	{
-		Double Dist;
-		
-		If (CurSector.Flags & Sector.SECF_NOATTACK) Return False;
-		
-		If (!CheckSight (Other, SF_SEEPASTBLOCKEVERYTHING)) Return False;
-		
-		If (bJustHit)
-		{
-			bJustHit = False;
-			
-			If (!bFriendly) Return True;
-			If (IsDead(Other)) Return False;
-			If (!IsFriend(Other)) Return True;
-			
-			If (Other.Player)
-				Return (Random2[PR_Defect]() > 128);
-			Else
-				Return !(Other.bJustHit && Random2[PR_Defect]() > 128);
-		}
-		
-		If (ReactionTime) Return False;
-		
-		If (IsFriend (Other)) Return False;
-		
-		//If (bFriendly && HitFriend ()) Return False; //This line right here, this is the only reason this stupid duplicate of P_CheckMissileRange has to exist.
-		
-		Dist = Distance2D (Other) - 64;
-		
-		If (!MeleeState)
-			Dist -= 128;
-		
-		If (MaxTargetRange > 0 && Dist > MaxTargetRange) Return False;
-		
-		If (MeleeState && Dist < MeleeThreshold) Return False;
-		
-		If (bMissileMore) Dist *= 0.5;
-		If (bMissileEvenMore) Dist *= 0.125;
-		Dist *= AggressionMultiplier;
-		
-		Int MMC = Int(MinMissileChance * G_SkillPropertyFloat(SKILLP_Aggressiveness));
-		Return Random2[PR_CheckMissileRange]() >= Min(Int(Dist), MMC);
 	}
 	
 	//Used to make vehicles able to run over and grind corpses like crushers.

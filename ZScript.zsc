@@ -2,6 +2,7 @@ Version "4.10.0"
 
 //CUSTOM CODE TAGS: (Temporary list !)
 //DOCUMENT: This bit of code needs documentation. Like these tags, which need to be put in a better place.
+//PLAYTEST: The code has been written, but not tested, so it might be buggy.
 //URGENT: This is something urgent, likely a bugfix, some really visible debug code I don't want to appear in-game etcetera.
 //CREDIT: This is to credit some bit of code or function to someone else. Usually when someone else helps me with writing some code.
 //MAYDO: Unlike TODO, this means that it's something I may or may not do. Hence the name.
@@ -25,8 +26,9 @@ But there are also some I want to make specifically for this codebase, like MAYD
 
 //=====|Library structure|=====\\
 /*The most basic NPC class, all types are based on this, land/water/air vehicles, humanoids, flying creatures, you name it. 
-Likewise, the code that is meant to be shared by all NPCs also goes here.*/
+So, the code that is meant to be shared by all NPCs also goes here.*/
 #Include "ZScript/Bases/Base.zsc"
+#Include "ZScript/Bases/AIFunctions.zsc"
 	
 	//The base *land* vehicle class. As of 8/4/2023, this basically a direct rip from a dev build of MVP 0.5.0.
 	//Any future vehicle types like air and water vehicles will probably be based on this.

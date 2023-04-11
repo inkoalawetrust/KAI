@@ -73,18 +73,14 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	//Used to neatly order the spawning of headlights in vehicle definitions. You could just as easily do the spawning in PostBeginPlay()
 	Virtual Void SpawnHeadlights(){}
 	
-	//NOTE: Maybe have this check for SECF_NOATTACK sectors ? Or not, since it would trigger vehicles to run away from enemies in them.
-	//Used by KAI_Chase to check for all the different methods each vehicle has to attack.
 	Override Bool CanAttack()
 	{
 		Return False; //Vehicles have no attacks by default, of course.
 	}
 	
-	//Called in the middle of KAI_Chase to handle the unique attack decision code of each vehicle.
-	//NoStateJump: If true, then the vehicle should not call SetStateLabel.
-	Virtual Bool ShouldAttack(Bool NoStateJump = False)
+	Override Bool ShouldAttack (Bool NoStateJump)
 	{
-		Return False;
+		Return False; //So they also don't decide to attack.
 	}
 	
 	//Return the location that the vehicles' attack will hit at.

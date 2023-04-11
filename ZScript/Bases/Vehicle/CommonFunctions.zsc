@@ -1,11 +1,10 @@
 //$GZDB_SKIP
-//NOTE: This shit is really long, some of it will be moved over once I begin working on KAI. But still, different types of functions should probably begin being put in different files.
-
 //Functions that can be used outside of the KAI_BaseVehicle class.
 Class KAI_Math
 {
 	//=====|Talking in tongues|=====\\
 	//What does this do ? I have no fucking idea, Agent_Ash gave it to me to fix how much the truck slows down based on the mass of the object it hit while ramming.
+	//DOCUMENT: I need someone who passed elementary school math to document what the fuck this does.
 	Clearscope Static Double LinearMap (Double Val, Double O_Min, Double O_Max, Double N_Min, Double N_Max) 
 	{
 		Return (Val - O_Min) * (N_Max - N_Min) / (O_Max - O_Min) + N_Min;
@@ -22,14 +21,18 @@ Class KAI_Math
 	}
 	
 	//Like Vec3Offset, but also rotates the output vector based on the callers' angle.
+	//Other: The actor to offset from.
+	//Offs: The vector3 offsets to use.
+	//NoPortal: Should the function account for static portals or not ?
+	//Flags: See above for list of flags.
 	Clearscope Static Vector3 Vec3OffsetRelative (Actor Other, Vector3 Offs, Bool NoPortal = False, Int Flags = 0)
 	{
-		Double Angle2, Pitch2, Roll2;
-		If (!(Flags & V3R_NOANGLE)) Angle2 = Other.Angle;
-		If (!(Flags & V3R_NOPITCH)) Pitch2 = Other.Pitch;
-		If (!(Flags & V3R_NOROLL)) Roll2 = Other.Roll;
+		Double Angle, Pitch, Roll;
+		If (!(Flags & V3R_NOANGLE)) Angle = Other.Angle;
+		If (!(Flags & V3R_NOPITCH)) Pitch = Other.Pitch;
+		If (!(Flags & V3R_NOROLL)) Roll = Other.Roll;
 		
-		Quat Dir = Quat.FromAngles (Angle2,Pitch2,Roll2);
+		Quat Dir = Quat.FromAngles (Angle,Pitch,Roll);
 		Return Level.Vec3Offset (Other.Pos,Dir * Offs,NoPortal);
 	}
 	
@@ -163,7 +166,7 @@ Mixin Class KAI_CheckFunctions
 	//TODO: Add a flag that is needed to explicitly enable this special logic ?
 	//Is the other actor hostile? This is special hostile check logic for NPCs hostile to the player.
 	//The native IsHostile() just leaves the return up to the infighting settings.
-	//But this function checks if the other fellow enemy NPC is targetting the vehicle or one of its' turrets, or an 
+	//But this function checks if the other fellow enemy NPC is targetting the vehicle or one of its' turrets, or an actor of the same species.
 	Bool KAIVehicle_IsHostile (Actor Caller, Actor Other)
 	{
 		If (!Caller || !Other) Return False;
@@ -306,7 +309,7 @@ Extend Class KAI_BaseVehicle
 	
 	//Generic wrapper for A_LookEx shared by all vehicles.
 	//Flags, MinSeeDist, MaxSeeDist, MaxHearDist, FOV, Label: These properties are all directly transfered to A_LookEx, so work the same as they do in that function.
-	//ExtraFlags: The extra flags that modified KAI_Look's behavior. Look above for available flags.
+	//ExtraFlags: The extra flags that modify KAI_Look's behavior. Look above for available flags.
 	Void KAI_Look (Int Flags = 0, Double MinSeeDist = 0, Double MaxSeeDist = 0, Double MaxHearDist = 0, Double FOV = 0, StateLabel Label = Null, Int ExtraFlags = 0)
 	{
 		//HACK: This shit is probably a super hacky way to just get turrets that are already targeting an actor in their Spawn state to actually attack it.
@@ -489,6 +492,7 @@ Extend Class KAI_BaseVehicle
 		Return False;
 	}
 	
+	//KAI: Bring back the improvements to this function from the failed first branch. Also bring back KAI_CheckMeleeRange.
 	//This stupid copy and paste has to literally only exist because P_HitFriend breaks friendly turrets with allies below or above them.
 	//The function is more or less the same as it's native counterpart, give or take the syntax and code comments, and it being slower by being non-native.
 	Bool KAI_CheckMissileRange (Actor Other)
@@ -559,7 +563,6 @@ Extend Class KAI_BaseVehicle
 		}
 	}
 	
-	//TODO: Perhaps this should be moved outside of KAI_BaseVehicle, especially once I begin working on the KAI library.
 	//Finds the closest actor in an array of actors.
 	//ActorList: The array of actors to find the closest one from. Usually scrubbed from a blockmap iterator.
 	//Pos: The position from which the distance check is performed on each actor.
@@ -660,6 +663,7 @@ Extend Class KAI_BaseVehicle
 		FNCF_STOPFORVILES	= 1 << 2, //Abort the check if a friendly Archvile-type NPC is in the search radius. This is handled here to not have to run another iterator just for the Vile search.
 	}
 	
+	//Find the crushable corpse nearest to the vehicle. Used to get vehicles to crush corpses to deny enemy Archviles ando ther necormancer-type enemies.
 	Actor FindNearestCorpse (Int Flags = FNCF_RAISABLEONLY|FNCF_STOPFORVILES)
 	{
 		Array <Actor> NearbyCorpses;

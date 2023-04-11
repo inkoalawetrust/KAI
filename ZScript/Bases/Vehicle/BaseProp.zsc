@@ -55,7 +55,7 @@ Class KAI_BaseProp : KAI_BaseVehicle Abstract
 	Override Bool StayStillAndShoot(Actor CheckSightFrom) {Return False;}
 	
 	Bool User_Destructible; //Is the prop destroyable ?
-	Bool User_IdleSound; //Does this prop vehicle play the idle sound that its' NPC version plays in its' Spawn state ?
+	Bool User_IdleSound; //Does this prop vehicle play the idle sound that its' NPC version plays ?
 }
 
 Class KAI_BaseTurretProp : KAI_BaseTurret
@@ -78,7 +78,7 @@ Class KAI_BaseTurretProp : KAI_BaseTurret
 	{
 		Super.PostBeginPlay ();
 		
-		//Since turrets on turrets are a thing in the mod, indestructibility also needs to be passed to sub-turrets.
+		//Since turrets on turrets are a thing in the library, indestructibility also needs to be passed to sub-turrets.
 		If (bNoDamage)
 			If (Turret)
 				Turret.bNoDamage = True;

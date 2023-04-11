@@ -59,6 +59,7 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	{
 		If (VehicleTurret)
 		{
+			//MAYDO: A generic turret spawn function that handles most of the generic status changes of spawned turrets like passing and handling spawn flags.
 			Turret = KAI_BaseTurret(Spawn (VehicleTurret,Pos+TurretOffsets));
 			If (Turret)
 			{
@@ -134,8 +135,6 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 		SpawnVehicleTurret();
 		SpawnHeadlights();
 		
-		If (!bFriendly) Species = 'MilitaryHostile';
-		
 		If (!User_DefaultOrder || User_DefaultOrder ~== "")
 		{
 			//This tries to pick a random visible player for the vehicle to follow, if no friendly players are in sight, the vehicle will wander instead.
@@ -179,7 +178,6 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	
 	Override Void Tick()
 	{
-		Name FearToken = "SM_IAmTheDanger";
 		Super.Tick();
 		
 		If (IsFrozen()) Return;
@@ -194,12 +192,6 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 			TurnHeadlightsOn();
 		Else
 			TurnHeadlightsOff();
-		
-		If (CheckActorExists(FearToken))
-		{
-			If (bScareMarines && Self) SetInventory (FearToken,1);
-			Else If (!bScareMarines && Self) TakeInventory (FearToken,INT.MAX);
-		}
 	}
 	
 	Override Bool CanCollideWith (Actor Other, Bool Passive)
@@ -213,7 +205,6 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	
 	Override Void Die (Actor Source, Actor Inflictor, Int DmgFlags, Name MeansOfDeath)
 	{
-		Name FearToken = "SM_IAmTheDanger";
 		Super.Die (Source, Inflictor, DmgFlags, MeansOfDeath);
 		If (Turret && !IsDead(Turret)) //When dead, kill the turret the same way as the vehicle died.
 		{
@@ -223,7 +214,6 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 			Else
 				Turret.DamageMobj (Inflictor, Source, Turret.Health, MeansOfDeath, DMG_FORCED);
 		}
-		TakeInventory (FearToken,INT.MAX);
 		bShootable = bNotAutoaimed = True; //Destroyed vehicles stay shootable and non-autoaimable unless specified otherwise.
 		RemoveHeadlights(); //The vehicles aren't resurrectable, so the headlights aren't needed.
 		HeadlightsOn = False;
@@ -237,7 +227,7 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 		Super.OnDestroy();
 		RemoveHeadlights();
 		If (Turret) Turret.Destroy();
-		AttackStates.Delete(0,AttackStates.Size()); //Clean the array before removal, because the GC can't: https://github.com/ZDoom/gzdoom/issues/2019
+		AttackStates.Clear(); //Clean the array before removal, because the GC can't: https://github.com/ZDoom/gzdoom/issues/2019
 	}
 	
 	Override Void Activate (Actor Activator)
@@ -305,7 +295,6 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	Private Int VehicleFlags;
 	FlagDef Transport : VehicleFlags, 0; //The vehicle is marked as being able to transport soldiers.
 	FlagDef NoRadio : VehicleFlags, 1; //The vehicle ignores orders given to it by the radio item.
-	FlagDef ScareMarines : VehicleFlags, 2; //The vehicle can automatically scare marines away, regardless of its' size or health.
 	Class<KAI_BaseTurret> VehicleTurret; //The pointer to the vehicles' turret, if any.
 	Property VehicleTurret : VehicleTurret;
 	

@@ -2,7 +2,7 @@
 //Functions and code exclusive to the turret class.
 Extend Class KAI_BaseTurret
 {
-	//Is the turrets too high or too low over its' elevation limits ?
+	//Is the turret too high or too low over its' elevation limits ?
 	Int TurretOverPitchLimits()
 	{
 		Double Diff = 0.1; //The turret pitch is clamped every tick, so this small difference allows them to still stop shooting.
@@ -24,6 +24,7 @@ Extend Class KAI_BaseTurret
 		Return ELEVATION_INBOUNDS;
 	}
 	
+	//KLUDGE: This is kind of a shit system. Or rather, one that's not extensible, and can't be automated in the library, so it needs specific manual setup.
 	//Conditionally change the turrets' sprites based on pitch.
 	Int UpdateTurretElevation (Int FaceDown, Int FaceStraight, Int FaceUp, Int FaceUp2)
 	{
@@ -42,7 +43,7 @@ Extend Class KAI_BaseTurret
 	Enum TurretRotationFlags
 	{
 		RTVF_NOTARGETCHECK	= 1 << 0, //The turret will apply its' rotation mechanics even without a target.
-		RTVF_RELATIVEONLY	= 1 << 1, //The turret will only rotate relative to its' masters' angle + its' DeathAngleOffset, even if the turret isn't destroyed.
+		RTVF_RELATIVEONLY	= 1 << 1, //The turret will only rotate relative to its masters' angle + its' DeathAngleOffset, even if the turret isn't destroyed.
 	}
 	
 	//Makes the turret rotate back over time to the direction that the vehicle is facing. Instead of snapping back instantly.
@@ -77,14 +78,16 @@ Extend Class KAI_BaseTurret
 		}
 	}
 	
+	//Update the turret snap timer. Used in turrets' See states.
 	Void UpdateTurretSnapTimer (Int DefaultValue = 50)
 	{
 		If (!Target && TurretSnapDelay > 0)
-			TurretSnapDelay;
+			TurretSnapDelay--;
 		Else If (Target)
 			TurretSnapDelay = DefaultValue;
 	}
 	
+	//Performs the special combat traverse code when the turret is in one of its' defined AttackStates. This is called in KAI_BaseTurrets' Tick().
 	Void DoCombatTraverse (Actor ToWhat)
 	{
 		//NOTE: A pitch of 270 means no pitch shifting in A_Face, which is bad for the turrets, since code like their LOF checks normally relies on them actually facing the target properly.
@@ -94,6 +97,7 @@ Extend Class KAI_BaseTurret
 	}
 	
 	//Returns true if the Other actor is within a cone of the specified size. The Size is the angle and pitch that the Other actor must be within relative to the callers' direction.
+	//Honestly probably not a good idea to use this for anything, at least not the distance falloff stuff. Maybe someone can PR a fix for this at some point.
 	Bool IsInCone (Actor Other, Double Size = 5, Double FalloffScale = 256)
 	{
 		If (!Other || Size <= 0)
@@ -110,6 +114,7 @@ Extend Class KAI_BaseTurret
 	}
 	
 	//Handles making the vehicles lead their shots based on their targets' movement, regardless of whether or not it's a player or monster.
+	//This is called after the projectile has been spawned, to modify its' trajectory post-spawn. Code is also run in the turrets' tick for target position updates.
 	//Projectile: The projectile to modify.
 	//SpreadHorz/SpreadVert: Maximum and minimum horizontal and vertical spread, stored in Vector2s.
 	//MinDist: The minimum distance below which target prediction won't be used. And the projectile will be fired straight at the target instead.
@@ -189,8 +194,10 @@ Extend Class KAI_BaseTurret
 	}
 	
 	//This function can be used by turrets to make them able to pick different targets from their master, instead of chasing or firing at the same target.
-	//The Avoid parameter specifies the actor to avoid targeting, Origin specifies the actor the search starts around, and CheckRange is the search range.
-	/*MinAlternateTargetRange specifies how far the new target must be from the actor that must be avoided. A value of 0 or less makes it just randomly
+	//Avoid: The actor to avoid targeting.
+	//Origin: Specifies the actor the search starts around.
+	//CheckRange: The area around the Origin actor to check for alternate targets.
+	/*MinAlternateTargetRange: How far the new target must be from the actor that must be avoided. A value of 0 or less makes it just randomly
 	pick one of the target candidates. If there is no other target that is further than MinAlternateTargetRange from the actor to avoid, then it picks the
 	last target candidate left in the array.*/
 	Actor PickDifferentTarget (Actor Avoid, Actor Origin, Double CheckRange, Double MinAlternateTargetRange = -1)
@@ -332,7 +339,8 @@ Extend Class KAI_BaseTurret
 	}
 }
 
-//This is the base class for making custom LineTracer-based line of fire checks for vehicles. This is better than the old method of a do-all LOF check method.
+//KAIMOVE: Move this into being a generic LOF tracer class for all NPC types, not just vehicles.
+//This is the base class for making custom LineTracer-based line of fire checks for actors.
 //It contains some basic LOF-related checks methods. Along with access to the KAIs' generic actor checks.
 Class KAI_LOFRaycast : LineTracer
 {
@@ -490,7 +498,7 @@ Class KAI_BasicSightCheck : KAI_LOFRaycast
 {
 	Bool GoodLOS; //BadLOF's good cousin.
 	Actor SightTarget; //Who are we even looking for ?
-	Bool NoBlockSight; //The check ignores BLOCKSIGHT lines, like for the explosions.
+	Bool NoBlockSight; //The check ignores BLOCKSIGHT lines, like for explosions.
 	Override ETraceStatus TraceCallback()
 	{
 		Actor Mobj = Results.HitActor;
@@ -545,7 +553,7 @@ Class KAI_LOFActorFinder : KAI_LOFRaycast
 
 //Generic projectile LOF check for non-ripping projectiles, should be applicable to most projectiles.
 //PropHealthThreshold: If a destructible prop actor with this much health or less is standing in the way, then shoot at it anyway.
-//SplashRadius: If the check hit level geometry, but the target is within the specified specified distance from the hit spot. Then don't return BadLOF.
+//SplashRadius: If the check hit level geometry, but the target is within the specified distance from the hit spot. Then don't return BadLOF.
 Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 {
 	Int PropHealthThreshold;
@@ -565,7 +573,7 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 	
 	Override ETraceStatus TraceCallback()
 	{
-		If (PropHealthThreshold == 0) PropHealthThreshold = 400; //Default value, since it can't be set with a normal variable decleration.
+		If (PropHealthThreshold == 0) PropHealthThreshold = 400; //HACK: Default value, since it can't be set with a normal variable decleration.
 		Actor Mobj = Results.HitActor;
 		
 		If (!Shooter) Return Trace_Stop;

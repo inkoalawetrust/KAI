@@ -81,7 +81,7 @@ Extend Class KAI_Actor
 		
 		If (bMissileMore) Dist *= 0.5;
 		If (bMissileEvenMore) Dist *= 0.125;
-		//Dist *= AggressionMultiplier; //UNDONE: Temporary regression until I move AggressionMultiplier up the inheritance chain.
+		Dist *= AggressionMultiplier;
 		
 		Int MMC = Int(MinMissileChance * G_SkillPropertyFloat(SKILLP_Aggressiveness));
 		Return Random2[PR_CheckMissileRange]() >= Min(Int(Dist), MMC);

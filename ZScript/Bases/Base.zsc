@@ -1,3 +1,7 @@
+//TODO:
+//Move the target prediction code to KAI_Actor.
+//Probably move the NearestEnemy pointer to KAI_Actor. MAYDO: Make it into a generic actor property, with a range and update frequency ? Off by default of course, for performance.
+
 /*KLUDGE: Mixins can't be used by different mods, so this class that contains ALL the mixin code in the KAI library is needed. You need to inherit from this
 if you want to make something that's not an NPC, but can still use the mixin code the library includes.*/
 Class KAI_MixinActor : Actor Abstract
@@ -37,6 +41,12 @@ Class KAI_Actor : Actor Abstract
 	{
 		Super.PostBeginPlay ();
 		UserVariableDefaults(); //User variables cannot be handled in BeginPlay().
+	}
+	
+	Override Void OnDestroy()
+	{
+		Super.OnDestroy();
+		AttackStates.Clear(); //Clean the array before removal, because the GC can't: https://github.com/ZDoom/gzdoom/issues/2019
 	}
 	
 	/*Allows actors to define the defaults for their own user variables. This is better than the //$UserDefaultValue editor key,
@@ -86,9 +96,19 @@ Class KAI_Actor : Actor Abstract
 		Return False;
 	}
 	
+	//Return the location that the actors' attack will hit at. This is just whatever the targets' position is by default.
+	Virtual Vector3 GetAttackLocation()
+	{
+		If (Target) Return Target.Pos;
+		Return (Double.NaN,Double.NaN,Double.NaN); //This is an actual empty vector. Not one that is (0,0,0), but fully null.
+	}
+	
 	//Actor properties and flags.
 	Double AggressionMultiplier; //Can be used to further increase the chance of KAI_CheckMissileRange returning true. The LOWER it is the more frequent the attacking.
 	Property AggressionMultiplier : AggressionMultiplier;
+	
+	//Actor variables
+	Array <State> AttackStates; //Can be used to store all of the attack state labels an actor has. Such as for actors with multiple attacks besides a missile and melee attack, like vanilla monsters only have.
 }
 
 //TODO: Optimize the fast tracer code by storing the tracers in an array and moving them, instead of spawning new ones every tick.

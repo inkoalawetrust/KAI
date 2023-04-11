@@ -5,6 +5,7 @@ Version "4.10.0"
 //PLAYTEST: The code has been written, but not tested, so it might be buggy.
 //URGENT: This is something urgent, likely a bugfix, some really visible debug code I don't want to appear in-game etcetera.
 //CREDIT: This is to credit some bit of code or function to someone else. Usually when someone else helps me with writing some code.
+//DEBUG: Unlike the defintion on Wikipedia, here this signifies some bit of debugging code, probably something that should be removed or commented out before a full release.
 //MAYDO: Unlike TODO, this means that it's something I may or may not do. Hence the name.
 //IDEA: This is just an idea for the project. Likely some far away goal that would take a lot of time to implement.
 
@@ -17,7 +18,6 @@ But there are also some I want to make specifically for this codebase, like MAYD
 //Speaking of documentation, begin writing some on a Github wiki, of the functions, classes etc. Once I port over the actual code from the MVP first of course.
 //Implement a warning zone system similar to the MVPs. But that works for all actors, not just the Smart Marines. Also maybe keep using inventory tokens for it, for non-KAI mod support.
 //Some ideas from the previous failed attempt at setting up the library were cool. Bring them back once this second attempt hopefully succedes.
-//Remove "branding" from the MVP. Like most mentions to it, or the base vehicle prop classes being tagged as "MILITARY Vehicle Prop" specifically.
 //Rewrite the way vehicle orders are handled, to also hopefully make it a bit more stable. Oh and make it accessible to all KAI NPCs.
 //Replace the MVPs' IsPowerful() with an actor threat level and assessment system, and property. Allowing KAI NPCs to find how dangerous other actors are. This is needed to allow porting MVP_Chase here.
 
@@ -29,6 +29,7 @@ But there are also some I want to make specifically for this codebase, like MAYD
 So, the code that is meant to be shared by all NPCs also goes here.*/
 #Include "ZScript/Bases/Base.zsc"
 #Include "ZScript/Bases/AIFunctions.zsc"
+#Include "ZScript/Bases/OtherFunctions.zsc"
 	
 	//The base *land* vehicle class. As of 8/4/2023, this basically a direct rip from a dev build of MVP 0.5.0.
 	//Any future vehicle types like air and water vehicles will probably be based on this.

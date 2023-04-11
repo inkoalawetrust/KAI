@@ -231,27 +231,6 @@ Extend Class KAI_BaseVehicle
 		Return Ok;
 	}
 	
-	//Checks if the vehicle is in any of the attack states defined, and if it is, it also returns a pointer to that state.
-	State IsInAttackState()
-	{
-		State FoundState = State (Null);
-		
-		If (InStateSequence (CurState,MissileState) || InStateSequence (CurState,MeleeState)) Return CurState;
-		
-		//Loop through available states.
-		For (Int I = AttackStates.Size()-1; 0 <= I; I--)
-		{
-			//The state in the array matches the current state we are in.
-			If (InStateSequence (CurState,AttackStates[I]))
-			{
-				FoundState = AttackStates[I];
-				Break;
-			}
-		}
-		
-		Return FoundState;
-	}
-	
 	//Returns true if the specified actor can resurrect corpses like an Archvile does.
 	Bool IsNecromancer (Actor Other)
 	{
@@ -343,6 +322,7 @@ Extend Class KAI_BaseVehicle
 	Double LastTurnDir;
 	Int TurnCount; //Keeps track of how many turns in a row an actor calling KAI_MoveTowards with CHF_NORANDOMTURN should make.
 	//IDEA: Since I may just end up having this as a wholesale replacement. Maybe I should also implement support for patrol points, CANTLEAVEFLOORPIC, and CHF_FASTCHASE ?
+	//TODO: Add a flag to make the caller move AWAY from the specified actor.
 	//FIXME: There's some flickering between different sprite angles, try fixing it.
 	//Originally written by Custodian. Modified by me (inkoalawetrust). Makes the actor move towards the specified actor.
 	//Other: The actor to move to.

@@ -88,6 +88,27 @@ Extend Class KAI_Actor
 	}
 	
 	//=====|Miscelleneous AI functions|=====\\
+	//Checks if the actor is in any of the attack states defined, and if it is, it also returns a pointer to that state.
+	State IsInAttackState()
+	{
+		State FoundState = State (Null);
+		
+		If (InStateSequence (CurState,MissileState) || InStateSequence (CurState,MeleeState)) Return CurState;
+		
+		//Loop through available states.
+		For (Int I = AttackStates.Size()-1; 0 <= I; I--)
+		{
+			//The state in the array matches the current state we are in.
+			If (InStateSequence (CurState,AttackStates[I]))
+			{
+				FoundState = AttackStates[I];
+				Break;
+			}
+		}
+		
+		Return FoundState;
+	}
+	
 	//ZScript port of this: https://sourcegraph.com/github.com/ZDoom/gzdoom/-/blob/src/playsim/p_enemy.cpp?L2568-2572
 	Bool HandleNativeFright()
 	{

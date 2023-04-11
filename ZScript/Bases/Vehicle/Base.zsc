@@ -83,7 +83,7 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	}
 	
 	//Return the location that the vehicles' attack will hit at.
-	Virtual Vector3 GetAttackLocation() {Return (Double.NaN,Double.NaN,Double.NaN);}
+	Override Vector3 GetAttackLocation() {Return (Double.NaN,Double.NaN,Double.NaN);}
 	
 	//Should the vehicle stay still and attack ? The base actor class simply houses the most basic conditional check for this.
 	//CheckSightFrom is the actor whose sight to their target is checked, to determine if the vehicle can shoot.
@@ -214,7 +214,6 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 		Super.OnDestroy();
 		RemoveHeadlights();
 		If (Turret) Turret.Destroy();
-		AttackStates.Clear(); //Clean the array before removal, because the GC can't: https://github.com/ZDoom/gzdoom/issues/2019
 	}
 	
 	Override Void Activate (Actor Activator)
@@ -260,7 +259,6 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	Int FearTimer; //Makes the vehicle keep running away from it's target for an additional random amount of time, so that it doesn't play peekaboo with enemies.
 	Int CurrentOrder; //The current order the vehicle is following.
 	Int StayStillDelay; //How long before the vehicle can stand still to attack again.
-	Array <State> AttackStates; //Can be used to store all of the attack state labels each vehicle has.
 	
 	//Internal variables
 	Array <KAI_Headlight> Headlights; //Pointers to each headlight the vehicle has.

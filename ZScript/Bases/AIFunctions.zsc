@@ -216,6 +216,32 @@ Extend Class KAI_Actor
 		}*/
 	}
 	
+	//=====|Search functions|=====\\
+	//Does exactly what it says, finds the nearest enemy that can be targeted and is visible, and returns a pointer to it.
+	Actor FindNearestEnemy (Double Range = 256)
+	{
+		If (Range <= -1) Return Null; //Return nothing at negative ranges.
+		
+		Array <Actor> NearbyEnemies;
+		Double NearestDistance = INT.MAX;
+		BlockThingsIterator FindEnemies = BlockThingsIterator.Create (Self,Range);
+		
+		While (FindEnemies.Next())
+		{
+			Actor Mobj = FindEnemies.Thing;
+			
+			//Skip this actor if it's dead, cannot be targeted, is not a monster nor a player, or is not even an enemy.
+			If (!Mobj || IsDead (Mobj) || IsInanimateObject(Mobj) || !CanBeTargeted (Self, Mobj) || !KAIVehicle_IsHostile (Self, Mobj)) Continue;
+			
+			If (Distance3DSquared (Mobj) > Range*Range) Continue; //Out of range.
+			
+			If (!CheckSight (Mobj)) Continue; //And at last, check if the enemy is even visible.
+			
+			NearbyEnemies.Push(Mobj); //Add it to the list.
+		}
+		Return GetClosestActor (NearbyEnemies,Self.Pos);
+	}
+	
 	//=====|Miscelleneous AI functions|=====\\
 	//Checks if the actor is in any of the attack states defined, and if it is, it also returns a pointer to that state.
 	State IsInAttackState()

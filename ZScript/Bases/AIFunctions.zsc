@@ -120,17 +120,18 @@ Extend Class KAI_Actor
 	
 	Double LastTurnDir;
 	Int TurnCount; //Keeps track of how many turns in a row an actor calling KAI_MoveTowards with CHF_NORANDOMTURN should make.
+	//Makes the actor move towards the specified actor.
 	//IDEA: Since I may just end up having this as a wholesale replacement. Maybe I should also implement support for patrol points, CANTLEAVEFLOORPIC, and CHF_FASTCHASE ?
-	//TODO: Add a flag to make the caller move AWAY from the specified actor.
 	//FIXME: There's some flickering between different sprite angles, try fixing it.
-	//Originally written by Custodian. Modified by me (inkoalawetrust). Makes the actor move towards the specified actor.
+	//CREDIT: Written by Custodian. Modified and expanded by me (inkoalawetrust).
 	//Other: The actor to move to.
 	//DetourFactor: How long the actor is allowed to move in a direction after hitting an obstacle, before heading straight for the target again.
 	//AngleLimit: How much the actor can turn per detour. Used to not have it snap back 180 or anything like that.
-	//ChaseFlags: What flags from A_Chase should the function use ? Currently only supports CHF_DONTMOVE, CHF_NODIRECTIONTURN, CHF_NORANDOMTURN, and CHF_STOPIFBLOCKED.
-	void KAI_MoveTowards (Actor Other, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0)
+	//ChaseFlags: What flags from A_Chase should the function use ? Supports CHF_DONTMOVE, CHF_NODIRECTIONTURN, CHF_NORANDOMTURN, and CHF_STOPIFBLOCKED.
+	void KAI_MoveTowards (Vector3 TargetPos, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0)
 	{
-		If (!Other || ChaseFlags & CHF_DONTMOVE) Return;
+		If (ChaseFlags & CHF_DONTMOVE) Return;
+		
 		double LastAngle = angle;
 		double NextAngle = LastAngle;
 		
@@ -143,12 +144,12 @@ Extend Class KAI_Actor
 		{
 			lastturndir = 0;
 			//move directly towards Other
-			if (Other && !(ChaseFlags & CHF_NORANDOMTURN)) NextAngle = GetAngleTo(Other,AngleLimit);
+			if (!(ChaseFlags & CHF_NORANDOMTURN)) NextAngle = GetAngleToPos(TargetPos,AngleLimit);
 		}
 		
 		//When CHF_NORANDOMTURN is on. The actor can take a set amount of turns before no longer turning to face its' target.
-		If (ChaseFlags & CHF_NORANDOMTURN && Other && --TurnCount > 0) NextAngle = GetAngleTo(Other,AngleLimit);
- 
+		If (ChaseFlags & CHF_NORANDOMTURN && --TurnCount > 0) NextAngle = GetAngleToPos(TargetPos,AngleLimit);
+		
 		//absolute position of next movement
 		vector2 NextPos = Vec2Angle(speed, NextAngle);
 		bool moved = TryMove(NextPos, 0, false);
@@ -157,7 +158,7 @@ Extend Class KAI_Actor
 		if (!moved && MoveCount)
 		{
 			MoveCount = Int(random(16,32)*DetourFactor);
-			if (Other) NextAngle = GetAngleTo(Other,AngleLimit);
+			NextAngle = GetAngleToPos(TargetPos,AngleLimit);
 			NextPos = Vec2Angle(speed, NextAngle);
 			moved = TryMove(NextPos, 0, false);
 		}
@@ -180,11 +181,11 @@ Extend Class KAI_Actor
 					Break;
 			}
 		}
- 
+		console.printf ("angle is %d", angle);
 		//test movement angles until I find one that works, avoid that obstacle for MoveCount tics
 		if (!moved && !(ChaseFlags & CHF_STOPIFBLOCKED))
 		{
-			MoveCount = Int(random(16,32)*DetourFactor);
+			MoveCount = Int(random(16,32) * DetourFactor);
  
 			//try moving the same relative direction as last time
 			if (lastturndir == 0) lastTurnDir = random(0,1) ? 1.0 : -1.0;

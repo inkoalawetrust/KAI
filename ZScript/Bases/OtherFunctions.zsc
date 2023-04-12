@@ -107,4 +107,23 @@ Extend Class KAI_Actor
 		
 		Return 0;
 	}
+	
+	//Same as GetAngleTo, but directly uses a vector.
+	Double GetAngleToPos (Vector3 Position, Double AngleLimit = 10)
+	{
+		Vector3 SCoords = Level.SphericalCoords (Pos,Position);
+		If (AngleLimit == 0) Return SCoords.X;
+		Double AngleTo = -SCoords.X;
+		Double Delta = -DeltaAngle (Angle,AngleTo);
+		
+		If (AngleLimit != 0)
+		{
+			If (Delta > 0)
+				Return Angle - AngleLimit;
+			Else
+				Return Angle + AngleLimit;
+		}
+		
+		Return 0;
+	}
 }

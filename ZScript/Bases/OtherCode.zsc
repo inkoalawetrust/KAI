@@ -217,3 +217,304 @@ Mixin Class KAI_CheckFunctions
 		Return False;
 	}
 }
+
+//This is the base class for making custom LineTracer-based line of fire checks for actors.
+//It contains some basic LOF-related checks methods. Along with access to the KAIs' generic actor checks.
+Class KAI_LOFRaycast : LineTracer
+{
+	Mixin KAI_CheckFunctions;
+	Bool BadLOF; //If true, there is something standing in the shooters' line of fire.
+	Actor Shooter; //The actor firing the raycast.
+	Actor Other; //The actor we are looking for, normally this is the shooters' target.
+	Array <Actor> Mobjs; //An array of all the mobjs that were found. Can be returned to functions by using the out keyword.
+	
+	//Visualizes a path between OriginPos and FinalPos with a length specified by Distance. Used to debug where LOF checks start, go to, and end.
+	Static Void VisualizeTracePath (Vector3 OriginPos, Vector3 FinalPos, Double Distance)
+	{
+		Vector3 Path = Level.Vec3Diff (OriginPos,FinalPos);
+		Double PathDist = Distance;
+		Path /= PathDist;
+		If (!(PathDist <= 1))
+		{
+			For( Double I = 0; I < PathDist; I += 4)
+			{
+				FSpawnParticleParams P;
+				P.Color1 = "White";
+				P.Style = STYLE_None;
+				P.Lifetime = GameTicRate/2;
+				P.Pos = Level.Vec3Offset (OriginPos,Path*I);
+				P.Size = 4;
+				P.StartAlpha = 1;
+				P.FadeStep = -1;
+				P.Flags = SPF_FULLBRIGHT;
+				Level.SpawnParticle (P);
+			}
+		}
+	}
+	
+	//Add the Other actor to the Mobjs array.
+	Void AddToMobjList (Actor Other)
+	{
+		If (Other)
+			Mobjs.Push(Other);
+		Return;
+	}
+	
+	//Should the actor shoot at the prop ?
+	//Other: The actor to check.
+	//HealthThreshold: If the props' health is at or below this value, then shoot.
+	Bool CanShootAtProp (Actor Other, Int HealthThreshold = 400)
+	{
+		If (!Other || !Shooter) Return False;
+		If (HealthThreshold <= 0) Return True; //No health limit specified. You can shoot it.
+		
+		//Actor is an destructible inanimate object. And it's health is at or below the minimum threshold.
+		If (IsInanimateObject (Other) && !IsIndestructible (Other) && Other.Health <= HealthThreshold)
+			Return True;
+		
+		Return False;
+	}
+	
+	//Is the other actor a corpse that is still collidable ?
+	Bool IsSolidCorpse (Actor Other)
+	{
+		If (!Other) Return False;
+		
+		If (!IsDead (Other)) Return False;
+		
+		If (!Other.bDontCorpse) Return False;
+		
+		Return True;
+	}
+	
+	//Useful for ripper projectiles, returns false if the actor hit can be ripped.
+	Bool CantRipActor (Actor Other, Int RipLevel)
+	{
+		Bool NoRipMin = !Other.RipLevelMin;
+		Bool NoRipMax = !Other.RipLevelMax;
+		
+		If (!NoRipMin && Other.RipLevelMin > RipLevel || !NoRipMax && Other.RipLevelMax < RipLevel)
+			Return True;
+		
+		Return False;
+	}
+	
+	Enum BLITWFlags
+	{
+		BLITW_HitscansToo 	= 1 << 0,	//Check for hitscan blocking lines too.
+		BLITW_HitscansOnly	= 1 << 1	//Check ONLY for hitscan blocking lines.
+	}
+	
+	//Is the line the trace went through blocking ?
+	Bool BlockingLineInTheWay (Line Blocking, Int Flags)
+	{
+		If (!Blocking) Return False;
+		
+		//Stop at sight blocking lines (Can't see past them) and everything-blocking lines.
+		If (Blocking.Flags & Line.ML_BLOCKEVERYTHING || Blocking.Flags & Line.ML_BLOCKSIGHT)
+			Return True;
+		
+		If (!Flags)
+			If (Blocking.Flags & Line.ML_BLOCKPROJECTILE)
+				Return True;
+		Else If (Flags & BLITW_HitscansToo)
+			If (Blocking.Flags & (Line.ML_BLOCKPROJECTILE | Line.ML_BLOCKHITSCAN))
+				Return True;
+		Else If (Flags & BLITW_HitscansOnly)
+			If (Blocking.Flags & Line.ML_BLOCKHITSCAN)
+				Return True;
+		
+		Return False;
+	}
+	
+	//Check if the trace hit any level geometry. This is very useful for all LOF checks, except if the projectile can literally go through level geometry.
+	//BUG: This check fails on 3D floors with FF_THINFLOOR. This however seems to be a GZDoom bug. And I'm not knowledgeable enough to PR a fix lol.
+	//TODO: Check for collision with non-shoot through 3D middle textures. The only method for doing this is not exposed to ZScript, so I need to PR it at some point.
+	Bool HitLevelGeometry (TraceResults Result)
+	{
+		//Hit a floor or ceiling.
+		If (Result.HitType == Trace_HitFloor || Result.HitType == Trace_HitCeiling)
+			Return True;
+		
+		If (Result.HitLine)
+		{
+			//Hit a linedef with void space behind it.
+			If (Result.HitLine.Sidedef[Line.Back] == Null)
+				Return True;
+			
+			//Hit a raised floor or lowered ceiling wall.
+			If (Result.Tier != TIER_Middle)
+				Return True;
+		}
+		
+		Return False;
+	}
+	
+	//The object scope system doesn't like calling useful functions like CheckSight. So here is the Wish.com version.
+	Bool CheckSightTo (Actor Origin, Actor Other, Double Range, Bool NoBlockSight = False)
+	{
+		If (!Other) Return False;
+		
+		Let Check = New ("KAI_BasicSightCheck");
+		Vector3 SightPos = (Origin.Pos.XY,Origin.Pos.Z + Origin.Height * 0.75);
+		
+		Check.Shooter = Origin;
+		Check.SightTarget = Other;
+		Check.NoBlockSight = NoBlockSight;
+		
+		Check.Trace(SightPos,Origin.CurSector,Origin.Vec3To(Other),Range,0);
+		
+		Bool GoodLOS = Check.GoodLOS;
+		Check.Destroy();
+		
+		Return GoodLOS;
+	}
+}
+
+//The Khyber Pass version of P_CheckSight(). Brought to you by the object scope system.
+Class KAI_BasicSightCheck : KAI_LOFRaycast
+{
+	Bool GoodLOS; //BadLOF's good cousin.
+	Actor SightTarget; //Who are we even looking for ?
+	Bool NoBlockSight; //The check ignores BLOCKSIGHT lines, like for explosions.
+	Override ETraceStatus TraceCallback()
+	{
+		Actor Mobj = Results.HitActor;
+		
+		//No shooter, sight check failed.
+		If (!Shooter)
+			Return Trace_Stop;
+		
+		//Level geometry in the way, check failed.
+		If (HitLevelGeometry (Results))
+			Return Trace_Stop;
+		
+		//Sight or everything blocking lines in the way, check failed.
+		If (Results.HitLine && ((!NoBlockSight && Results.HitLine.Flags & Line.ML_BLOCKSIGHT) || Results.HitLine.Flags & Line.ML_BLOCKEVERYTHING))
+			Return Trace_Stop;
+		
+		//Ladies and gentlemen, we got him.
+		If (Mobj == SightTarget)
+		{
+			GoodLOS = True;
+			Return Trace_Stop;
+		}
+		
+		Return Trace_Skip;
+	}
+}
+
+//Goes through all actors and adds them to the Mobjs array.
+Class KAI_LOFActorFinder : KAI_LOFRaycast
+{
+	Int ActorLimit; //How many actors the trace goes through before it stops. Useful for things such as rippers that only go through a certain amount of actors.
+	Int BlockMode; //What kind of lines will block the actor. Uses the same flags as BlockingLineInTheWay, a value of 0 (Default) means it checks only for BLOCKEVERYTHING lines.
+	Override ETraceStatus TraceCallback()
+	{
+		AddToMobjList (Results.HitActor);
+		
+		//Stop at blocking lines.
+		If (Results.HitLine && Results.HitLine.Flags & Line.ML_BLOCKEVERYTHING || BlockMode != 0 && BlockingLineInTheWay (Results.HitLine,BlockMode))
+			Return Trace_Stop;
+		
+		//Stop at level geometry.
+		If (HitLevelGeometry (Results))
+			Return Trace_Stop;
+		
+		//If a limit to how many actors can be found has been set and passed. Then stop.
+		If (ActorLimit > 0 && ActorLimit >= Mobjs.Size()-1)
+			Return Trace_Stop;
+		
+		Return Trace_Skip;
+	}
+}
+
+//Generic projectile LOF check for non-ripping projectiles, should be applicable to most projectiles.
+//PropHealthThreshold: If a destructible prop actor with this much health or less is standing in the way, then shoot at it anyway.
+//SplashRadius: If the check hit level geometry, but the target is within the specified distance from the hit spot. Then don't return BadLOF.
+Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
+{
+	Int PropHealthThreshold;
+	Double SplashRadius;
+	
+	//Is the other actor in the blast radius ?
+	Bool CaughtInTheBlast()
+	{
+		If (SplashRadius <= 0 || !Other || Other && Other.bNoRadiusDmg) Return False;
+		
+		Double Distance = Level.Vec3Diff (Other.Pos,Results.HitPos).Length();
+		If (Distance <= SplashRadius)
+			Return CheckSightTo (Shooter,Other,Distance, True);
+		
+		Return False;
+	}
+	
+	Override ETraceStatus TraceCallback()
+	{
+		If (PropHealthThreshold == 0) PropHealthThreshold = 400; //HACK: Default value, since it can't be set with a normal variable decleration.
+		Actor Mobj = Results.HitActor;
+		
+		If (!Shooter) Return Trace_Stop;
+		
+		AddToMobjList (Mobj);
+		
+		If (Mobj == Shooter.Master) Return Trace_Skip;
+		
+		//The target is in the line of fire. Shoot them anyway.
+		If (Other && Mobj == Other)
+			Return Trace_Stop;
+		
+		Bool OtherInBlast = CaughtInTheBlast(); //Caching
+		
+		//Indestructible prop in the way.
+		If (Mobj && !OtherInBlast && IsIndestructible (Mobj) && IsInanimateObject (Mobj))
+		{
+			BadLOF = True;
+			Return Trace_Stop;
+		}
+		
+		//Destructible prop, but far too strong to shoot through in a timely manner.
+		If (Mobj && !OtherInBlast && IsCollidable (Mobj) && !IsIndestructible(Mobj) && IsInanimateObject (Mobj) && !CanShootAtProp(Mobj,PropHealthThreshold))
+		{
+			BadLOF = True;
+			Return Trace_Stop;
+		}
+		
+		//Solid corpse of an enemy in the way, shell can't go through.
+		If (Mobj && !OtherInBlast && KAIVehicle_IsHostile(Shooter,Mobj) && IsSolidCorpse(Mobj))
+		{
+			BadLOF = True;
+			Return Trace_Stop;
+		}
+		
+		//The trace specifically hit a projectile blocking line. e.g a window linedef or a polyobject.
+		If (BlockingLineInTheWay (Results.HitLine,0))
+		{
+			BadLOF = True;
+			Return Trace_Stop;
+		}
+		
+		//Level geometry is in the way.
+		If (HitLevelGeometry (Results))
+		{
+			//Don't return BadLOF if the target would be caught in the blast radius anyway. Unless they are immune to splash damage of course.
+			Double Distance;
+			If (SplashRadius > 0 && Other && !Other.bNoRadiusDmg && Distance <= SplashRadius)
+			{
+				Distance = Level.Vec3Diff (Other.Pos,Results.HitPos).Length();;
+				If (CheckSightTo (Shooter,Other,Distance))
+					Return Trace_Stop;
+				Else
+				{
+					BadLOF = True;
+					Return Trace_Stop;
+				}
+			}
+			Else
+				BadLOF = True;
+			Return Trace_Stop;
+		}
+		
+		Return Trace_Skip;
+	}
+}

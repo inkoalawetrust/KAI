@@ -9,8 +9,7 @@ Version "4.10.0"
 //MAYDO: Unlike TODO, this means that it's something I may or may not do. Hence the name.
 //IDEA: This is just an idea for the project. Likely some far away goal that would take a lot of time to implement.
 
-/*Uh, add cool license and ASCII art or whatever the fuck here. God, I don't even know where to start here lmao.
-Let alone how to make a smooth transition to the MVP being a mod based on this library.*/
+//Uh, add cool license and ASCII art or whatever the fuck here.
 
 //TODO: Okay, there's obviously a fucking lot to do, but here are some mental notes so I don't forget.
 /*Add documentation of the code tags used by the project. The tags include the common ones Wikipedia lists (https://en.wikipedia.org/wiki/Comment_(computer_programming)#Tags)

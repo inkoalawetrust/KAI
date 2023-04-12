@@ -182,11 +182,10 @@ Mixin Class KAI_CheckFunctions
 		Return False;
 	}
 	
-	//TODO: Add a flag that is needed to explicitly enable this special logic ?
 	//Is the other actor hostile? This is special hostile check logic for NPCs hostile to the player.
 	//The native IsHostile() just leaves the return up to the infighting settings.
 	//But this function checks if the other fellow enemy NPC is targetting the vehicle or one of its' turrets, or an actor of the same species.
-	//TODO: Actually, wouldn't it be better to make this into an IsTargettingAllies() function, with an optional flag to enable the check for enemy NPCs ?
+	//TODO: Make this into an IsTargettingAllies() function, with flags to enable the check for enemy NPCs, and to also enable the species check.
 	Bool KAIVehicle_IsHostile (Actor Caller, Actor Other)
 	{
 		If (!Caller || !Other) Return False;

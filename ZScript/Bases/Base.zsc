@@ -280,7 +280,7 @@ Class KAI_BaseProjectile : FastProjectile
 		Vel3DFromAngle (Speed,Angle,Pitch);
 		
 		//Spark effect.
-		//MAYDO: Make spark effect customizable ? Potentially through an OnDeflection() virtual.
+		//MAYDO: Make the spark effect customizable ? Potentially through an OnDeflection() virtual.
 		TextureID NullTex;
 		For (Int I = 0; I < 24; I++)
 		{

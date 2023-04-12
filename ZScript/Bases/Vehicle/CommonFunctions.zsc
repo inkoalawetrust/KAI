@@ -2,6 +2,26 @@
 //Vehicle functions
 Extend Class KAI_BaseVehicle
 {
+	//=====|Spawn functions|=====\\
+	//The barebones code for spawning a vehicle turret. Useful for SpawnVehicleTurret virtuals with custom logic.
+	Void SpawnTurret (Class <KAI_BaseTurret> TurretClass)
+	{
+		Turret = KAI_BaseTurret(Spawn (TurretClass,Pos+TurretOffsets));
+		If (Turret)
+		{
+			Turret.CopyFriendliness (Self,False);
+			Turret.SpawnFlags = SpawnFlags;
+			Turret.HandleSpawnFlags();
+			Turret.Angle = Angle;
+			Turret.Pitch = Pitch;
+			Turret.Master = Self;
+			Double HealthFactor = Double(Health) / Double(Default.Health); //HACK: There's no proper way to get the exact spawn health or spawn health multiplier defined in the map editor.
+			Turret.Health *= HealthFactor;
+			Turret.TurretOffsets = TurretOffsets;
+		}
+		Return;
+	}
+	
 	//High quality code rips.
 	Enum DynamicLightArgs
 	{

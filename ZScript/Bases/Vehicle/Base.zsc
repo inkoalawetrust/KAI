@@ -50,23 +50,7 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	Virtual Void SpawnVehicleTurret ()
 	{
 		If (VehicleTurret)
-		{
-			//MAYDO: A generic turret spawn function that handles most of the generic status changes of spawned turrets like passing and handling spawn flags.
-			Turret = KAI_BaseTurret(Spawn (VehicleTurret,Pos+TurretOffsets));
-			If (Turret)
-			{
-				Turret.CopyFriendliness (Self,False);
-				Turret.SpawnFlags = SpawnFlags;
-				Turret.HandleSpawnFlags();
-				Turret.Angle = Angle;
-				Turret.Pitch = Pitch;
-				Turret.Master = Self;
-				Double HealthFactor = Double(Health) / Double(Default.Health);
-				Turret.Health *= HealthFactor;
-				Turret.TurretOffsets = TurretOffsets;
-				//Turret.SetOrigin (Vec3OffsetRelative(Turret.Master,(Turret.TurretOffsets.XY,Turret.Master.Height+Turret.TurretOffsets.Z),flags:V3R_ANGLEONLY),True);
-			}
-		}
+			SpawnTurret (VehicleTurret);
 	}
 	
 	//Used to neatly order the spawning of headlights in vehicle definitions. You could just as easily do the spawning in PostBeginPlay()

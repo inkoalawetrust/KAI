@@ -1,5 +1,4 @@
 //TODO:
-//Add a projectile flag to prevent projectiles from hitting allies. To genericize all the duplicate code MVP projectiles run.
 
 /*KLUDGE: Mixins can't be used by different mods, so this class that contains ALL the mixin code in the KAI library is needed. You need to inherit from this
 if you want to make something that's not an NPC, but can still use the mixin code the library includes.*/
@@ -342,6 +341,7 @@ Class KAI_BaseProjectile : FastProjectile
 	Override Int SpecialMissileHit (Actor Victim)
 	{
 		If (!Victim || Victim && Victim == DontCollide) Return 1;
+		If (bNoFriendlyFire && !IsInanimateObject (Victim) && !IsHostileToShooter (Victim)) Return 1;
 		//MAYDO: This makes the now bad assumption that projectile is for vehicles only- actually no. I think this may be fine ?
 		//If not, maybe replace this with a dynamic array of specific actors the projectile should't collide with.
 		If (Target && Target Is "KAI_BaseTurret" && Victim && Victim == Target.Master) Return 1; //If fired from a turret, ignore the vehicle it's attached on.
@@ -355,6 +355,7 @@ Class KAI_BaseProjectile : FastProjectile
 	Mixin KAI_CheckFunctions;
 	Private Int ProjectileFlags;
 	FlagDef NoTrailLine : ProjectileFlags, 0; //The projectile uses the normal FastProjectile trail spawning code.
+	FlagDef NoFriendlyFire : ProjectileFlags, 1; //The projectile should not collide with actors friendly to its' shooter.
 	Class <Actor> TrailActor;
 	Property TrailActor : TrailActor;
 	

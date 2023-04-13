@@ -152,7 +152,7 @@ Extend Class KAI_BaseVehicle
 			If (!Mobj || Mobj == Self) Continue;
 
 			//Don't crush anything if a friendly necromancer is nearby.
-			If (Flags & FNCF_STOPFORVILES && !IsDead(Mobj) && IsNecromancer(Mobj) && !KAIVehicle_IsHostile (Self, Mobj) && CheckSight (Mobj)) Return Null;
+			If (Flags & FNCF_STOPFORVILES && !IsDead(Mobj) && IsNecromancer(Mobj) && !IsActorHostile (Mobj) && CheckSight (Mobj)) Return Null;
 			
 			//Skip this actor if it's already your corpse target, is alive, is already crushed, is not a dead corpse, or cannot be targeted.
 			If (Mobj == CorpseTarget || !IsDead (Mobj) || Mobj.bDontGib || Mobj.bDontCorpse || !CanBeTargeted (Self, Mobj)) Continue;

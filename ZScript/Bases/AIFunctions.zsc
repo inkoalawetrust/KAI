@@ -231,7 +231,7 @@ Extend Class KAI_Actor
 			Actor Mobj = FindEnemies.Thing;
 			
 			//Skip this actor if it's dead, cannot be targeted, is not a monster nor a player, or is not even an enemy.
-			If (!Mobj || IsDead (Mobj) || IsInanimateObject(Mobj) || !CanBeTargeted (Self, Mobj) || !KAIVehicle_IsHostile (Self, Mobj)) Continue;
+			If (!Mobj || IsDead (Mobj) || IsInanimateObject(Mobj) || !CanBeTargeted (Self, Mobj) || !IsActorHostile (Mobj)) Continue;
 			
 			If (Distance3DSquared (Mobj) > Range*Range) Continue; //Out of range.
 			

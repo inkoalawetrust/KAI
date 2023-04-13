@@ -90,37 +90,37 @@ Mixin Class KAI_UniversalFunctions
 //Generic status checks.
 Mixin Class KAI_CheckFunctions
 {
-	Bool CheckActorExists (String ActorClass)
+	ClearScope Bool CheckActorExists (String ActorClass)
 	{
 		Class<Actor> Act = ActorClass;
 		Return !!Act;
 	}
 	
-	Bool IsDead (Actor Other)
+	ClearScope Bool IsDead (Actor Other)
 	{
 		If (!Other) Return False;
 		Return (Other.Player ? Other.Player.PlayerState == PST_DEAD : Other.Health <= 0);
 	}
 	
-	Bool IsIndestructible (Actor Other)
+	ClearScope Bool IsIndestructible (Actor Other)
 	{
 		If (!Other) Return False;
 		Return (Other.bInvulnerable || Other.bNoDamage/* || (!Other.bShootable)*/);
 	}
 	
-	Bool HasGodMode (Actor Other)
+	ClearScope Bool HasGodMode (Actor Other)
 	{
 		If (!Other) Return False;
 		Return (Other.Player && Other.Player.Cheats & (CF_GODMODE | CF_GODMODE2));
 	}
 	
-	Bool IsInanimateObject (Actor Other)
+	ClearScope Bool IsInanimateObject (Actor Other)
 	{
 		If (!Other) Return False;
 		Return (!Other.bIsMonster && !Other.Player);
 	}
 	
-	Bool IsCollidable (Actor Other, Actor Caller = Null)
+	ClearScope Bool IsCollidable (Actor Other, Actor Caller = Null)
 	{
 		If (!Other) Return False;
 		Return ((Other.bSolid && !Other.bNoBlockmap)
@@ -128,13 +128,13 @@ Mixin Class KAI_CheckFunctions
 		&& !(Caller && Caller.bAllowThruBits && Other.bAllowThruBits && Caller.ThruBits & Other.ThruBits));
 	}
 	
-	Bool IsPatrolling (Actor Other)
+	ClearScope Bool IsPatrolling (Actor Other)
 	{
 		If (!Other) Return False;
 		Return (Other.Goal || Other.Target Is "PatrolPoint");
 	}
 	
-	Bool IsFlying (Actor Other)
+	ClearScope Bool IsFlying (Actor Other)
 	{
 		If (!Other) Return False;
 		
@@ -149,14 +149,14 @@ Mixin Class KAI_CheckFunctions
 		Return False;
 	}
 	
-	Bool IsInState (Actor Other, StateLabel CheckFor = "Spawn")
+	ClearScope Bool IsInState (Actor Other, StateLabel CheckFor = "Spawn")
 	{
 		If (!Other) Return False; 
 		Return (Other.InStateSequence(Other.CurState,Other.FindState (CheckFor)));
 	}
 	
 	//Can the other actor be targeted ? If the other actor has NOTARGET, but is already being targeted by the caller, then it returns true.
-	Bool CanBeTargeted (Actor Caller, Actor Other)
+	ClearScope Bool CanBeTargeted (Actor Caller, Actor Other)
 	{
 		If (!Other) Return False;
 		If (Other.bNeverTarget) Return False;
@@ -165,7 +165,7 @@ Mixin Class KAI_CheckFunctions
 	
 	//Returns if the calling actor is fast.
 	//https://github.com/ZDoom/gzdoom/blob/master/src/playsim/p_mobj.cpp?L4892#L4892-L4897
-	Bool IsFast (Actor Other)
+	ClearScope Bool IsFast (Actor Other)
 	{
 		If (Other.bAlwaysFast) Return True;
 		If (Other.bNeverFast) Return False;
@@ -173,7 +173,7 @@ Mixin Class KAI_CheckFunctions
 	}
 	
 	//Returns true if the specified actor can resurrect corpses like an Archvile does.
-	Bool IsNecromancer (Actor Other)
+	ClearScope Bool IsNecromancer (Actor Other)
 	{
 		If (!Other) Return False;
 		
@@ -182,33 +182,39 @@ Mixin Class KAI_CheckFunctions
 		Return False;
 	}
 	
-	//Is the other actor hostile? This is special hostile check logic for NPCs hostile to the player.
-	//The native IsHostile() just leaves the return up to the infighting settings.
-	//But this function checks if the other fellow enemy NPC is targetting the vehicle or one of its' turrets, or an actor of the same species.
-	//TODO: Make this into an IsTargettingAllies() function, with flags to enable the check for enemy NPCs, and to also enable the species check.
-	Bool KAIVehicle_IsHostile (Actor Caller, Actor Other)
+	/*IDEA: I may add a generic group system for KAI_Actors in the future, similar to the squad system in the old Smart Marines.
+	If I do that, then this function should be able to return true if an actor in the callers' group is attacked, even for hostile monsters !*/
+	//Is the other actor targeting an ally of the caller ?
+	ClearScope Bool IsTargetingAllies (Actor Caller, Actor Other)
 	{
-		If (!Caller || !Other) Return False;
+		If (!Caller || !Other || !Other.Target) Return False;
 		
-		If (Caller.bFriendly) //It's as shrimple as that.
-			Return Caller.IsHostile (Other);
-		//Enemy vehicles are the reason this function exists.
-		//They generally don't attack other non-enemy military NPCs. But they will do so if those NPCs are targetting them, or another enemy military NPC.
+		If (Caller.bFriendly)
+		{
+			//Is the other actor targeting an actor that is your friend ?
+			Return (Caller.IsFriend(Other.Target));
+		}
+		//Hostile NPCs are only concerned if actors of their own species are targeted, or in the case of vehicles, if their hull or turret is targeted.
 		Else
 		{
-			//Non-friendly actors always hate players and their allies.
+			//Non-friendly actors always automatically hate players and their allies.
 			If (Other.Player || Other.bFriendly)
 				Return True;
 			
-			//Don't consider own species hostile.
-			//If (Caller.bNoInfightSpecies && Caller.Species == Other.Species)
-			//	{console.printf ("that's my own species");Return False;} //DEBUG
-			
-			//Is the other actor targetting you or your turret ?
-			If (Other.Target && (Other.Target == Caller || Other.Target == KAI_BaseVehicle(Caller).Turret))
+			//Is the other actor targeting you ?
+			If (Other.Target && Other.Target == Caller)
 				Return True;
 			
-			//Is the other actor targetting an actor with the same species as you ? Then they are an enemy as far as you are concerned.
+			//If you the caller is a vehicle, is the other actor targeting its' turret ?
+			If (Caller Is "KAI_BaseVehicle" && Other.Target == KAI_BaseVehicle(Caller).Turret)
+				Return True;
+			
+			//If the caller is a turret itself, is the other actor targeting the vehicle it's attached on ?
+			//NOTE: The above KAI_BaseVehicle check should catch cases of nested turrets where the other actor is targeting the turrets' turret.
+			If (Caller Is "KAI_BaseTurret" && Other.Target == Caller.Master)
+				Return True;
+			
+			//Is the other actor targeting an actor with the same species as you ? Then they are an enemy as far as you are concerned.
 			If (Other.Target && (Caller.bNoInfightSpecies && Caller.Species == Other.Target.Species))
 				Return True;
 		}
@@ -349,6 +355,18 @@ Class KAI_LOFRaycast : LineTracer
 		Return False;
 	}
 	
+	//Is the other actor hostile to the caller ?
+	Bool IsHostile (Actor Caller, Actor Other)
+	{
+		If (!Caller || !Other) Return False;
+		
+		//KAI NPCs have a custom virtual to check for hostility.
+		If (Caller Is "KAI_Actor")
+			Return KAI_Actor(Caller).IsActorHostile (Other);
+		
+		Return Caller.IsHostile (Other); //If not a KAI NPC, use the native IsHostile().
+	}
+	
 	//The object scope system doesn't like calling useful functions like CheckSight. So here is the Wish.com version.
 	Bool CheckSightTo (Actor Origin, Actor Other, Double Range, Bool NoBlockSight = False)
 	{
@@ -480,7 +498,7 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 		}
 		
 		//Solid corpse of an enemy in the way, shell can't go through.
-		If (Mobj && !OtherInBlast && KAIVehicle_IsHostile(Shooter,Mobj) && IsSolidCorpse(Mobj))
+		If (Mobj && !OtherInBlast && Shooter.IsHostile(Mobj)/*KAIVehicle_IsHostile(Shooter,Mobj)*/ && IsSolidCorpse(Mobj))
 		{
 			BadLOF = True;
 			Return Trace_Stop;

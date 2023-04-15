@@ -1,4 +1,3 @@
-//$GZDB_SKIP
 //Code that's not directly related to KAI NPCs goes here. Largely stuff like mixins and the math container class.
 Class KAI_Math
 {
@@ -105,7 +104,13 @@ Mixin Class KAI_CheckFunctions
 	ClearScope Bool IsIndestructible (Actor Other)
 	{
 		If (!Other) Return False;
-		Return (Other.bInvulnerable || Other.bNoDamage/* || (!Other.bShootable)*/);
+		Return (Other.bInvulnerable || Other.bNoDamage || !Other.bShootable);
+	}
+	
+	ClearScope Bool HasBuddha (Actor Other)
+	{
+		If (!Other) Return False;
+		Return (Other.bBuddha || Other.Player && Other.Player.Cheats & (CF_BUDDHA | CF_BUDDHA2));
 	}
 	
 	ClearScope Bool HasGodMode (Actor Other)

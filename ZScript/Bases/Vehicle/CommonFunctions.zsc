@@ -18,6 +18,7 @@ Extend Class KAI_BaseVehicle
 			Double HealthFactor = Double(Health) / Double(Default.Health); //HACK: There's no proper way to get the exact spawn health or spawn health multiplier defined in the map editor.
 			Turret.Health *= HealthFactor;
 			Turret.TurretOffsets = TurretOffsets;
+			If (bPassThreatLevelToTurrets && Turret.ThreatLevel == THREAT_ASSESS && ThreatLevel != THREAT_ASSESS) Turret.ThreatLevel = ThreatLevel;
 		}
 		Return;
 	}

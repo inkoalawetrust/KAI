@@ -1,5 +1,9 @@
 //TODO:
 //This is a BIG TIME placeholder. This will be kept as is until I begin remaking the Smart Marines.
+/*Add an emplacement system, with properties like what threat level to set to the NPC when it's sitting on the
+emplacement. This will be a more flexible version of the MG turret the Smart Marines used hopefully.
+Maybe I should instead make a creature base, from which BaseHumanoid stems from. So only BaseHumanoid
+will have access to the emplacement system.*/
 
 Class KAI_BaseHumanoid : KAI_Actor
 {

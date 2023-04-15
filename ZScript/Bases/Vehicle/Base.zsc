@@ -5,7 +5,6 @@ first tick. Which is literally worse than the turrets spawning on the ground.*/
 
 //IDEA:
 //Add a system in the base turrets' ShouldAttack(), where if the target is obstructed, the turret will instead try aiming up or down instead of the middle.
-//Add smoke that can come off of vehicles when they are low on health.
 
 Class KAI_BaseVehicle : KAI_Actor Abstract
 {
@@ -260,6 +259,7 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	Private Int VehicleFlags;
 	FlagDef Transport : VehicleFlags, 0; //The vehicle is marked as being able to transport soldiers.
 	FlagDef NoRadio : VehicleFlags, 1; //The vehicle ignores orders given to it by the radio item.
+	FlagDef PassThreatLevelToTurrets : VehicleFlags, 2; //Turrets will inherit the vehicles' threat level, unless they have a threat level defined.
 	Class<KAI_BaseTurret> VehicleTurret; //The pointer to the vehicles' turret, if any.
 	Property VehicleTurret : VehicleTurret;
 	

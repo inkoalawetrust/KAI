@@ -181,7 +181,7 @@ Extend Class KAI_Actor
 					Break;
 			}
 		}
-		console.printf ("angle is %d", angle);
+		
 		//test movement angles until I find one that works, avoid that obstacle for MoveCount tics
 		if (!moved && !(ChaseFlags & CHF_STOPIFBLOCKED))
 		{

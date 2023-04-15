@@ -1,4 +1,5 @@
 //TODO:
+//Figure out how to handle the MVPs' order system, especially properly integrating it to KAI_Actor. Or maybe keep it to the MVP for now, that's easier.
 
 /*KLUDGE: Mixins can't be used by different mods, so this class that contains ALL the mixin code in the KAI library is needed. You need to inherit from this
 if you want to make something that's not an NPC, but can still use the mixin code the library includes.*/
@@ -122,9 +123,78 @@ Class KAI_Actor : Actor Abstract
 		Return IsHostile(Other);
 	}
 	
+	//Tries to heuristically determine how dangerous another actor is. This is pretty hard to do universally. Since stuff like attacks can't be checked.
+	ClearScope Virtual Int AssessThreatLevel (Actor Other)
+	{
+		If (!Other || IsDead (Other)) Return THREAT_NONE;
+		
+		//KAI NPCs can have specific threat levels set, in which case, just return whatever the NPCs' threat level is.
+		If (Other Is "KAI_Actor" && KAI_Actor(Other).ThreatLevel != THREAT_ASSESS)
+			Return KAI_Actor(Other).ThreatLevel;
+		
+		//Alternatively, if this is a non-KAI NPC. But has the KAI data token, and that token has a threat level specified, pass that instead.
+		Inventory Token = Other.FindInventory ("KAI_DataToken");
+		If (!(Other Is "KAI_Actor") && Token && KAI_DataToken(Token).ThreatLevel != THREAT_ASSESS)
+			Return KAI_DataToken(Token).ThreatLevel;
+		
+		//It's not even a player or NPC.
+		If (IsInanimateObject (Other))
+			Return THREAT_NONE;
+		
+		//If indestructible. Then the other actor is unstoppable (Obviously)
+		If (HasGodMode (Other) || HasBuddha (Other) || IsIndestructible (Other) ||
+		//Also unstoppable if, more esoterically, it has NONSHOOTABLE (Hitscans go through), NOBLOCKMAP (Projectiles go through), and NORADIUSDMG (No splash damage)
+		//NOTE: If you have any FORCERADIUSDMG attacks, you might want to remove these 3 flag checks. Since your actor can harm an enemy with these properties.
+		Other.bNonShootable && Other.bNoBlockmap && Other.bNoRadiusDmg)
+			Return THREAT_UNSTOPPABLE;
+		
+		//If the actor has 2500+ health.
+		If ((Other.SpawnHealth() >= 2500 || Other.Health >= 2500) ||
+		//Or it's enormous (3.4m tall and 4.5m wide or bigger, larger than the Challenger 2 tank, which is huge).
+		(Other.Height >= 110 && Other.Radius >= 72))
+			Return THREAT_VERYDANGEROUS;
+		//Alternatively, if the actor has as much health as a THREAT_DANGEROUS actor, but can reflect projectiles back at enemies, it's also very dangerous.
+		Else If ((Other.SpawnHealth() >= 1000 || Other.Health >= 1000) && Other.bReflective && Other.bAimReflect)
+			Return THREAT_VERYDANGEROUS;
+		
+		//If the actor has 1000+ health. Or 500+ health and deflects projectiles, then it's dangerous.
+		If ((Other.SpawnHealth() >= 1000 || Other.Health >= 1000) || (Other.SpawnHealth() >= 500 || Other.Health >= 500) && Other.bReflective)
+			Return THREAT_DANGEROUS;
+		
+		//If the actor has 500+ health.
+		If ((Other.SpawnHealth() >= 500 || Other.Health >= 500) ||
+		//Or has 100+ health and flies or is fast.
+		(Other.SpawnHealth() >= 100 || Other.Health >= 100) && (IsFlying (Other) || Other.Speed >= 15) ||
+		//Or is weak, but flies around fast.
+		(Other.SpawnHealth() >= 50 || Other.Health >= 50) && IsFlying (Other) && Other.Speed >= 15)
+			Return THREAT_ABOVENORMAL;
+		
+		//If the actor has 100+ health. Or is weak, but fast.
+		If ((Other.SpawnHealth() >= 100 || Other.Health >= 100) || (Other.SpawnHealth() >= 20 || Other.Health >= 20) && Other.Speed >= 15)
+			Return THREAT_NORMAL;
+		
+		//If the actor has 50+ health (About as much as an Imp or Chaingunner)
+		If ((Other.SpawnHealth() >= 50 || Other.Health >= 50))
+			Return THREAT_MILD;
+		
+		//If the actor has 20+ health. AKA is about as strong as a Shotgunner or Zombieman.
+		If ((Other.SpawnHealth() >= 20 || Other.Health >= 20))
+			Return THREAT_LOW;
+		
+		//If the actor has 10 health OR LESS. Or it's health is lower than 20 (As specified right above) and it dies on contact with anything, then it's super weak.
+		If ((Other.SpawnHealth() <= 10 || Other.Health <= 10) || Other.bTouchy)
+			Return THREAT_VERYLOW;
+		
+		Return THREAT_NONE; //If it's none of the above, then it's probably not a problem, probably.
+	}
+	
 	//Actor properties and flags.
 	Double AggressionMultiplier; //Can be used to further increase the chance of KAI_CheckMissileRange returning true. The LOWER it is the more frequent the attacking.
+	Int ThreatLevelThreshold; //If another actors' threat level is at or over this threshold, then the NPC should do some action (Like run away, or be more likely to use stronger attacks).
 	Property AggressionMultiplier : AggressionMultiplier;
+	Property ThreatLevelThreshold : ThreatLevelThreshold;
+	Int ThreatLevel; //The NPCs' predetermined threat level. In its basic form it can be used as just a static value. But you could also dynamically change it, e.g based on what attacks your NPC currently has available.
+	Property ThreatLevel : ThreatLevel;
 	Private Int NPCFlags;
 	FlagDef NoTargetPrediction : NPCFlags, 0; //The NPC will not calculate its' targets' movement and lead its' shots.
 	
@@ -132,6 +202,22 @@ Class KAI_Actor : Actor Abstract
 	Array <State> AttackStates; //Can be used to store all of the attack state labels an actor has. Such as for actors with multiple attacks besides a missile and melee attack, like vanilla monsters only have.
 	Vector3 LastEnemyPosition; //Used by the target prediction. If the turret has a target with no velocity, it grabs their last position every tick to compare it to the current position.
 	Vector3 CurrentEnemyPosition;
+	
+	Enum ThreatLevels
+	{
+		THREAT_ASSESS		= 0, //No threat level specified, this is the default, and means that the threat level is to be determined by the AssessThreatLevel() virtual.
+		THREAT_NONE			= 1, //The actor is harmless. e.g a prop
+		
+		THREAT_VERYLOW		= 2, //The actor poses minimal threat. e.g a mosquito enemy or something
+		THREAT_LOW			= 3, //The actor poses little threat. e.g a Zombieman or Shotgunner
+		THREAT_MILD			= 4, //The actor is somewhat dangerous. e.g a Chaingunner
+		THREAT_NORMAL		= 5, //The actor is an average threat. e.g a Pinky, or Imp
+		THREAT_ABOVENORMAL	= 6, //The actor is an above average threat. e.g a Hell Knight, Cacodemon, or Revenant
+		THREAT_DANGEROUS	= 7, //The actor is dangerous. e.g a Baron of Hell, Arachnotron or Mancubus
+		THREAT_VERYDANGEROUS= 8, //The actor is a major threat. e.g bosses like Cyberdemons and Spider Masterminds
+		
+		THREAT_UNSTOPPABLE	= 666, //The actor is straight up unstoppable, like an NPC with NODAMAGE, or player with ultimate god mode, a good time to run away.
+	}
 	
 	//Constants
 	//Const NullVector = (Double.NaN,Double.NaN,Double.NaN);
@@ -401,3 +487,80 @@ Class KAI_Tracer : Actor
 	
 	Vector3 SpawnOffsets;
 }
+
+//PLAYTEST: The token and its' associated ACS API work for simply setting the threat level. But I'm not sure how dynamically changing the tokens' threat level would work for non-KAI actors exactly.
+//This inventory token is a surrogate to allow non-KAI NPCs and mods to use certain types of KAI info. Such as threat levels.
+//This token is useful for tasks like:
+//Adding optional KAI support to your mod without turning your actors into KAI NPCs. And also without needing to make a compatibility patch, or getting startup errors without the library loaded.
+/*Making something like an event handler addon that gives specific NPCs tokens with hardcoded threat levels. Like for example giving all Pain Elementals this token,
+to specify that Elementals are THREAT_DANGEROUS instead of THREAT_ABOVENORMAL, due to their constant spamming of tanky Lost Souls.*/
+Class KAI_DataToken : Inventory
+{
+	Default
+	{
+		Inventory.MaxAmount 1;
+		+Inventory.Quiet;
+		+Inventory.Undroppable;
+		+Inventory.Unclearable;
+		+Inventory.Untossable;
+		+Inventory.HubPower;
+		+Inventory.NoScreenFlash;
+	}
+	
+	Int ThreatLevel; //The threat level of the tokens' owner.
+	
+	/*override void attachtoowner (actor other) //DEBUG
+	{
+		Super.AttachToOwner(Other);
+		if (other && other.player)
+			ACS_ScriptCall("KAIToken_SetThreatLevel",666);
+			//user_threatlevel = 666; //THREAT_UNSTOPPABLE
+	}*/
+}
+//Debug actor to assess the threat level of an actor in front of it, to see if the system works as intended.
+/*class threatassess : kai_Actor replaces gibbedmarineextra
+{
+states
+{
+	spawn:
+		tnt1 a 1 a_lookex(fov:360);
+		loop;
+	see:
+		tnt1 a 1
+		{
+			string text;
+			switch (AssessThreatLevel (Target))
+			{
+				case THREAT_VERYDANGEROUS:
+					text = "THREAT_VERYDANGEROUS";
+					break;
+				case THREAT_DANGEROUS:
+					text = "THREAT_DANGEROUS";
+					break;
+				case THREAT_ABOVENORMAL:
+					text = "THREAT_ABOVENORMAL";
+					break;
+				case THREAT_NORMAL:
+					text = "THREAT_NORMAL";
+					break;
+				case THREAT_MILD:
+					text = "THREAT_MILD";
+					break;
+				case THREAT_LOW:
+					text = "THREAT_LOW";
+					break;
+				case THREAT_VERYLOW:
+					text = "THREAT_VERYLOW";
+					break;
+				case THREAT_UNSTOPPABLE:
+					text = "THREAT_UNSTOPPABLE";
+					break;
+				default:
+					text = "oops";
+					break;
+			}
+			Console.Printf ("%s threat level:%s",target.getclassname(),text);
+		}
+		stop;
+}
+}*/

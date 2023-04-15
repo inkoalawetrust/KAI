@@ -1,0 +1,18 @@
+#Library "KAIToken"
+#Include "ZCommon.acs"
+/*HACK: For cleanliness and readability. KAI_DataToken uses custom variables to pass data for KAI NPCs to read,
+such as threat levels. But trying to access those variables from an actor that possibly may not exist directly
+through ZScript causes startup errors if that actor (The token) does not exist, like if your non-KAI mod is not
+loaded alongside the library. The best solution ? This ACS API. For how to use it, read the Github wiki.*/
+
+//Set the tokens' threat level for the actor it's attached to.
+Script "KAIToken_SetThreatLevel" (Int ThreatLevel)
+{
+	SetUserVariable (0,"ThreatLevel",ThreatLevel);
+}
+
+//Return the tokens' threat level.
+Script "KAIToken_GetThreatLevel" (Void)
+{
+	SetResultValue(GetUserVariable (0,"ThreatLevel"));
+}

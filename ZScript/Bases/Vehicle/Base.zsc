@@ -1,3 +1,7 @@
+/*NOTE: The order system from the MVP and Smart Marines is not implemented to the KAI, at least for now. As I want to get it to hopefully be more stable.
+However, the CurrentOrder variable, bNoRadio flag, and VehicleCommands enum is still included in the KAI.
+If I do implement the order system to KAI actors, it will probably be before the marine rewrite. So I'll have to rewrite the vehicle chase function.*/
+
 //FIXME:
 /*Try and fix the vehicle turrets to be at the top of their vehicle even at the first tick of their existance.
 The first fix I tried was immediately warping the turret to its vehicle. Which somehow turns the turrets into the vehicle they are attached on in the
@@ -66,7 +70,7 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	}
 	
 	//Return the location that the vehicles' attack will hit at.
-	Override Vector3 GetAttackLocation() {Return (Double.NaN,Double.NaN,Double.NaN);}
+	Override Vector3 GetAttackLocation() {Return (Double.NaN,Double.NaN,Double.NaN);} //Vehicles have no attacks by default. So not attack location is returned.
 	
 	//Should the vehicle stay still and attack ? The base actor class simply houses the most basic conditional check for this.
 	//CheckSightFrom is the actor whose sight to their target is checked, to determine if the vehicle can shoot.
@@ -88,6 +92,9 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 		Return False;
 	}
 	
+	//Called when the vehicles' turret is killed. Returns the turret that was killed as well, which should logically just be the vehicles' Turret pointer.
+	Virtual Void OnTurretDeath (Actor DeadTurret, Bool Removed = False){}
+	
 	Override Void BeginPlay()
 	{
 		Super.BeginPlay();
@@ -104,46 +111,6 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 		Super.PostBeginPlay();
 		SpawnVehicleTurret();
 		SpawnHeadlights();
-		
-		If (!User_DefaultOrder || User_DefaultOrder ~== "")
-		{
-			//This tries to pick a random visible player for the vehicle to follow, if no friendly players are in sight, the vehicle will wander instead.
-			Array <PlayerPawn> VisibleFriends;
-			//Find all visible players friendly to you.
-			For (Int I = 0; I < MAXPLAYERS; I++)
-			{
-				If (!PlayerInGame[I]) Continue;
-				
-				If (IsFriend (Players[I].Mo) && CheckSight (Players[I].Mo, SF_IGNOREVISIBILITY|SF_IGNOREWATERBOUNDARY))
-					VisibleFriends.Push (Players[I].Mo);
-			}
-			
-			//Found at least one visible friendly player to follow.
-			If (VisibleFriends.Size() - 1 >= 0)
-			{
-				SetFriendPlayer (VisibleFriends[Random (0, VisibleFriends.Size() - 1)].Player); //Randomly pick a visible friend to follow.
-				CurrentOrder = ORDER_FOLLOW;
-			}
-			//No friendplayer, or they are out of sight
-			Else If (!FriendPlayer || FriendPlayer && !CheckSight (Players[FriendPlayer].Mo, SF_IGNOREVISIBILITY|SF_IGNOREWATERBOUNDARY))
-			{
-				CurrentOrder = ORDER_WANDER;
-				bDontFollowPlayers = True;
-			}
-		}
-		Else If (User_DefaultOrder ~== "Follow")
-		{
-			CurrentOrder = ORDER_FOLLOW;
-		}
-		Else If (User_DefaultOrder ~== "Wander")
-		{
-			CurrentOrder = ORDER_WANDER;
-			bDontFollowPlayers = True;
-		}
-		Else If (User_DefaultOrder ~== "Stay" || User_DefaultOrder ~== "Stand")
-		{
-			CurrentOrder = ORDER_STAY;
-		}
 	}
 	
 	Override Void Tick()
@@ -196,7 +163,7 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	{
 		Super.OnDestroy();
 		RemoveHeadlights();
-		If (Turret) Turret.Destroy();
+		If (Turret) Turret.Destroy(); //Take your turret with you.
 	}
 	
 	Override Void Activate (Actor Activator)
@@ -235,9 +202,9 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	Const DEFAULT_SEEDISTANCE = 8192; //The default sight distance.
 	
 	//AI variables
-	Actor DeathWarnZone; //The warning zone attached to the vehicle after it died, if any. Used to warn Smart Marines if the vehicle wreck is burning.
-	Actor NearestEnemy; //The enemy closest to the vehicle, if any.
-	Actor CorpseTarget; //The corpse that the vehicle is trying to crush.
+	Actor DeathWarnZone; //The warning zone attached to the vehicle after it died, if any. Used to warn Smart Marines if the vehicle wreck is burning. //URGENT: Move this back to the MVP !
+	Actor NearestEnemy; //The enemy closest to the vehicle, if any. Does nothing by default, but can be filled with FindNearestEnemy().
+	Actor CorpseTarget; //The corpse that the vehicle is trying to crush. //URGENT: Move this back to the MVP too, delibaretly crushing corpses is too specific for the library.
 	Int ChaseTimer; //Makes the vehicle only chase its' target for a certain amount of time after it goes out of sight. Is also used to determine how long turreted vehicles stay in one place.
 	Int FearTimer; //Makes the vehicle keep running away from it's target for an additional random amount of time, so that it doesn't play peekaboo with enemies.
 	Int CurrentOrder; //The current order the vehicle is following.
@@ -255,10 +222,9 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	Property MaxCorpseHeight : MaxCorpseHeight;
 	
 	//Flag variables
-	//TODO: Rename NoRadio to NoOrders or something. Since this is KAI code now.
 	Private Int VehicleFlags;
 	FlagDef Transport : VehicleFlags, 0; //The vehicle is marked as being able to transport soldiers.
-	FlagDef NoRadio : VehicleFlags, 1; //The vehicle ignores orders given to it by the radio item.
+	FlagDef NoOrders : VehicleFlags, 1; //The vehicle ignores orders given to it by the radio item.
 	FlagDef PassThreatLevelToTurrets : VehicleFlags, 2; //Turrets will inherit the vehicles' threat level, unless they have a threat level defined.
 	Class<KAI_BaseTurret> VehicleTurret; //The pointer to the vehicles' turret, if any.
 	Property VehicleTurret : VehicleTurret;
@@ -313,7 +279,7 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 		+LookAllAround;
 		+DontFollowPlayers;
 		+NoSpriteShadow;
-		+KAI_BaseVehicle.NoRadio;
+		+KAI_BaseVehicle.NoOrders;
 		-AvoidHazards;
 		-AvoidMelee;
 		-CanBlast; //Turrets are attached to their vehicle.
@@ -386,19 +352,19 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 	
 	Override Void Tick()
 	{
-		OldSoundAngle = Angle;
+		OldSoundAngle = Angle; //Store last ticks' angle for the turning sound.
 		Super.Tick();
 		
 		If (IsFrozen()) Return;
 		
-		Bool IsDead = IsDead (Self);
+		Bool IsDead = IsDead (Self); //Caching
 		
 		//Combat turret traverse handling.
 		If (!bNoCombatTraverse && !IsDead)
 			If (IsInAttackState())
 				DoCombatTraverse (Target);
 		
-		//Play the turrets' mechanical whirring sound whenever it's not dead.
+		//Play the turrets' turning sound whenever it's not dead.
 		If (TurnSound && !IsDead)
 		{
 			//But only play it when the angle has changed a certain amount.
@@ -412,14 +378,17 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 		
 		If (!Master || IsDead && bFallOnDeath) Return;
 		
-		SetOrigin (KAI_Math.Vec3OffsetRelative(Master,(TurretOffsets.XY,Master.Height+TurretOffsets.Z),flags:KAI_Math.V3R_ANGLEONLY),True);
-		A_Stop();
+		SetOrigin (KAI_Math.Vec3OffsetRelative(Master,(TurretOffsets.XY,Master.Height+TurretOffsets.Z),flags:KAI_Math.V3R_ANGLEONLY),True); //This is how the turret actually stays on the vehicle.
+		A_Stop(); //Make sure it doesn't move on its' own.
 		Floorclip = Master.Floorclip; //Copy floorclip offset for TERRAIN liquids.
 	}
 	
 	Override Void Die (Actor Source, Actor Inflictor, Int DmgFlags, Name MeansOfDeath)
 	{
-		If (Master && !(Self Is "KAI_BaseTurretProp")) //Prop turrets use TurretRotationOffset differently.
+		If (Master && Master Is "KAI_BaseVehicle") //Call the OnTurretDeath virtual on the vehicle or turret you are attached to.
+			KAI_BaseVehicle(Master).OnTurretDeath (Self);
+		
+		If (Master && !(Self Is "KAI_BaseTurretProp")) //Prop turrets use TurretRotationOffset differently than living ones.
 			TurretRotationOffset = DeltaAngle (Master.Angle,Angle);
 		
 		Super.Die (Source, Inflictor, DmgFlags, MeansOfDeath);
@@ -451,6 +420,8 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 	Override Void OnDestroy()
 	{
 		Super.OnDestroy();
+		If (Master && Master Is "KAI_BaseVehicle") //Call the OnTurretDeath virtual on the turret you are attached to.
+			KAI_BaseVehicle(Master).OnTurretDeath (Self, True); //Gone, reduced to atoms.
 	}
 }
 

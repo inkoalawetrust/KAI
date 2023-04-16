@@ -1,6 +1,3 @@
-//TODO:
-//Figure out how to handle the MVPs' order system, especially properly integrating it to KAI_Actor. Or maybe keep it to the MVP for now, that's easier.
-
 /*KLUDGE: Mixins can't be used by different mods, so this class that contains ALL the mixin code in the KAI library is needed. You need to inherit from this
 if you want to make something that's not an NPC, but can still use the mixin code the library includes.*/
 Class KAI_MixinActor : Actor Abstract
@@ -70,7 +67,7 @@ Class KAI_Actor : Actor Abstract
 	/*PLAYTEST: For the time being I'm focusing on the vehicles (This code IS a rip from the MVP after all.)
 	So I have not actually playtested if the default CanAttack() and ShouldAttack() code works like the native code. Since the vehicles just override it.
 	I'll begin putting more attention to the non-vehicle NPC code once I begin rewriting the Smart Marines, to code them more properly this time.*/
-	//TODO: Maybe have this check for SECF_NOATTACK sectors ? Or not, since it would trigger vehicles to run away from enemies in them.
+	//TODO: Maybe have this check for SECF_NOATTACK sectors ? Or not, since it would trigger vehicles in my MVP to run away from enemies in them.
 	//Used by the chase functions of each NPC type to check for all the different methods each actor has to attack.
 	Virtual Bool CanAttack()
 	{
@@ -112,7 +109,7 @@ Class KAI_Actor : Actor Abstract
 	
 	//Return the location that the actors' attack will hit at. This is just whatever the targets' position is by default.
 	Virtual Vector3 GetAttackLocation()
-	{istargetingallies(self,target);
+	{
 		If (Target) Return Target.Pos;
 		Return (Double.NaN,Double.NaN,Double.NaN); //This is an actual empty vector. Not one that is (0,0,0), but fully null.
 	}
@@ -126,7 +123,7 @@ Class KAI_Actor : Actor Abstract
 	//Tries to heuristically determine how dangerous another actor is. This is pretty hard to do universally. Since stuff like attacks can't be checked.
 	ClearScope Virtual Int AssessThreatLevel (Actor Other)
 	{
-		If (!Other || IsDead (Other)) Return THREAT_NONE;
+		If (!Other || IsDead (Other)) Return THREAT_NONE; //Nonexistent or dead actors aren't a problem.
 		
 		//KAI NPCs can have specific threat levels set, in which case, just return whatever the NPCs' threat level is.
 		If (Other Is "KAI_Actor" && KAI_Actor(Other).ThreatLevel != THREAT_ASSESS)
@@ -206,7 +203,7 @@ Class KAI_Actor : Actor Abstract
 	Enum ThreatLevels
 	{
 		THREAT_ASSESS		= 0, //No threat level specified, this is the default, and means that the threat level is to be determined by the AssessThreatLevel() virtual.
-		THREAT_NONE			= 1, //The actor is harmless. e.g a prop
+		THREAT_NONE			= 1, //The actor is harmless. e.g a prop NOTE: This still does not preclude the actor from being an enemy, such as a currently defenseless monster,
 		
 		THREAT_VERYLOW		= 2, //The actor poses minimal threat. e.g a mosquito enemy or something
 		THREAT_LOW			= 3, //The actor poses little threat. e.g a Zombieman or Shotgunner
@@ -518,7 +515,7 @@ Class KAI_DataToken : Inventory
 	}*/
 }
 //Debug actor to assess the threat level of an actor in front of it, to see if the system works as intended.
-/*class threatassess : kai_Actor replaces gibbedmarineextra
+class threatassess : kai_Actor replaces gibbedmarineextra
 {
 states
 {
@@ -555,6 +552,9 @@ states
 				case THREAT_UNSTOPPABLE:
 					text = "THREAT_UNSTOPPABLE";
 					break;
+				case THREAT_NONE:
+					text = "THREAT_NONE";
+					break;
 				default:
 					text = "oops";
 					break;
@@ -563,4 +563,4 @@ states
 		}
 		stop;
 }
-}*/
+}

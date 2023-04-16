@@ -15,6 +15,7 @@ Version "4.10.0"
 /*Add documentation of the code tags used by the project. The tags include the common ones Wikipedia lists (https://en.wikipedia.org/wiki/Comment_(computer_programming)#Tags)
 But there are also some I want to make specifically for this codebase, like MAYDO.*/
 //Speaking of documentation, begin writing some on a Github wiki, of the functions, classes etc. Once I port over the actual code from the MVP first of course.
+//Also on documentation, maybe add links to the wiki pages of each code structure (e.g a link to AssessThreatLevel()'s page, on top of the definition of the function)
 //Implement a warning zone system similar to the MVPs. But that works for all actors, not just the Smart Marines. Also maybe keep using inventory tokens for it, for non-KAI mod support.
 //Rewrite the way vehicle orders are handled, to also hopefully make it a bit more stable. Oh and make it accessible to all KAI NPCs.
 

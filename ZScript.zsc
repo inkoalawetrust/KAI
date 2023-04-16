@@ -22,6 +22,41 @@ But there are also some I want to make specifically for this codebase, like MAYD
 //IDEA:
 //Add a projectile array that is updated every time a projectile appears and vanishes from the world. Will probably do this for the active protection system for the MVPs' tank.
 
+class TestImp : KAI_Actor Replaces DoomImp
+{
+	Default
+	{
+		Health 60;
+		Radius 20;
+		Height 56;
+		Mass 100;
+		Speed 8;
+		PainChance 200;
+		Monster;
+		+FLOORCLIP
+		SeeSound "imp/sight";
+		PainSound "imp/pain";
+		DeathSound "imp/death";
+		ActiveSound "imp/active";
+		HitObituary "$OB_IMPHIT";
+		Obituary "$OB_IMP";
+		Tag "$FN_IMP";
+	}bool done;
+	States
+	{
+	Spawn:
+		TROO AB 10 A_Look;
+		Loop;
+	See:
+		TROO AABBCCDD 3
+		{
+			//If (!done && Target) {KAI_MoveAway(Target);done = true;}//IsPosReachable(Target.Pos,(Target.Radius*2)+(Radius*2)+8);
+			if (target)KAI_MoveAway(Target,detourfactor:0.2);
+		}
+		Loop;
+		}
+}
+
 //=====|Library structure|=====\\
 /*The most basic NPC class, all types are based on this, land/water/air vehicles, humanoids, flying creatures, you name it. 
 So, the code that is meant to be shared by all NPCs also goes here.*/

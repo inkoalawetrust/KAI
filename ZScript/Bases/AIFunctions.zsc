@@ -216,6 +216,114 @@ Extend Class KAI_Actor
 		}*/
 	}
 	
+	//Moves the caller AWAY from another actor.
+	//Other: The actor to move away from.
+	//Attempts: How many positions to try per next position picked.
+	//RunRad: How big the moves from one retreat position to another can be.
+	//StepThreshold: How many steps the actor is allowed to take before having to find a new position to move away to.
+	Void KAI_MoveAway (Actor Other, Int Attempts = 32, Double RunRad = 128, Int StepThreshold = 32, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0)
+	{
+		If (!Other) Return;
+		
+		//If there's already a prior position to move to, begin moving there instead. Until within melee range of that position.
+		If (!KAI_Math.IsEmptyVector3 (NextMovePos) && NewPosStepCount <= StepThreshold && Level.Vec3Diff (Pos,NextMovePos).Length() >= MeleeRange)
+		{a_log ("moving away");
+			KAI_MoveTowards (NextMovePos, DetourFactor, AngleLimit, ChaseFlags, Flags);
+			NewPosStepCount++;
+			Return;
+		}
+		//Once the position is reached, empty the the NextMovePos vector;
+		Else
+		{a_log ("removing movepos and finding new one");
+			NextMovePos = (Double.NaN,Double.NaN,Double.NaN);
+			NewPosStepCount = 0;
+		}
+		
+		//If there is no position to next move to, this is where the real magic happens.
+		Actor SightTarget = Spawn ("KAI_Tracer",Pos);
+		
+		//Find a position to run to.
+		//HACK: ZScript can't use Vector3 arrays. Because the only thing more dysfunctional than my code is the ZScript VM itself.
+		//Nothing better than triple the amount of needed array accesses to slow an already expensive function down even more.
+		Array <Double> Xs; Array <Double> Ys; Array <Double> Zs;
+		Vector3 CurPos;
+		
+		For (Int I = 0; I <= Attempts; I++)
+		{
+			CurPos = Vec3Offset (FRandom(RunRad,-RunRad),FRandom(RunRad,-RunRad),0);
+			CurPos.Z = GetZAt (CurPos.X,CurPos.Y,0,GZF_ABSOLUTEPOS)+16;
+			Xs.Push (CurPos.X); Ys.Push (CurPos.Y); Zs.Push (CurPos.Z); //Epic GZDoom fail.
+		}
+		
+		For (Int I = Attempts-1; I >= 0; I--)
+		{
+			CurPos = (Xs[I],Ys[I],Zs[I]); //Reconstruct each vector.
+			SightTarget.SetXYZ (CurPos);
+			//If it's out of bounds, not visible, or can't be walked to. We can't run away there. So remove that potential position.
+			If (!Level.IsPointInLevel (CurPos) || !CheckSight(SightTarget,SF_IGNOREVISIBILITY) || !IsPosReachable (CurPos))
+			{//actor mo = spawn ("gibbedmarineextra",curpos); mo.bnogravity = true;//Epic fail 
+				Xs.Delete (I); Ys.Delete(I); Zs.Delete(I);
+			}//else {actor mo = spawn ("candlestick",curpos); mo.bnogravity = true;} //EPIC WIN !!!!!!!!!!!!
+		}
+		//=========================
+		
+		//Filter out the distances until the furthest one is found.
+		Double FurthestDistance;
+		Vector3 FurthestPos;
+		For (Int I = Xs.Size()-1; I >= 0; I--)
+		{
+			CurPos = (Xs[I],Ys[I],Zs[I]); //Reconstruct each vector.
+			Double CurrentDistance = Level.Vec3Diff (Other.Pos,CurPos).LengthSquared();
+			If (FurthestDistance < CurrentDistance)
+			{
+				FurthestDistance = CurrentDistance;
+				FurthestPos = CurPos;
+			}
+		}
+		
+		NextMovePos = FurthestPos; //We have finally found the random valid position furthest from the other actor.
+		
+		SightTarget.Destroy();
+		//========================================================
+	}
+	
+	//BUG: For some reason the function will sometimes return positions that are behind drops too tall for the caller as valid. I have no fucking idea why.
+	//Checks if the straight line between the callers' position and the specified position can be walked up to.
+	//TargetPos: The position to check if it's walkable.
+	/*DistCutoff: The amount of map units to trim off the distance between the callers' pos and TargetPos. Useful for subtracting the radius of another actor,
+	so that if you are checking if a position to another actor can be reached, the check doesn't return false because the actor itself is in the way !*/
+	Bool IsPosReachable (Vector3 TargetPos, Double DistCutoff = 0)
+	{
+		Vector3 OldPos = Pos;
+		Bool Interp = bDontInterpolate;
+		Vector2 Path = Level.Vec2Diff( Pos.XY, TargetPos.XY );
+		Double Distance = Path.Length()-DistCutoff;
+		Double Spacing = Radius*2;
+		If (Distance <= 1) Return False;
+		Path /= Distance;
+		
+		bDontInterpolate = True; //No movement interpolation during the test.
+		For (Int I = 0; I < Distance; I += Spacing)
+		{
+			If (Level.Vec2Diff (Pos.XY, OldPos.XY).Length() >= Distance) Break; //The check went further than the distance to the target position. Success
+			//Else If (Level.Vec2Diff (Pos.XY, TargetPos.XY).Length() <= Radius*2.5) Break; //The caller is with 2.5 radii of the target position. Success
+			//Run as many times as it takes between you and your destination.
+			FCheckPosition Data;
+			If (TryMove (Level.Vec2Offset(OldPos.XY, Path*I), 1, tm:Data))
+				{SetZ (GetZAt (Pos.X,Pos.Y,flags:GZF_ABSOLUTEPOS));/* spawn ("candlestick",pos);*/} //Update the actors' Z position. TryMove should do that internally, but it doesn't. GZDoom moment.
+			//If one of them fails, then return false.
+			Else
+			{//a_log ("i can't head here");
+				bDontInterpolate = Interp;
+				SetOrigin (OldPos,False);
+				Return False;
+			}
+		}//a_log ("valid path");
+		bDontInterpolate = Interp;
+		SetOrigin (OldPos,False);
+		Return True; //No TryMove call returned false.
+	}
+	
 	//=====|Search functions|=====\\
 	//Does exactly what it says, finds the nearest enemy that can be targeted and is visible, and returns a pointer to it.
 	Actor FindNearestEnemy (Double Range = 256)

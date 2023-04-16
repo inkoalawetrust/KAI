@@ -37,8 +37,10 @@ Class KAI_Actor : Actor Abstract
 	{
 		Super.PostBeginPlay ();
 		UserVariableDefaults(); //User variables cannot be handled in BeginPlay().
+		NextMovePos = (Double.NaN,Double.NaN,Double.NaN); //This should be empty.
+		debugpoint = spawn ("kai_debugpoint",pos);//DEBUG
 	}
-	
+	actor debugpoint; //DEBUG
 	Override Void OnDestroy()
 	{
 		Super.OnDestroy();
@@ -49,7 +51,7 @@ Class KAI_Actor : Actor Abstract
 	{
 		Super.Tick();
 		If (IsFrozen()) Return;
-		
+		if (!kai_math.isemptyvector3(nextmovepos)) debugpoint.setorigin (nextmovepos,true); //DEBUG
 		//Keeps track of the current targets' position for the target prediction code.
 		If (Target && Target.Tics == Target.CurState.Tics)
 		{
@@ -199,6 +201,8 @@ Class KAI_Actor : Actor Abstract
 	Array <State> AttackStates; //Can be used to store all of the attack state labels an actor has. Such as for actors with multiple attacks besides a missile and melee attack, like vanilla monsters only have.
 	Vector3 LastEnemyPosition; //Used by the target prediction. If the turret has a target with no velocity, it grabs their last position every tick to compare it to the current position.
 	Vector3 CurrentEnemyPosition;
+	Vector3 NextMovePos; //The next position the NPC should walk to. Used by KAI_MoveAway().
+	Int NewPosStepCount; //How many steps the actor has taken before NextMovePos is reset, so the actor will get a new point to move to.
 	
 	Enum ThreatLevels
 	{
@@ -483,6 +487,18 @@ Class KAI_Tracer : Actor
 	}
 	
 	Vector3 SpawnOffsets;
+}
+
+Class KAI_DebugPoint : Actor
+{
+	Override Void PostBeginPlay(){}
+	Override Void Tick(){}
+	States
+	{
+		Spawn:
+			PLSS A -1;
+			Stop;
+	}
 }
 
 //PLAYTEST: The token and its' associated ACS API work for simply setting the threat level. But I'm not sure how dynamically changing the tokens' threat level would work for non-KAI actors exactly.

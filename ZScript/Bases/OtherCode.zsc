@@ -391,6 +391,26 @@ Class KAI_LOFRaycast : LineTracer
 		
 		Return GoodLOS;
 	}
+	
+	/*//Accepts direct positions instead of another actor. //Doesn't seem to actually work.
+	Static Bool CheckSightToPos (Actor Origin, Vector3 TargetPos, Double Range, Bool NoBlockSight = False)
+	{
+		If (KAI_Math.IsEmptyVector3 (TargetPos)) Return False;
+		
+		Let Check = New ("KAI_BasicSightCheck");
+		Vector3 SightPos = (Origin.Pos.XY,Origin.Pos.Z + Origin.Height * 0.75);
+		
+		Check.Shooter = Origin;
+		Check.NoBlockSight = NoBlockSight;
+		Check.SightTargPos = TargetPos;
+		
+		Check.Trace(SightPos,Origin.CurSector,Level.Vec3Diff (SightPos,TargetPos),Range,0);
+		
+		Bool GoodLOS = Check.GoodLOS;
+		Check.Destroy();
+		if (!goodlos) console.printf ("epic fail");
+		Return GoodLOS;
+	}*/
 }
 
 //The Khyber Pass version of P_CheckSight(). Brought to you by the object scope system.
@@ -398,6 +418,7 @@ Class KAI_BasicSightCheck : KAI_LOFRaycast
 {
 	Bool GoodLOS; //BadLOF's good cousin.
 	Actor SightTarget; //Who are we even looking for ?
+	//Vector3 SightTargPos; //The position to look at.
 	Bool NoBlockSight; //The check ignores BLOCKSIGHT lines, like for explosions.
 	Override ETraceStatus TraceCallback()
 	{
@@ -416,11 +437,18 @@ Class KAI_BasicSightCheck : KAI_LOFRaycast
 			Return Trace_Stop;
 		
 		//Ladies and gentlemen, we got him.
-		If (Mobj == SightTarget)
+		If (Mobj && Mobj == SightTarget)
 		{
 			GoodLOS = True;
 			Return Trace_Stop;
 		}
+		
+		/*//If looking for a target position instead. Then we've reached it if the distance of the trace is longer than the distance to the target position.
+		If (!KAI_Math.IsEmptyVector3(SightTargPos) && Level.Vec3Diff (Results.SrcFromTarget,SightTargPos).Length() <= Results.Distance)
+		{console.printf ("i can see the target position !"); //DEBUG
+			GoodLOS = True;
+			Return Trace_Stop;
+		}*/
 		
 		Return Trace_Skip;
 	}

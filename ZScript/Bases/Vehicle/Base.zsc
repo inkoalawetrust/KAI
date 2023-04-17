@@ -188,6 +188,7 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 		CHAN_MOVING = 23501
 	}
 	
+	//The vehicle order system will stay here
 	Enum VehicleCommands
 	{
 		ORDER_NONE = 0, //Null
@@ -232,10 +233,8 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	//Generic user variables
 	Bool User_NoHeadLights; //Vehicle doesn't use it's headlights, or if its' a prop, the headlights should be off.
 	//Bool User_NoTargetPrediction; //The vehicle will not calculate it's targets' movement and lead its' shots, this is only available to certain vehicles as not all of them have projectile attacks.
-	Double User_RetreatDistance; //The amount of distance the vehicle keeps from enemies.
-	Int User_ChaseTime; //How much time the vehicle spends looking for it's out-of-sight target before giving up.
-	String User_DefaultOrder; //The default order the vehicle follows upon spawning.
-	
+	Double User_RetreatDistance; //The amount of distance the vehicle keeps from enemies. //TODO: Move this out of here.
+	Int User_ChaseTime; //How much time the vehicle spends looking for it's out-of-sight target before giving up. //MAYDE: Move this out of here too. Maybe.
 	States
 	{
 		StickAround: //Generic state shared by all vehicles, for when they are far enough from any enemies to be able to just sit and let their turrets do the work.

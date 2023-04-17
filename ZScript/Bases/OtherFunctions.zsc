@@ -109,13 +109,16 @@ Extend Class KAI_Actor
 	}
 	
 	//Same as GetAngleTo, but directly uses a vector.
+	//BUG: This seems to cause a bug in KAI_MoveTowards, where actors will either have a NextAngle of -AngleLimit. Or just never actually face the target.
 	Double GetAngleToPos (Vector3 Position, Double AngleLimit = 10)
 	{
 		Vector3 SCoords = Level.SphericalCoords (Pos,Position);
-		If (AngleLimit == 0) Return SCoords.X;
+		If (AngleLimit == 0) {console.printf ("next angle is %d",-scoords.x);Return -SCoords.X;}
 		Double AngleTo = -SCoords.X;
 		Double Delta = -DeltaAngle (Angle,AngleTo);
-		
+		console.printf ("next angle is %d",angleto);
+		If(Abs(Delta) <= AngleLimit)
+			Return AngleTo;
 		If (AngleLimit != 0)
 		{
 			If (Delta > 0)

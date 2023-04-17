@@ -118,10 +118,11 @@ Extend Class KAI_Actor
 		If (!(ExtraFlags & KAIL_NOTEMPSTAND)) bStandStill = Stand;
 	}
 	
+	//IDEA: Make a KAI_Wander function that makes use of KAI_MoveTowards.
+	
 	Double LastTurnDir;
 	Int TurnCount; //Keeps track of how many turns in a row an actor calling KAI_MoveTowards with CHF_NORANDOMTURN should make.
 	//Makes the actor move towards the specified actor.
-	//IDEA: Since I may just end up having this as a wholesale replacement. Maybe I should also implement support for patrol points, CANTLEAVEFLOORPIC, and CHF_FASTCHASE ?
 	//FIXME: There's some flickering between different sprite angles, try fixing it.
 	//CREDIT: Written by Custodian. Modified and expanded by me (inkoalawetrust).
 	//Other: The actor to move to.
@@ -130,11 +131,11 @@ Extend Class KAI_Actor
 	//ChaseFlags: What flags from A_Chase should the function use ? Supports CHF_DONTMOVE, CHF_NODIRECTIONTURN, CHF_NORANDOMTURN, and CHF_STOPIFBLOCKED.
 	void KAI_MoveTowards (Vector3 TargetPos, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0)
 	{
-		If (ChaseFlags & CHF_DONTMOVE) Return;
+		If (ChaseFlags & CHF_DONTMOVE || KAI_Math.IsEmptyVector3 (TargetPos)) {a_log ("fail ?");Return;}
 		
 		double LastAngle = angle;
 		double NextAngle = LastAngle;
-		
+		console.printf ("heading to %d %d %d",targetpos.x,targetpos.y,targetpos.z);
 		//MoveCount is greater than 0 when avoiding an obstacle
 		if (MoveCount)
 		{
@@ -197,9 +198,9 @@ Extend Class KAI_Actor
 				NextPos = Vec2Angle(speed, NextAngle);
 				moved = TryMove(NextPos, 0, false);
 				if (moved) break;
- 
+				
 				lastTurnDir *= -1.0;
- 
+				
 				NextAngle = LastAngle + (i * 48 * lastturndir);
 				NextPos = Vec2Angle(speed, NextAngle);
 				moved = TryMove(NextPos, 0, false);
@@ -209,11 +210,11 @@ Extend Class KAI_Actor
  
 		//face movement direction
 		If (!(ChaseFlags & CHF_NODIRECTIONTURN)) angle = Normalize180(NextAngle);
-		
-		/*If (!(Flags & MTFF_NOANGLESNAP)) Broken attempt at fixing the sprite flickering issue https://streamable.com/7y2uv2
-		{
-			Angle = GetNearestCardinalAngle (True),AngleTo (Players[ConsolePlayer].Camera));
-		}*/
+	}
+	
+	Enum MoveAwayFlags
+	{
+		//KMA_NONEWPOS = 1 << 0, //Do not search for a new NextRetreatPos to go to after reaching the current one.
 	}
 	
 	//Moves the caller AWAY from another actor.
@@ -224,18 +225,18 @@ Extend Class KAI_Actor
 	Void KAI_MoveAway (Actor Other, Int Attempts = 32, Double RunRad = 128, Int StepThreshold = 32, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0)
 	{
 		If (!Other) Return;
-		
+		console.printf ("movepos is %d %d %d, step count is %d",NextRetreatPos.x,NextRetreatPos.y,NextRetreatPos.z,newposstepcount);
 		//If there's already a prior position to move to, begin moving there instead. Until within melee range of that position.
-		If (!KAI_Math.IsEmptyVector3 (NextMovePos) && NewPosStepCount <= StepThreshold && Level.Vec3Diff (Pos,NextMovePos).Length() >= MeleeRange)
+		If (!KAI_Math.IsEmptyVector3 (NextRetreatPos) && NewPosStepCount <= StepThreshold && Level.Vec3Diff (Pos,NextRetreatPos).Length() >= MeleeRange)
 		{a_log ("moving away");
-			KAI_MoveTowards (NextMovePos, DetourFactor, AngleLimit, ChaseFlags, Flags);
+			KAI_MoveTowards (NextRetreatPos, DetourFactor, AngleLimit, ChaseFlags, Flags);
 			NewPosStepCount++;
 			Return;
 		}
-		//Once the position is reached, empty the the NextMovePos vector;
+		//Once the position is reached, empty the the NextRetreatPos vector;
 		Else
 		{a_log ("removing movepos and finding new one");
-			NextMovePos = (Double.NaN,Double.NaN,Double.NaN);
+			NextRetreatPos = (Double.NaN,Double.NaN,Double.NaN);
 			NewPosStepCount = 0;
 		}
 		
@@ -251,7 +252,7 @@ Extend Class KAI_Actor
 		For (Int I = 0; I <= Attempts; I++)
 		{
 			CurPos = Vec3Offset (FRandom(RunRad,-RunRad),FRandom(RunRad,-RunRad),0);
-			CurPos.Z = GetZAt (CurPos.X,CurPos.Y,0,GZF_ABSOLUTEPOS)+16;
+			CurPos.Z = GetZAt (CurPos.X,CurPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
 			Xs.Push (CurPos.X); Ys.Push (CurPos.Y); Zs.Push (CurPos.Z); //Epic GZDoom fail.
 		}
 		
@@ -281,7 +282,7 @@ Extend Class KAI_Actor
 			}
 		}
 		
-		NextMovePos = FurthestPos; //We have finally found the random valid position furthest from the other actor.
+		NextRetreatPos = FurthestPos; //We have finally found the random valid position furthest from the other actor.
 		
 		SightTarget.Destroy();
 		//========================================================

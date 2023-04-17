@@ -51,7 +51,7 @@ class TestImp : KAI_Actor Replaces DoomImp
 		TROO AABBCCDD 3
 		{
 			//If (!done && Target) {KAI_MoveAway(Target);done = true;}//IsPosReachable(Target.Pos,(Target.Radius*2)+(Radius*2)+8);
-			if (target)KAI_MoveAway(Target,detourfactor:0.2);
+			if (target)KAI_MoveTowards(Target.Pos,detourfactor:0.2);
 		}
 		Loop;
 		}

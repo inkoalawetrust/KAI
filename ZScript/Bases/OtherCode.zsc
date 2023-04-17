@@ -107,15 +107,15 @@ Mixin Class KAI_CheckFunctions
 		Return (Other.bInvulnerable || Other.bNoDamage || !Other.bShootable);
 	}
 	
-	ClearScope Bool HasBuddha (Actor Other)
+	ClearScope Bool HasBuddha (Actor Other, Bool NoPlayerCheck = False)
 	{
-		If (!Other) Return False;
+		If (!Other || Other.Player && NoPlayerCheck) Return False;
 		Return (Other.bBuddha || Other.Player && Other.Player.Cheats & (CF_BUDDHA | CF_BUDDHA2));
 	}
 	
-	ClearScope Bool HasGodMode (Actor Other)
+	ClearScope Bool HasGodMode (Actor Other, Bool NoPlayerCheck = False)
 	{
-		If (!Other) Return False;
+		If (!Other || Other.Player && NoPlayerCheck) Return False;
 		Return (Other.Player && Other.Player.Cheats & (CF_GODMODE | CF_GODMODE2));
 	}
 	

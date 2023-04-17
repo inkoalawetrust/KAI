@@ -37,8 +37,8 @@ Class KAI_Actor : Actor Abstract
 	{
 		Super.PostBeginPlay ();
 		UserVariableDefaults(); //User variables cannot be handled in BeginPlay().
-		NextMovePos = (Double.NaN,Double.NaN,Double.NaN); //This should be empty.
-		debugpoint = spawn ("kai_debugpoint",pos);//DEBUG
+		NextRetreatPos = (Double.NaN,Double.NaN,Double.NaN); //This should be empty.
+		if (!(self is "kai_baseturret"))debugpoint = spawn ("kai_debugpoint",pos);//DEBUG
 	}
 	actor debugpoint; //DEBUG
 	Override Void OnDestroy()
@@ -51,7 +51,7 @@ Class KAI_Actor : Actor Abstract
 	{
 		Super.Tick();
 		If (IsFrozen()) Return;
-		if (!kai_math.isemptyvector3(nextmovepos)) debugpoint.setorigin (nextmovepos,true); //DEBUG
+		if (!kai_math.isemptyvector3(NextRetreatPos) && debugpoint) debugpoint.setorigin (NextRetreatPos,true); //DEBUG
 		//Keeps track of the current targets' position for the target prediction code.
 		If (Target && Target.Tics == Target.CurState.Tics)
 		{
@@ -109,6 +109,9 @@ Class KAI_Actor : Actor Abstract
 		Return False;
 	}
 	
+	//Called when the actor is wandering about.
+	Virtual Void OnWander(){}
+	
 	//Return the location that the actors' attack will hit at. This is just whatever the targets' position is by default.
 	Virtual Vector3 GetAttackLocation()
 	{
@@ -123,7 +126,9 @@ Class KAI_Actor : Actor Abstract
 	}
 	
 	//Tries to heuristically determine how dangerous another actor is. This is pretty hard to do universally. Since stuff like attacks can't be checked.
-	ClearScope Virtual Int AssessThreatLevel (Actor Other)
+	//Other: The actor to check.
+	//CheckPlayers: Should the checks factor in players too ? e.g counting players with god or buddha mode as THREAT_UNSTOPPABLE. Useful for say not having NPCs just run away from cheating players.
+	ClearScope Virtual Int AssessThreatLevel (Actor Other, Bool CheckPlayers = True)
 	{
 		If (!Other || IsDead (Other)) Return THREAT_NONE; //Nonexistent or dead actors aren't a problem.
 		
@@ -141,7 +146,7 @@ Class KAI_Actor : Actor Abstract
 			Return THREAT_NONE;
 		
 		//If indestructible. Then the other actor is unstoppable (Obviously)
-		If (HasGodMode (Other) || HasBuddha (Other) || IsIndestructible (Other) ||
+		If (HasGodMode (Other, !CheckPlayers) || HasBuddha (Other, !CheckPlayers) || IsIndestructible (Other) ||
 		//Also unstoppable if, more esoterically, it has NONSHOOTABLE (Hitscans go through), NOBLOCKMAP (Projectiles go through), and NORADIUSDMG (No splash damage)
 		//NOTE: If you have any FORCERADIUSDMG attacks, you might want to remove these 3 flag checks. Since your actor can harm an enemy with these properties.
 		Other.bNonShootable && Other.bNoBlockmap && Other.bNoRadiusDmg)
@@ -201,8 +206,8 @@ Class KAI_Actor : Actor Abstract
 	Array <State> AttackStates; //Can be used to store all of the attack state labels an actor has. Such as for actors with multiple attacks besides a missile and melee attack, like vanilla monsters only have.
 	Vector3 LastEnemyPosition; //Used by the target prediction. If the turret has a target with no velocity, it grabs their last position every tick to compare it to the current position.
 	Vector3 CurrentEnemyPosition;
-	Vector3 NextMovePos; //The next position the NPC should walk to. Used by KAI_MoveAway().
-	Int NewPosStepCount; //How many steps the actor has taken before NextMovePos is reset, so the actor will get a new point to move to.
+	Vector3 NextRetreatPos; //The next position the NPC should retreat back to. Used by KAI_MoveAway().
+	Int NewPosStepCount; //How many steps the actor has taken before NextRetreatPos is reset, so the actor will get a new point to move to.
 	
 	Enum ThreatLevels
 	{

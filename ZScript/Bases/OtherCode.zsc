@@ -139,6 +139,12 @@ Mixin Class KAI_CheckFunctions
 		Return (Other.Goal || Other.Target Is "PatrolPoint");
 	}
 	
+	ClearScope Bool IsFrightening (Actor Other)
+	{
+		If (!Other) Return False;
+		Return (Other.bFrightening || Other.Player && Other.Player.Cheats & CF_FRIGHTENING);
+	}
+	
 	ClearScope Bool IsFlying (Actor Other)
 	{
 		If (!Other) Return False;

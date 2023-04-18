@@ -33,7 +33,7 @@ class TestImp : KAI_Actor Replaces DoomImp
 		Speed 8;
 		PainChance 200;
 		Monster;
-		+FLOORCLIP
+		+FLOORCLIP+cantleavefloorpic
 		SeeSound "imp/sight";
 		PainSound "imp/pain";
 		DeathSound "imp/death";
@@ -51,10 +51,15 @@ class TestImp : KAI_Actor Replaces DoomImp
 		TROO AABBCCDD 3
 		{
 			//If (!done && Target) {KAI_MoveAway(Target);done = true;}//IsPosReachable(Target.Pos,(Target.Radius*2)+(Radius*2)+8);
-			if (target)KAI_MoveTowards(Target.Pos,detourfactor:0.2);
+			if (target)KAI_MoveTowards(Target.Pos,detourfactor:1);
 		}
 		Loop;
-		}
+	Melee:
+	Missile:
+		TROO EF 8 A_FaceTarget;
+		TROO G 6 A_TroopAttack ;
+		Goto See;
+	}
 }
 
 //=====|Library structure|=====\\

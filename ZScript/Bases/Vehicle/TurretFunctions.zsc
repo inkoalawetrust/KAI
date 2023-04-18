@@ -211,8 +211,13 @@ Extend Class KAI_BaseTurret
 			Direction = (AngleToVector(Angle, Cos(Pitch)), -Sin(Pitch));
 		Else
 		{
-			Double PitchTo = PitchTo (Other,14,Other.Height/2);
-			Direction = (AngleToVector(AngleTo(Other), Cos(PitchTo)), -Sin(PitchTo));
+			If (Other)
+			{
+				Double PitchTo = PitchTo (Other,14,Other.Height/2);
+				Direction = (AngleToVector(AngleTo(Other), Cos(PitchTo)), -Sin(PitchTo));
+			}
+			Else
+				Return False; //Actor stopped existing, so no need to fire.
 		}
 		
 		Double Distance = Other ? Distance3D (Other)+32 : MaxTargetRange;

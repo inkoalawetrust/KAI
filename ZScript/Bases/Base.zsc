@@ -128,6 +128,7 @@ Class KAI_Actor : Actor Abstract
 	//Tries to heuristically determine how dangerous another actor is. This is pretty hard to do universally. Since stuff like attacks can't be checked.
 	//Other: The actor to check.
 	//CheckPlayers: Should the checks factor in players too ? e.g counting players with god or buddha mode as THREAT_UNSTOPPABLE. Useful for say not having NPCs just run away from cheating players.
+	//MAYDO: Count players as THREAT_ABOVENORMAL maybe ? Probably not as THREAT_DANGEROUS, since while accurate (They are way smarter after all, unless they are me), it could lead to unwanted behavior.
 	ClearScope Virtual Int AssessThreatLevel (Actor Other, Bool CheckPlayers = True)
 	{
 		If (!Other || IsDead (Other)) Return THREAT_NONE; //Nonexistent or dead actors aren't a problem.
@@ -212,7 +213,7 @@ Class KAI_Actor : Actor Abstract
 	Enum ThreatLevels
 	{
 		THREAT_ASSESS		= 0, //No threat level specified, this is the default, and means that the threat level is to be determined by the AssessThreatLevel() virtual.
-		THREAT_NONE			= 1, //The actor is harmless. e.g a prop NOTE: This still does not preclude the actor from being an enemy, such as a currently defenseless monster,
+		THREAT_NONE			= 1, //The actor is harmless. e.g a prop or a defenseless enemy
 		
 		THREAT_VERYLOW		= 2, //The actor poses minimal threat. e.g a mosquito enemy or something
 		THREAT_LOW			= 3, //The actor poses little threat. e.g a Zombieman or Shotgunner

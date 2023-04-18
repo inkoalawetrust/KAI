@@ -120,6 +120,11 @@ Extend Class KAI_Actor
 	
 	//IDEA: Make a KAI_Wander function that makes use of KAI_MoveTowards.
 	
+	Enum KAIMoveTowardsFlags
+	{
+		KMT_CHASEGOAL = 1 << 0, //If the caller has a goal pointer, and the bChaseGoal flag on. It will follow the goal instead of the TargetPos.
+	}
+	
 	Double LastTurnDir;
 	Int TurnCount; //Keeps track of how many turns in a row an actor calling KAI_MoveTowards with CHF_NORANDOMTURN should make.
 	//Makes the actor move towards the specified actor.
@@ -129,13 +134,21 @@ Extend Class KAI_Actor
 	//DetourFactor: How long the actor is allowed to move in a direction after hitting an obstacle, before heading straight for the target again.
 	//AngleLimit: How much the actor can turn per detour. Used to not have it snap back 180 or anything like that.
 	//ChaseFlags: What flags from A_Chase should the function use ? Supports CHF_DONTMOVE, CHF_NODIRECTIONTURN, CHF_NORANDOMTURN, and CHF_STOPIFBLOCKED.
+	//Flags: The functions' own flags, see above for a list of flags.
 	void KAI_MoveTowards (Vector3 TargetPos, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0)
 	{
-		If (ChaseFlags & CHF_DONTMOVE || KAI_Math.IsEmptyVector3 (TargetPos)) {a_log ("fail ?");Return;}
+		If (ChaseFlags & CHF_DONTMOVE || KAI_Math.IsEmptyVector3 (TargetPos)) Return;
+		
+		//Basically does what P_NewChaseDir() does to handle Thing_SetGoal's "Don't chase target" flag:https://sourcegraph.com/github.com/ZDoom/gzdoom/-/blob/src/playsim/p_enemy.cpp?L943-946
+		If (Flags & KMT_CHASEGOAL && Goal && bChaseGoal)
+			{a_log ("sorry fellas, i got a goal to reach");TargetPos = Goal.Pos;}
+		
+		//The function works with the CANTLEAVEFLOORPIC flag as well.
+		TextureID OldFloor = FloorPic;
 		
 		double LastAngle = angle;
 		double NextAngle = LastAngle;
-		console.printf ("heading to %d %d %d",targetpos.x,targetpos.y,targetpos.z);
+		
 		//MoveCount is greater than 0 when avoiding an obstacle
 		if (MoveCount)
 		{
@@ -154,9 +167,9 @@ Extend Class KAI_Actor
 		//absolute position of next movement
 		vector2 NextPos = Vec2Angle(speed, NextAngle);
 		bool moved = TryMove(NextPos, 0, false);
- 
+		
 		//if I hit an obstacle while avoiding another, try moving straight towards Other
-		if (!moved && MoveCount)
+		if (!moved && MoveCount || bCantLeaveFloorPic && FloorPic != OldFloor)
 		{
 			MoveCount = Int(random(16,32)*DetourFactor);
 			NextAngle = GetAngleToPos(TargetPos,AngleLimit);
@@ -207,7 +220,7 @@ Extend Class KAI_Actor
 				if (moved) break;
 			}
 		}
- 
+		
 		//face movement direction
 		If (!(ChaseFlags & CHF_NODIRECTIONTURN)) angle = Normalize180(NextAngle);
 	}
@@ -222,10 +235,19 @@ Extend Class KAI_Actor
 	//Attempts: How many positions to try per next position picked.
 	//RunRad: How big the moves from one retreat position to another can be.
 	//StepThreshold: How many steps the actor is allowed to take before having to find a new position to move away to.
+	//The rest are KAI_MoveTowards' parameters.
 	Void KAI_MoveAway (Actor Other, Int Attempts = 32, Double RunRad = 128, Int StepThreshold = 32, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0)
 	{
 		If (!Other) Return;
 		console.printf ("movepos is %d %d %d, step count is %d",NextRetreatPos.x,NextRetreatPos.y,NextRetreatPos.z,newposstepcount);
+		
+		//Got a goal to head to, no time to get spooked.
+		If (Flags & KMT_CHASEGOAL && Goal && bChaseGoal)
+		{
+			KAI_MoveTowards (Goal.Pos, DetourFactor, AngleLimit, ChaseFlags, Flags);
+			Return;
+		}
+		
 		//If there's already a prior position to move to, begin moving there instead. Until within melee range of that position.
 		If (!KAI_Math.IsEmptyVector3 (NextRetreatPos) && NewPosStepCount <= StepThreshold && Level.Vec3Diff (Pos,NextRetreatPos).Length() >= MeleeRange)
 		{a_log ("moving away");
@@ -380,5 +402,230 @@ Extend Class KAI_Actor
 			Return (((!target.player || !((target.player.cheats & CF_FRIGHTENING) || (target.bFrightening))) && !(bFrightened)) || Random2[pr_scaredycat]() < 43);
 		
 		Return False;
+	}
+	
+	//=====|A_Chase exports (Building blocks for custom chase functions)|=====\\
+	//The checks A_Chase runs before it begins running the chase code.
+	//The A_Chase flags to pass.
+	//https://sourcegraph.com/github.com/ZDoom/gzdoom/-/blob/src/playsim/p_enemy.cpp?L2325-2376
+	Void KAI_Chase_PreChecks (Int Flags = 0)
+	{
+		If (bInConversation || bInChase) Return;
+		
+		//bInChase = True;
+		
+		//PLAYTEST: I haven't checked if stealth monsters work with the exported A_Chase code.
+		If (bStealth)
+			VisDir -1;
+		
+		If (ReactionTime)
+			ReactionTime--;
+		
+		//The latter half hasn't been implemented to mainline GZDoom yet, the bMInvisible flag that is.
+		If (Target && (Target.bInvisible/* || Target.bMInvisible*/) && Target != Goal)
+			Target = Null;
+		
+		If (Threshold)
+		{
+			If (!Target || IsDead (Target))
+				Threshold = 0;
+			Else
+				Threshold--;
+		}
+		
+		//Cocaine mode
+		If (Flags && CHF_NIGHTMAREFAST && G_SkillPropertyInt (SKILLP_FASTMONSTERS))
+		{
+			If (Tics > 3)
+			{
+				Tics -= Tics/2;
+				If (Tics < 3)
+					Tics = 3;
+			}
+		}
+		
+		If (Target && Target != Goal && (IsDead(Target) || !IsActorHostile(Target)))
+			Target = Null;
+	}
+	
+	//Ported from here: https://sourcegraph.com/github.com/ZDoom/gzdoom/-/blob/src/playsim/p_enemy.cpp?L2401-2432
+	//CREDIT: This section of the code was written by Kizoky: https://github.com/Kizoky/CPPtoZScript/blob/main/A_Chase.txt#L74-L106
+	//PLAYTEST: No idea if this actually works, or how to test it. It should, it's not only a direct rip, but it was written by someone who knows what they are actually doing (Not inkoalawetrust).
+	//Makes friendly monsters using KAI chase functions chase their targets attack- basically just what A_Chase does.
+	//It does return true if a new target was found though.
+	Bool KAI_Chase_FriendsAttackPlayerEnemies (Int Flags)
+	{
+		// [RH] Friendly monsters will consider chasing whoever hurts a player if they
+		// don't already have a target.
+		if (bFRIENDLY && target == null)
+		{
+			PlayerInfo player;
+
+			if (FriendPlayer != 0)
+			{
+				player = Players[FriendPlayer - 1];
+			}
+			else
+			{
+				int i;
+				if (!multiplayer)
+				{
+					i = 0;
+				}
+				else for (i = random[newchasedirr](0,255) & (MAXPLAYERS-1); !PlayerInGame[i]; i = (i+1) & (MAXPLAYERS-1))
+				{
+				}
+
+				player = Players[i];
+			}
+			if (player.attacker && !IsDead (Player.Attacker) && player.attacker.bSHOOTABLE && random[newchasedirr](0,255) < 80)
+			{
+				if (!player.attacker.bFRIENDLY ||
+					deathmatch && FriendPlayer != 0 && player.attacker.FriendPlayer != 0 &&
+					FriendPlayer != player.attacker.FriendPlayer)
+				{
+					target = player.attacker;
+					Return True; //Found a player enemy to attack.
+				}
+			}
+		}
+		
+		Return False;
+	}
+	
+	//Makes the actor change targets if the current one is unavailable. If no target is found either hang out in the current state or go back to idling.
+	//Ported from here: https://sourcegraph.com/github.com/ZDoom/gzdoom/-/blob/src/playsim/p_enemy.cpp?L2433-2467
+	Bool KAI_Chase_Retarget (Int Flags)
+	{
+		If (!Target || !Target.bShootable)
+		{
+			If (Target && Target.bNonShootable)
+			{
+				LastEnemy = Target;
+				Threshold = 0;
+			}
+			If (LookForPlayers (True) && Target != Goal)
+				Return True;
+			If (!Target)
+			{
+				If (Flags & CHF_DONTIDLE || bFriendly)
+				{
+					If (!Target)
+					{
+						If (!(Flags & CHF_DONTMOVE))
+							A_Wander(); //TODO: Change this to KAI_Wander(), when I write that function.
+					}
+				}
+				Else
+					SetIdle(); //Sleepy time
+			}
+		}
+		Return False;
+	}
+	
+	//This is an important one for every chase function of every NPC type. It handles going to patrol points and then heading to the next point in the route.
+	//WaitState: The statelabel for the actor to go to if it finds a delayed patrol point. If none is specified, it calls SetState().
+	//The rest of the parameters here are what is passed to KAI_MoveTowards
+	//This function returns 2 booleans. The first returns true if the goal was changed to the next one in the route, and the second returns true if the actor moved to the goal.
+	Bool, Bool KAI_Chase_PatrolHandling (StateLabel WaitState = Null, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0)
+	{
+		If (Target == Goal || bChaseGoal && Goal != Null)
+		{a_log ("found a goal");
+			If (KAI_CheckMeleeRange(Goal))
+			{//a_log ("reached goal, heading to next goal now.");
+				//Credit: Kizoky: https://github.com/Kizoky/CPPtoZScript/blob/main/A_Chase.txt#L161-L212
+				// reached the goal
+				ActorIterator iterator = Level.CreateActorIterator(goal.args[0], "PatrolPoint");
+				ActorIterator specit = Level.CreateActorIterator(goal.tid, "PatrolSpecial");
+				Actor spec;
+
+				// Execute the specials of any PatrolSpecials with the same TID
+				// as the goal.
+				while ( (spec = specit.Next()) )
+				{
+					level.ExecuteSpecial(
+						spec.special, self, null, false,
+						spec.args [0], spec.args [1], spec.args [2], spec.args [3], spec.args [4]
+					);
+				}
+
+				double lastgoalang = goal.angle;
+				int delay;
+				actor newgoal = iterator.Next ();
+				if (newgoal != null && goal == target)
+				{
+					delay = newgoal.args[1];
+					reactiontime = delay * TICRATE + level.maptime;
+				}
+				else
+				{
+					delay = 0;
+					reactiontime = Default.reactiontime;
+					angle = lastgoalang;
+				}
+				if (target == goal) target = null;
+				bJUSTATTACKED = true;
+				if (newgoal != null && delay != 0)
+				{
+					bINCOMBAT = true;
+					If (!WaitState)
+						SetIdle();
+					Else
+						SetStateLabel (WaitState);
+				}
+				bINCHASE = false;
+				goal = newgoal;
+				return True, False;
+			}
+			//We have a goal, go to it.
+			If (Goal && Goal == Target)
+			{
+				KAI_MoveTowards (Goal.Pos,DetourFactor,AngleLimit,ChaseFlags,Flags);
+				Return False, True;
+			}
+		}
+		Return False, False;
+	}
+	
+	//Handles the playing of the active sound.
+	Bool KAI_Chase_HandleActiveSound (Int Flags)
+	{
+		if (!(Flags & CHF_NOPLAYACTIVE) && random[pr_chase](0,255) < 3)
+		{
+			PlayActiveSound();
+			Return True;
+		}
+		Return False;
+	}
+	
+	//This handles Hexens' player boss strafing.
+	//https://sourcegraph.com/github.com/ZDoom/gzdoom/-/blob/src/playsim/p_enemy.cpp?L2537-2566
+	//StrafeTarget: The actor to strafe relative to, normally this will be the target of course.
+	//Flags: the A_Chase flags to pass and check for.
+	//ForceStrafe: Force the caller to do a strafe.
+	//StrafeRange: How close the StrafeTarget has to be to decide to strafe, default is CLASS_BOSS_STRAFE_RANGE.
+	Void KAI_Chase_HandleStrafing (Actor StrafeTarget, Int Flags, Bool ForceStrafe = False, Double StrafeRange = 64*10)
+	{
+		If (!StrafeTarget) Return; //Nothing to dodge.
+		a_log ("sup");
+		If (ForceStrafe || Flags & CHF_FASTCHASE && !(Flags & CHF_DONTMOVE))
+		{a_log ("deciding strafe");
+			If (ForceStrafe) FastChaseStrafeCount = 0;
+			If (FastChaseStrafeCount > 0)
+				{FastChaseStrafeCount--;a_log ("tik tok heavy like a brinks truck");} //Decrement strafe delay.
+			Else
+			{
+				FastChaseStrafeCount = 0;
+				Vel.X = Vel.Y = 0;
+				If (Random[pr_chase](0,255) < 100 && Distance2D(StrafeTarget) < StrafeRange)
+				{a_log ("strafe time");
+					Double Ang = AngleTo (StrafeTarget);
+					If (Random[pr_chase](0,255) < 128) Ang += 90;
+					Else Ang -= 90;
+					VelFromAngle (13,Ang);
+					FastChaseStrafeCount = 3;
+				}
+			}
+		}
 	}
 }

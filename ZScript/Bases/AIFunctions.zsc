@@ -123,6 +123,7 @@ Extend Class KAI_Actor
 	Enum KAIMoveTowardsFlags
 	{
 		KMT_CHASEGOAL = 1 << 0, //If the caller has a goal pointer, and the bChaseGoal flag on. It will follow the goal instead of the TargetPos.
+		//MAYDO: Try to make a flag that makes the caller zig-zag around kinda like how A_Chase movement does ?
 	}
 	
 	Double LastTurnDir;
@@ -530,9 +531,9 @@ Extend Class KAI_Actor
 	Bool, Bool KAI_Chase_PatrolHandling (StateLabel WaitState = Null, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0)
 	{
 		If (Target == Goal || bChaseGoal && Goal != Null)
-		{a_log ("found a goal");
+		{
 			If (KAI_CheckMeleeRange(Goal))
-			{//a_log ("reached goal, heading to next goal now.");
+			{
 				//Credit: Kizoky: https://github.com/Kizoky/CPPtoZScript/blob/main/A_Chase.txt#L161-L212
 				// reached the goal
 				ActorIterator iterator = Level.CreateActorIterator(goal.args[0], "PatrolPoint");
@@ -607,18 +608,18 @@ Extend Class KAI_Actor
 	Void KAI_Chase_HandleStrafing (Actor StrafeTarget, Int Flags, Bool ForceStrafe = False, Double StrafeRange = 64*10)
 	{
 		If (!StrafeTarget) Return; //Nothing to dodge.
-		a_log ("sup");
+		
 		If (ForceStrafe || Flags & CHF_FASTCHASE && !(Flags & CHF_DONTMOVE))
-		{a_log ("deciding strafe");
+		{
 			If (ForceStrafe) FastChaseStrafeCount = 0;
 			If (FastChaseStrafeCount > 0)
-				{FastChaseStrafeCount--;a_log ("tik tok heavy like a brinks truck");} //Decrement strafe delay.
+				FastChaseStrafeCount--; //Decrement strafe delay.
 			Else
 			{
 				FastChaseStrafeCount = 0;
 				Vel.X = Vel.Y = 0;
 				If (Random[pr_chase](0,255) < 100 && Distance2D(StrafeTarget) < StrafeRange)
-				{a_log ("strafe time");
+				{
 					Double Ang = AngleTo (StrafeTarget);
 					If (Random[pr_chase](0,255) < 128) Ang += 90;
 					Else Ang -= 90;
@@ -628,4 +629,22 @@ Extend Class KAI_Actor
 			}
 		}
 	}
+}
+
+//This struct stores parameters passed to KAI_MoveTowards/Away. Used as a simple way to pass all params the functions support from another function that calls them.
+//Without cluttering up the other function.
+Struct MoveToParams
+{
+	//KAI_MoveTowards parameters
+	Vector3 TargetPos; //The position to actually move to.
+	Double DetourFactor; //A multiplier for how many steps the caller can take around an obstacle before heading straight to the TargetPos again.
+	Double AngleLimit; //How much the caller can turn to face their TargetPos per step.
+	Int ChaseFlags; //The A_Chase flags KAI_MoveTowards supports, which are CHF_DONTMOVE, CHF_NODIRECTIONTURN, CHF_NORANDOMTURN, and CHF_STOPIFBLOCKED.
+	Int Flags; //The functions' own flags, check the KAIMoveTowardsFlags enum for a list of them and what they do.
+	
+	//KAI_MoveAway parameters, the function also supports KAI_MoveTowards parameters, as it's effectivelly a wrapper for it.
+	Actor Other; //The actor to run away from.
+	Int Attempts; //How many potential points to run to should the function generate. The more you generate the more performance heavy it becomes !
+	Double RunRad; //The radius around which additional points should be generated.
+	Int StepThreshold; //How many steps trying to move to the current retreat position can the caller take before it picks a new location to run to.
 }

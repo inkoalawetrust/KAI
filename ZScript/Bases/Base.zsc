@@ -109,7 +109,7 @@ Class KAI_Actor : Actor Abstract
 		Return False;
 	}
 	
-	//Called when the actor is wandering about.
+	//Called when the actor calls KAI_Wander.
 	Virtual Void OnWander(){}
 	
 	//Return the location that the actors' attack will hit at. This is just whatever the targets' position is by default.

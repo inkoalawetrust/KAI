@@ -118,12 +118,10 @@ Extend Class KAI_Actor
 		If (!(ExtraFlags & KAIL_NOTEMPSTAND)) bStandStill = Stand;
 	}
 	
-	//IDEA: Make a KAI_Wander function that makes use of KAI_MoveTowards.
-	
 	Enum KAIMoveTowardsFlags
 	{
 		KMT_CHASEGOAL = 1 << 0, //If the caller has a goal pointer, and the bChaseGoal flag on. It will follow the goal instead of the TargetPos.
-		//MAYDO: Try to make a flag that makes the caller zig-zag around kinda like how A_Chase movement does ?
+		//MAYDO: Use FindRandomMovePos() to add a flag that makes the caller zig-zag around like A_Chase movement does, instead of moving in a straight line.
 	}
 	
 	Double LastTurnDir;
@@ -142,7 +140,7 @@ Extend Class KAI_Actor
 		
 		//Basically does what P_NewChaseDir() does to handle Thing_SetGoal's "Don't chase target" flag:https://sourcegraph.com/github.com/ZDoom/gzdoom/-/blob/src/playsim/p_enemy.cpp?L943-946
 		If (Flags & KMT_CHASEGOAL && Goal && bChaseGoal)
-			{a_log ("sorry fellas, i got a goal to reach");TargetPos = Goal.Pos;}
+			TargetPos = Goal.Pos;
 		
 		//The function works with the CANTLEAVEFLOORPIC flag as well.
 		TextureID OldFloor = FloorPic;
@@ -166,7 +164,7 @@ Extend Class KAI_Actor
 		If (ChaseFlags & CHF_NORANDOMTURN && --TurnCount > 0) NextAngle = GetAngleToPos(TargetPos,AngleLimit);
 		
 		//absolute position of next movement
-		vector2 NextPos = Vec2Angle(speed, NextAngle);
+		vector2 NextPos = Vec2Angle(speed, NextAngle, True);
 		bool moved = TryMove(NextPos, 0, false);
 		
 		//if I hit an obstacle while avoiding another, try moving straight towards Other
@@ -174,7 +172,7 @@ Extend Class KAI_Actor
 		{
 			MoveCount = Int(random(16,32)*DetourFactor);
 			NextAngle = GetAngleToPos(TargetPos,AngleLimit);
-			NextPos = Vec2Angle(speed, NextAngle);
+			NextPos = Vec2Angle(speed, NextAngle, True);
 			moved = TryMove(NextPos, 0, false);
 		}
 		
@@ -209,14 +207,14 @@ Extend Class KAI_Actor
 			for (double i = 1; i < 6; i++)
 			{
 				NextAngle = LastAngle + (i * 48 * lastturndir);
-				NextPos = Vec2Angle(speed, NextAngle);
+				NextPos = Vec2Angle(speed, NextAngle, True);
 				moved = TryMove(NextPos, 0, false);
 				if (moved) break;
 				
 				lastTurnDir *= -1.0;
 				
 				NextAngle = LastAngle + (i * 48 * lastturndir);
-				NextPos = Vec2Angle(speed, NextAngle);
+				NextPos = Vec2Angle(speed, NextAngle, True);
 				moved = TryMove(NextPos, 0, false);
 				if (moved) break;
 			}
@@ -226,21 +224,53 @@ Extend Class KAI_Actor
 		If (!(ChaseFlags & CHF_NODIRECTIONTURN)) angle = Normalize180(NextAngle);
 	}
 	
+	//Makes the NPC wander around aimlessly.
+	//Attempts: How many positions to try per next position picked.
+	//MoveRad: The radius around which to find a viable position to move to.
+	//MaxSteps: How many steps the actor is allowed to take before having to find a new position to move away to.
+	//The rest are KAI_MoveTowards' parameters.
+	Void KAI_Wander (Int Attempts = 24, Double MoveRad = 256, Int MaxSteps = 72, Double DetourFactor = 0.5, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0)
+	{
+		OnWander(); //Virtual callback
+		
+		//Friendly monsters follow the player they work for by default.
+		If (bFriendly && !bDontFollowPlayers && PlayerInGame[FriendPlayer-1] && Players[FriendPlayer-1].Mo)
+		{
+			KAI_MoveTowards (Players[FriendPlayer-1].Mo.Pos, DetourFactor, AngleLimit, ChaseFlags, Flags);
+			Return;
+		}
+		
+		//If there's already a prior position to move to, begin moving there instead. Until within melee range of that position.
+		If (!KAI_Math.IsEmptyVector3 (NextMovePos) && NewPosStepCount <= MaxSteps && Level.Vec3Diff (Pos,NextMovePos).Length() >= MeleeRange)
+		{
+			KAI_MoveTowards (NextMovePos, DetourFactor, AngleLimit, ChaseFlags, Flags);
+			NewPosStepCount++;
+			Return;
+		}
+		//Once the position is reached, empty the the NextMovePos vector;
+		Else
+		{
+			NextMovePos = (Double.NaN,Double.NaN,Double.NaN);
+			NewPosStepCount = 0;
+		}
+		
+		NextMovePos = FindRandomMovePos (Pos,Attempts,MoveRad,FRMP_RANDOM); //Pick a random position to go to.
+	}
+	
 	Enum MoveAwayFlags
 	{
-		//KMA_NONEWPOS = 1 << 0, //Do not search for a new NextRetreatPos to go to after reaching the current one.
+		//KMA_NONEWPOS = 1 << 0, //Do not search for a new NextMovePos to go to after reaching the current one.
 	}
 	
 	//Moves the caller AWAY from another actor.
 	//Other: The actor to move away from.
 	//Attempts: How many positions to try per next position picked.
-	//RunRad: How big the moves from one retreat position to another can be.
-	//StepThreshold: How many steps the actor is allowed to take before having to find a new position to move away to.
+	//RunRad: The radius around which to find a viable position to run away to.
+	//MaxSteps: How many steps the actor is allowed to take before having to find a new position to move away to.
 	//The rest are KAI_MoveTowards' parameters.
-	Void KAI_MoveAway (Actor Other, Int Attempts = 32, Double RunRad = 128, Int StepThreshold = 32, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0)
+	Void KAI_MoveAway (Actor Other, Int Attempts = 32, Double RunRad = 128, Int MaxSteps = 32, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0)
 	{
 		If (!Other) Return;
-		console.printf ("movepos is %d %d %d, step count is %d",NextRetreatPos.x,NextRetreatPos.y,NextRetreatPos.z,newposstepcount);
 		
 		//Got a goal to head to, no time to get spooked.
 		If (Flags & KMT_CHASEGOAL && Goal && bChaseGoal)
@@ -250,68 +280,113 @@ Extend Class KAI_Actor
 		}
 		
 		//If there's already a prior position to move to, begin moving there instead. Until within melee range of that position.
-		If (!KAI_Math.IsEmptyVector3 (NextRetreatPos) && NewPosStepCount <= StepThreshold && Level.Vec3Diff (Pos,NextRetreatPos).Length() >= MeleeRange)
-		{a_log ("moving away");
-			KAI_MoveTowards (NextRetreatPos, DetourFactor, AngleLimit, ChaseFlags, Flags);
+		If (!KAI_Math.IsEmptyVector3 (NextMovePos) && NewPosStepCount <= MaxSteps && Level.Vec3Diff (Pos,NextMovePos).Length() >= MeleeRange)
+		{
+			KAI_MoveTowards (NextMovePos, DetourFactor, AngleLimit, ChaseFlags, Flags);
 			NewPosStepCount++;
 			Return;
 		}
-		//Once the position is reached, empty the the NextRetreatPos vector;
+		//Once the position is reached, empty the the NextMovePos vector;
 		Else
-		{a_log ("removing movepos and finding new one");
-			NextRetreatPos = (Double.NaN,Double.NaN,Double.NaN);
+		{
+			NextMovePos = (Double.NaN,Double.NaN,Double.NaN);
 			NewPosStepCount = 0;
 		}
 		
-		//If there is no position to next move to, this is where the real magic happens.
-		Actor SightTarget = Spawn ("KAI_Tracer",Pos);
+		NextMovePos = FindRandomMovePos (Other.Pos,Attempts,RunRad,FRMP_FURTHEST); //Pick whichever position is the furthest from Other.
+	}
+	
+	Enum FindMovePosFilters
+	{
+		FRMP_FURTHEST	= 1 << 0, //Pick the furthest of all available positions to move to. This is the default.
+		FRMP_CLOSEST	= 1 << 1, //Pick the closest of all available positions to move to.
+		FRMP_RANDOM		= 1 << 2, //Pick a random position out of all the viable ones found.
+	}
+	
+	//Find a random position that the caller can actually move to.
+	//RelativeTo: Which position should the distance checks be performed to ? Needed for the Furthest and Closest filters.
+	//Attempts: How many random positions should be produced ? The more you add, the more heavy the function becomes. (Obviously)
+	//CheckRad: What is the maximum radius around which random positions can be produced ?
+	//Filter: What position are we looking for exactly ? Look above for a list of filters. These are NOT to be used as flags that stack !
+	Vector3 FindRandomMovePos (Vector3 RelativeTo = (Double.NaN, Double.NaN, Double.NaN), Int Attempts = 32, Double CheckRad = 128, Int Filter = FRMP_FURTHEST)
+	{
+		If (Filter == 0) Filter = FRMP_FURTHEST;
 		
-		//Find a position to run to.
 		//HACK: ZScript can't use Vector3 arrays. Because the only thing more dysfunctional than my code is the ZScript VM itself.
 		//Nothing better than triple the amount of needed array accesses to slow an already expensive function down even more.
 		Array <Double> Xs; Array <Double> Ys; Array <Double> Zs;
-		Vector3 CurPos;
+		Vector3 CurPos; //The position we are currently checking. Reconstructed from the above arrays.
 		
 		For (Int I = 0; I <= Attempts; I++)
 		{
-			CurPos = Vec3Offset (FRandom(RunRad,-RunRad),FRandom(RunRad,-RunRad),0);
+			CurPos = Vec3Offset (FRandom(CheckRad,-CheckRad),FRandom(CheckRad,-CheckRad),0);
 			CurPos.Z = GetZAt (CurPos.X,CurPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
 			Xs.Push (CurPos.X); Ys.Push (CurPos.Y); Zs.Push (CurPos.Z); //Epic GZDoom fail.
 		}
 		
+		Actor SightTarget = Spawn ("KAI_Tracer",Pos);
 		For (Int I = Attempts-1; I >= 0; I--)
 		{
 			CurPos = (Xs[I],Ys[I],Zs[I]); //Reconstruct each vector.
-			SightTarget.SetXYZ (CurPos);
-			//If it's out of bounds, not visible, or can't be walked to. We can't run away there. So remove that potential position.
+			SightTarget.SetXYZ (CurPos); //Move the target to the pos for the visibility check.
+			//If it's out of bounds, not visible, or can't be walked to. We can't go there. So remove that potential position.
 			If (!Level.IsPointInLevel (CurPos) || !CheckSight(SightTarget,SF_IGNOREVISIBILITY) || !IsPosReachable (CurPos))
 			{//actor mo = spawn ("gibbedmarineextra",curpos); mo.bnogravity = true;//Epic fail 
 				Xs.Delete (I); Ys.Delete(I); Zs.Delete(I);
 			}//else {actor mo = spawn ("candlestick",curpos); mo.bnogravity = true;} //EPIC WIN !!!!!!!!!!!!
 		}
-		//=========================
+		SightTarget.Destroy();
 		
-		//Filter out the distances until the furthest one is found.
-		Double FurthestDistance;
-		Vector3 FurthestPos;
-		For (Int I = Xs.Size()-1; I >= 0; I--)
+		//No valid positions found, return null.
+		If (Xs.Size() == 0)
+			Return (Double.NaN, Double.NaN, Double.NaN);
+		
+		//Return a random position, this filter is checked first to at least make wandering NPCs a bit cheaper.
+		If (Filter == FRMP_RANDOM)
 		{
-			CurPos = (Xs[I],Ys[I],Zs[I]); //Reconstruct each vector.
-			Double CurrentDistance = Level.Vec3Diff (Other.Pos,CurPos).LengthSquared();
-			If (FurthestDistance < CurrentDistance)
+			Int RNGesus = Random (0,Xs.Size()-1);
+			Return (Xs[RNGesus],Ys[RNGesus],Zs[RNGesus]);
+		}
+		//Return the furthest random position.
+		Else If (!KAI_Math.IsEmptyVector3(RelativeTo) && Filter == FRMP_FURTHEST)
+		{
+			Double FurthestDistance;
+			Vector3 FurthestPos;
+			For (Int I = Xs.Size()-1; I >= 0; I--)
 			{
-				FurthestDistance = CurrentDistance;
-				FurthestPos = CurPos;
+				CurPos = (Xs[I],Ys[I],Zs[I]); //Reconstruct each vector.
+				Double CurrentDistance = Level.Vec3Diff (RelativeTo,CurPos).LengthSquared();
+				If (FurthestDistance < CurrentDistance)
+				{
+					FurthestDistance = CurrentDistance;
+					FurthestPos = CurPos;
+				}
 			}
+			Return FurthestPos;
+		}
+		//Return the closest random position.
+		Else If (!KAI_Math.IsEmptyVector3(RelativeTo) && Filter == FRMP_CLOSEST)
+		{
+			Double NearestDistance = INT.MAX;
+			Vector3 NearestPos;
+			For (Int I = Xs.Size()-1; I >= 0; I--)
+			{
+				CurPos = (Xs[I],Ys[I],Zs[I]); //Reconstruct each vector.
+				Double CurrentDistance = Level.Vec3Diff (RelativeTo,CurPos).LengthSquared();
+				If (NearestDistance > CurrentDistance)
+				{
+					NearestDistance = CurrentDistance;
+					NearestPos = CurPos;
+				}
+			}
+			Return NearestPos;
 		}
 		
-		NextRetreatPos = FurthestPos; //We have finally found the random valid position furthest from the other actor.
-		
-		SightTarget.Destroy();
-		//========================================================
+		Return (Double.NaN, Double.NaN, Double.NaN); //Return null position if all the above failed.
 	}
 	
 	//BUG: For some reason the function will sometimes return positions that are behind drops too tall for the caller as valid. I have no fucking idea why.
+	//BUG: It's not portal aware, because of course it isn't ! DESPITE LITERALLY CHECKING BY *ACTUALLY* MOVING THE CALLER IN A STRAIGHT LINE !
 	//Checks if the straight line between the callers' position and the specified position can be walked up to.
 	//TargetPos: The position to check if it's walkable.
 	/*DistCutoff: The amount of map units to trim off the distance between the callers' pos and TargetPos. Useful for subtracting the radius of another actor,
@@ -330,11 +405,10 @@ Extend Class KAI_Actor
 		For (Int I = 0; I < Distance; I += Spacing)
 		{
 			If (Level.Vec2Diff (Pos.XY, OldPos.XY).Length() >= Distance) Break; //The check went further than the distance to the target position. Success
-			//Else If (Level.Vec2Diff (Pos.XY, TargetPos.XY).Length() <= Radius*2.5) Break; //The caller is with 2.5 radii of the target position. Success
 			//Run as many times as it takes between you and your destination.
 			FCheckPosition Data;
 			If (TryMove (Level.Vec2Offset(OldPos.XY, Path*I), 1, tm:Data))
-				{SetZ (GetZAt (Pos.X,Pos.Y,flags:GZF_ABSOLUTEPOS));/* spawn ("candlestick",pos);*/} //Update the actors' Z position. TryMove should do that internally, but it doesn't. GZDoom moment.
+				{SetZ (GetZAt (Pos.X,Pos.Y,flags:GZF_ABSOLUTEPOS)); /*spawn ("candlestick",pos);*/} //Update the actors' Z position. TryMove should do that internally, but it doesn't. GZDoom moment.
 			//If one of them fails, then return false.
 			Else
 			{//a_log ("i can't head here");
@@ -496,7 +570,7 @@ Extend Class KAI_Actor
 	
 	//Makes the actor change targets if the current one is unavailable. If no target is found either hang out in the current state or go back to idling.
 	//Ported from here: https://sourcegraph.com/github.com/ZDoom/gzdoom/-/blob/src/playsim/p_enemy.cpp?L2433-2467
-	Bool KAI_Chase_Retarget (Int Flags)
+	Bool KAI_Chase_Retarget (Int Flags, Bool FriendliesIdle = False)
 	{
 		If (!Target || !Target.bShootable)
 		{
@@ -509,12 +583,12 @@ Extend Class KAI_Actor
 				Return True;
 			If (!Target)
 			{
-				If (Flags & CHF_DONTIDLE || bFriendly)
+				If (Flags & CHF_DONTIDLE || bFriendly && !FriendliesIdle)
 				{
 					If (!Target)
 					{
 						If (!(Flags & CHF_DONTMOVE))
-							A_Wander(); //TODO: Change this to KAI_Wander(), when I write that function.
+							KAI_Wander();
 					}
 				}
 				Else

@@ -2,6 +2,10 @@
 However, the CurrentOrder variable, bNoRadio flag, and VehicleCommands enum is still included in the KAI.
 If I do implement the order system to KAI actors, it will probably be before the marine rewrite. So I'll have to rewrite the vehicle chase function.*/
 
+//TODO:
+//Add a headlightsound property, that plays a sound when the vehicles' headlights turn on or off. Good excuse to also stop the lights from turn on/off EVERY TICK !
+//Make the retreat distance and chase time of vehicles into properties. Then these properties are controlled back in the MVP using user variables instead.
+
 //FIXME:
 /*Try and fix the vehicle turrets to be at the top of their vehicle even at the first tick of their existance.
 The first fix I tried was immediately warping the turret to its vehicle. Which somehow turns the turrets into the vehicle they are attached on in the
@@ -27,6 +31,7 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 		MaxTargetRange 10000;
 		KAI_BaseVehicle.MaxCorpseRadius 64;
 		KAI_BaseVehicle.MaxCorpseHeight 48;
+		KAI_BaseVehicle.HeadlightLevel 104;
 		Tag "Vehicle Base (You really shouldn't be seeing this in-game)";
 		
 		//Flags
@@ -122,8 +127,9 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 		If (StayStillDelay)
 			StayStillDelay--;
 		
+		//MAYDO: Maybe make User_NoHeadlights into a flag. That's then handled as a user variable back in the MVP.
 		If (!User_NoHeadlights)
-			HeadLightsOn = (CurSector && CurSector.LightLevel <= 104);
+			HeadLightsOn = (CurSector && CurSector.LightLevel <= HeadLightLevel);
 		
 		If (HeadLightsOn)
 			TurnHeadlightsOn();
@@ -202,10 +208,8 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	Const DEFAULT_SEEDISTANCE = 8192; //The default sight distance.
 	
 	//AI variables
-	Actor DeathWarnZone; //The warning zone attached to the vehicle after it died, if any. Used to warn Smart Marines if the vehicle wreck is burning. //URGENT: Move this back to the MVP !
 	Actor NearestEnemy; //The enemy closest to the vehicle, if any. Does nothing by default, but can be filled with FindNearestEnemy().
 	Int ChaseTimer; //Makes the vehicle only chase its' target for a certain amount of time after it goes out of sight. Is also used to determine how long turreted vehicles stay in one place.
-	Int FearTimer; //Makes the vehicle keep running away from it's target for an additional random amount of time, so that it doesn't play peekaboo with enemies.
 	Int CurrentOrder; //The current order the vehicle is following.
 	Int StayStillDelay; //How long before the vehicle can stand still to attack again.
 	
@@ -225,14 +229,17 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	FlagDef Transport : VehicleFlags, 0; //The vehicle is marked as being able to transport soldiers.
 	FlagDef NoOrders : VehicleFlags, 1; //The vehicle ignores orders given to it by the radio item.
 	FlagDef PassThreatLevelToTurrets : VehicleFlags, 2; //Turrets will inherit the vehicles' threat level, unless they have a threat level defined.
-	Class<KAI_BaseTurret> VehicleTurret; //The pointer to the vehicles' turret, if any.
+	//Properties
+	Class<KAI_BaseTurret> VehicleTurret; //The vehicles' turret, if any.
 	Property VehicleTurret : VehicleTurret;
+	Int HeadlightLevel; //If the light level of the sector the vehicle is in is at this value or less. It will turn its' headlights on.
+	Property HeadlightLevel : HeadlightLevel;
 	
 	//Generic user variables
 	Bool User_NoHeadLights; //Vehicle doesn't use it's headlights, or if its' a prop, the headlights should be off.
 	//Bool User_NoTargetPrediction; //The vehicle will not calculate it's targets' movement and lead its' shots, this is only available to certain vehicles as not all of them have projectile attacks.
-	Double User_RetreatDistance; //The amount of distance the vehicle keeps from enemies. //TODO: Move this out of here.
-	Int User_ChaseTime; //How much time the vehicle spends looking for it's out-of-sight target before giving up. //MAYDE: Move this out of here too. Maybe.
+	Double User_RetreatDistance; //The amount of distance the vehicle keeps from enemies.
+	Int User_ChaseTime; //How much time the vehicle spends looking for it's out-of-sight target before giving up. //MAYDO: Move this out of here too.
 	States
 	{
 		StickAround: //Generic state shared by all vehicles, for when they are far enough from any enemies to be able to just sit and let their turrets do the work.

@@ -74,6 +74,8 @@ Extend Class KAI_BaseVehicle
 	{
 		LVC_ATTACKWHENSCARED = 1 << 0, //The vehicle will still be very likely to attack when scared of an enemy.
 		LVC_NOTURRETRETARGET = 1 << 1, //The vehicle will never target the hull of a vehicle instead of its' turret. Even if doing so would be better.
+		LVC_MAKEFRIENDSIDLE	 = 1 << 2, //Friendly vehicles will also go to their Idle state when they have no target.
+		LVC_PLAYERSASTHREATS = 1 << 3, //Consider players as threats when deciding if the vehicle should retreat from its' target. e.g to run away from players in god mode the vehicle is targeting
 		//TODO: Add a PLAYERSASTHREATS flag. That optionally allows to consider the threat level of players with god or buddha mode.
 	}
 	
@@ -90,7 +92,7 @@ Extend Class KAI_BaseVehicle
 		//No detailed movement parameters, use defaults
 		//HACK: ZScript does not allow me to make a struct instance for MoveParams if none is passed. So we create a struct and call Chase again :>>>>>>>>
 		If (!MoveParams)
-		{a_log ("making shit up");
+		{
 			MoveToParams Default_Params;
 			Default_Params.RunRad = 256;
 			Default_Params.DetourFactor = 1.0;
@@ -108,7 +110,7 @@ Extend Class KAI_BaseVehicle
 		//ZScript exports of different segments of GZDooms' native AI code. This is the stuff not needed for movement.
 		KAI_Chase_PreChecks(ChaseFlags);
 		KAI_Chase_FriendsAttackPlayerEnemies(ChaseFlags); //This and Chase_Retarget are handled here, so the fear checks below work properly.
-		KAI_Chase_Retarget(ChaseFlags);
+		KAI_Chase_Retarget(ChaseFlags,Flags & LVC_MAKEFRIENDSIDLE);
 		KAI_Chase_HandleActiveSound(ChaseFlags);
 		
 		//Handle making the vehicle run away from its' target if it's a major threat. Or it's powerless.
@@ -118,8 +120,8 @@ Extend Class KAI_BaseVehicle
 			{
 				//If you can't attack, run. Also run if the other actor is frightening or you're frightened.
 				If (!CanAttack() || bFrightened || IsFrightening (Target) ||
-				//If the targets' threat level is over the threshold, and it's visible and nearby, GTFO.
-				ThreatLevelThreshold != THREAT_ASSESS && AssessThreatLevel(Target, False) >= ThreatLevelThreshold && (Distance3DSquared(Target) < MajorThreatRange && CheckSight (Target)))
+				//If the targets' threat level is over the threshold, and it's visible and nearby, GTFO. Unless it's a cheating player.
+				ThreatLevelThreshold != THREAT_ASSESS && AssessThreatLevel(Target, Flags & LVC_PLAYERSASTHREATS) >= ThreatLevelThreshold && (Distance3DSquared(Target) < MajorThreatRange))
 				{
 					//And at last, check if the target is still visible.
 					If (IsVisible (Target, True))
@@ -219,11 +221,10 @@ Extend Class KAI_BaseVehicle
 	//As a friendly vehicle, only follow the player until within a certain distance from them, to prevent the player from being dogpiled by vehicles.
 	Void FollowPlayerControl (Double MaxDist = 384)
 	{
-		If (!PlayerInGame[FriendPlayer] || CurrentOrder == ORDER_WANDER)
+		If (!bFriendly || !PlayerInGame[FriendPlayer-1] || CurrentOrder == ORDER_WANDER)
 			Return;
 		
-		If (bFriendly)
-			bDontFollowPlayers = (Distance3DSquared (Players[FriendPlayer].Mo) <= MaxDist*MaxDist);
+		bDontFollowPlayers = (Distance3DSquared (Players[FriendPlayer-1].Mo) <= MaxDist*MaxDist);
 	}
 	
 	Enum RetargetHullFlags

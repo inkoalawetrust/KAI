@@ -4,7 +4,7 @@ Class KAI_Math
 	//=====|Talking in tongues|=====\\
 	//What does this do ? I have no fucking idea, Agent_Ash gave it to me to fix how much the truck slows down based on the mass of the object it hit while ramming.
 	//DOCUMENT: I need someone who passed elementary school math to document what the fuck this does.
-	Clearscope Static Double LinearMap (Double Val, Double O_Min, Double O_Max, Double N_Min, Double N_Max) 
+	ClearScope Static Double LinearMap (Double Val, Double O_Min, Double O_Max, Double N_Min, Double N_Max) 
 	{
 		Return (Val - O_Min) * (N_Max - N_Min) / (O_Max - O_Min) + N_Min;
 	}
@@ -24,8 +24,9 @@ Class KAI_Math
 	//Offs: The vector3 offsets to use.
 	//NoPortal: Should the function account for static portals or not ?
 	//Flags: See above for list of flags.
-	Clearscope Static Vector3 Vec3OffsetRelative (Actor Other, Vector3 Offs, Bool NoPortal = False, Int Flags = 0)
+	ClearScope Static Vector3 Vec3OffsetRelative (Actor Other, Vector3 Offs, Bool NoPortal = False, Int Flags = 0)
 	{
+		If (!Other) Return (Double.NaN,Double.NaN,Double.NaN);
 		Double Angle, Pitch, Roll;
 		If (!(Flags & V3R_NOANGLE)) Angle = Other.Angle;
 		If (!(Flags & V3R_NOPITCH)) Pitch = Other.Pitch;
@@ -36,7 +37,7 @@ Class KAI_Math
 	}
 	
 	//Is the vector empty ? Not (0,0,0), but completely empty.
-	Clearscope Static Bool IsEmptyVector3 (Vector3 Vec)
+	ClearScope Static Bool IsEmptyVector3 (Vector3 Vec)
 	{
 		Return (Vec != Vec);
 	}
@@ -345,7 +346,7 @@ Class KAI_LOFRaycast : LineTracer
 	
 	//Check if the trace hit any level geometry. This is very useful for all LOF checks, except if the projectile can literally go through level geometry.
 	//BUG: This check fails on 3D floors with FF_THINFLOOR. This however seems to be a GZDoom bug. And I'm not knowledgeable enough to PR a fix lol.
-	//TODO: Check for collision with non-shoot through 3D middle textures. The only method for doing this is not exposed to ZScript, so I need to PR it at some point.
+	//: Check for collision with non-shoot through 3D middle textures. The only method for doing this is not exposed to ZScript, so I need to PR it at some point.
 	Bool HitLevelGeometry (TraceResults Result)
 	{
 		//Hit a floor or ceiling.
@@ -397,26 +398,6 @@ Class KAI_LOFRaycast : LineTracer
 		
 		Return GoodLOS;
 	}
-	
-	/*//Accepts direct positions instead of another actor. //Doesn't seem to actually work.
-	Static Bool CheckSightToPos (Actor Origin, Vector3 TargetPos, Double Range, Bool NoBlockSight = False)
-	{
-		If (KAI_Math.IsEmptyVector3 (TargetPos)) Return False;
-		
-		Let Check = New ("KAI_BasicSightCheck");
-		Vector3 SightPos = (Origin.Pos.XY,Origin.Pos.Z + Origin.Height * 0.75);
-		
-		Check.Shooter = Origin;
-		Check.NoBlockSight = NoBlockSight;
-		Check.SightTargPos = TargetPos;
-		
-		Check.Trace(SightPos,Origin.CurSector,Level.Vec3Diff (SightPos,TargetPos),Range,0);
-		
-		Bool GoodLOS = Check.GoodLOS;
-		Check.Destroy();
-		if (!goodlos) console.printf ("epic fail");
-		Return GoodLOS;
-	}*/
 }
 
 //The Khyber Pass version of P_CheckSight(). Brought to you by the object scope system.
@@ -448,13 +429,6 @@ Class KAI_BasicSightCheck : KAI_LOFRaycast
 			GoodLOS = True;
 			Return Trace_Stop;
 		}
-		
-		/*//If looking for a target position instead. Then we've reached it if the distance of the trace is longer than the distance to the target position.
-		If (!KAI_Math.IsEmptyVector3(SightTargPos) && Level.Vec3Diff (Results.SrcFromTarget,SightTargPos).Length() <= Results.Distance)
-		{console.printf ("i can see the target position !"); //DEBUG
-			GoodLOS = True;
-			Return Trace_Stop;
-		}*/
 		
 		Return Trace_Skip;
 	}

@@ -17,11 +17,10 @@ But there are also some I want to make specifically for this codebase, like MAYD
 //Speaking of documentation, begin writing some on a Github wiki, of the functions, classes etc. Once I port over the actual code from the MVP first of course.
 //Also on documentation, maybe add links to the wiki pages of each code structure (e.g a link to AssessThreatLevel()'s page, on top of the definition of the function)
 //Implement a warning zone system similar to the MVPs. But that works for all actors, not just the Smart Marines. Also maybe keep using inventory tokens for it, for non-KAI mod support.
-//Rewrite the way vehicle orders are handled, to also hopefully make it a bit more stable. Oh and make it accessible to all KAI NPCs.
 
 //IDEA:
 //Add a projectile array that is updated every time a projectile appears and vanishes from the world. Will probably do this for the active protection system for the MVPs' tank.
-
+//DEBUG DEBUG DEBUG
 class TestImp : KAI_Actor Replaces DoomImp
 {
 	Default
@@ -33,7 +32,7 @@ class TestImp : KAI_Actor Replaces DoomImp
 		Speed 8;
 		PainChance 200;
 		Monster;
-		+FLOORCLIP+cantleavefloorpic
+		+FLOORCLIP
 		SeeSound "imp/sight";
 		PainSound "imp/pain";
 		DeathSound "imp/death";
@@ -50,8 +49,9 @@ class TestImp : KAI_Actor Replaces DoomImp
 	See:
 		TROO AABBCCDD 3
 		{
-			//If (!done && Target) {KAI_MoveAway(Target);done = true;}//IsPosReachable(Target.Pos,(Target.Radius*2)+(Radius*2)+8);
+			//If (!done && Target) {done = true;IsPosReachable(Target.Pos,(Target.Radius*2)+(Radius*2)+8);}
 			if (target)KAI_MoveTowards(Target.Pos,detourfactor:1);
+			//KAI_Wander();
 		}
 		Loop;
 	Melee:

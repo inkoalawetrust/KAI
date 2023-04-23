@@ -37,7 +37,7 @@ Class KAI_Actor : Actor Abstract
 	{
 		Super.PostBeginPlay ();
 		UserVariableDefaults(); //User variables cannot be handled in BeginPlay().
-		NextRetreatPos = (Double.NaN,Double.NaN,Double.NaN); //This should be empty.
+		NextMovePos = (Double.NaN,Double.NaN,Double.NaN); //This should be empty.
 		if (!(self is "kai_baseturret"))debugpoint = spawn ("kai_debugpoint",pos);//DEBUG
 	}
 	actor debugpoint; //DEBUG
@@ -51,7 +51,7 @@ Class KAI_Actor : Actor Abstract
 	{
 		Super.Tick();
 		If (IsFrozen()) Return;
-		if (!kai_math.isemptyvector3(NextRetreatPos) && debugpoint) debugpoint.setorigin (NextRetreatPos,true); //DEBUG
+		if (!kai_math.isemptyvector3(NextMovePos) && debugpoint) debugpoint.setorigin (NextMovePos,true); //DEBUG
 		//Keeps track of the current targets' position for the target prediction code.
 		If (Target && Target.Tics == Target.CurState.Tics)
 		{
@@ -109,7 +109,7 @@ Class KAI_Actor : Actor Abstract
 		Return False;
 	}
 	
-	//Called when the actor calls KAI_Wander.
+	//Called when the actor calls KAI_Wander().
 	Virtual Void OnWander(){}
 	
 	//Return the location that the actors' attack will hit at. This is just whatever the targets' position is by default.
@@ -128,8 +128,8 @@ Class KAI_Actor : Actor Abstract
 	//Tries to heuristically determine how dangerous another actor is. This is pretty hard to do universally. Since stuff like attacks can't be checked.
 	//Other: The actor to check.
 	//CheckPlayers: Should the checks factor in players too ? e.g counting players with god or buddha mode as THREAT_UNSTOPPABLE. Useful for say not having NPCs just run away from cheating players.
-	//MAYDO: Count players as THREAT_ABOVENORMAL maybe ? Probably not as THREAT_DANGEROUS, since while accurate (They are way smarter after all, unless they are me), it could lead to unwanted behavior.
-	ClearScope Virtual Int AssessThreatLevel (Actor Other, Bool CheckPlayers = True)
+	//DOCUMENT: For an example of how to make a custom AssessThreatLevel override, use the example of a big Baron of Hell that is scared of small Pinkies.
+	Virtual Int AssessThreatLevel (Actor Other, Bool CheckPlayers = True)
 	{
 		If (!Other || IsDead (Other)) Return THREAT_NONE; //Nonexistent or dead actors aren't a problem.
 		
@@ -161,6 +161,10 @@ Class KAI_Actor : Actor Abstract
 		//Alternatively, if the actor has as much health as a THREAT_DANGEROUS actor, but can reflect projectiles back at enemies, it's also very dangerous.
 		Else If ((Other.SpawnHealth() >= 1000 || Other.Health >= 1000) && Other.bReflective && Other.bAimReflect)
 			Return THREAT_VERYDANGEROUS;
+		
+		//Players are automatically dangerous. Since they have a brain and are intelligent, unless they are me lmfao.
+		If (CheckPlayers && Other.Player && !(Other.Player.GetUsername() ~== "Inkoalawetrust"))
+			Return THREAT_DANGEROUS;
 		
 		//If the actor has 1000+ health. Or 500+ health and deflects projectiles, then it's dangerous.
 		If ((Other.SpawnHealth() >= 1000 || Other.Health >= 1000) || (Other.SpawnHealth() >= 500 || Other.Health >= 500) && Other.bReflective)
@@ -207,9 +211,10 @@ Class KAI_Actor : Actor Abstract
 	Array <State> AttackStates; //Can be used to store all of the attack state labels an actor has. Such as for actors with multiple attacks besides a missile and melee attack, like vanilla monsters only have.
 	Vector3 LastEnemyPosition; //Used by the target prediction. If the turret has a target with no velocity, it grabs their last position every tick to compare it to the current position.
 	Vector3 CurrentEnemyPosition;
-	Vector3 NextRetreatPos; //The next position the NPC should retreat back to. Used by KAI_MoveAway().
-	Int NewPosStepCount; //How many steps the actor has taken before NextRetreatPos is reset, so the actor will get a new point to move to.
+	Vector3 NextMovePos; //The next position the NPC should move to. Used by KAI_MoveAway() and KAI_Wander().
+	Int NewPosStepCount; //How many steps the actor has taken before NextMovePos is reset, so the actor will get a new point to move to. Like if gets stuck.
 	
+	//Keep in mind that the threat level descriptions are mostly based on the stock AssessThreatLevel() code.
 	Enum ThreatLevels
 	{
 		THREAT_ASSESS		= 0, //No threat level specified, this is the default, and means that the threat level is to be determined by the AssessThreatLevel() virtual.
@@ -230,8 +235,8 @@ Class KAI_Actor : Actor Abstract
 	//Const NullVector = (Double.NaN,Double.NaN,Double.NaN);
 }
 
-//TODO: Optimize the fast tracer code by storing the tracers in an array and moving them, instead of spawning new ones every tick.
 //IDEA: Make a custom ripping system, where the ripper rips once per actor. Simplifying the damage process, and make it easier to make LOF checks for rippers.
+//IDEA: Make the deflection chance increase the more a shoot grazes the other actor, target wise.
 //NOTE: This code is kinda mostly made for bullets and other such projectiles, hence the bullet tracer-like code and deflection system. But can be used for fireballs and the likes just fine !
 //The base projectile for KAI actors, it's not necessary to really use this. But it does have some advantages:
 //It's based on FastProjectile, so it can properly move both with fast and slow velocities.
@@ -254,13 +259,16 @@ Class KAI_BaseProjectile : FastProjectile
 		Super.PostBeginPlay();
 		
 		If (Target) Species = Target.Species; //MAYDO: Have this rely on a flag ? It's kinda here because of the MVP where it was ripped from.
+		
 	}
+	
+	Bool TrailSpawned;
 	
 	Override Void Tick ()
 	{
 		Vector3 OldPos = Pos;
 		Super.Tick();
-		
+		console.printf ("old %d %d %d",oldpos.x,oldpos.y,oldpos.z);
 		//bMissile is removed when a projectile explodes.
 		If (!bMissile || IsFrozen()) Return;
 		
@@ -270,15 +278,15 @@ Class KAI_BaseProjectile : FastProjectile
 			Return;
 		}
 		
-		If (bNoTrailLine) //Used stock FastProjectile trail. Simple as.
+		If (bNoTrailLine) //Use stock FastProjectile trail. Simple as.
 		{
 			Effect();
 			Return;
 		}
 		
 		//CREDIT: Boondorl wrote the original code that draws a line of tracers between the current and previous position.
-		If (TrailActor)
-		{
+		If (TrailActor && !TrailSpawned)
+		{console.printf ("current %d %d %d",pos.x,pos.y,pos.z);
 			Vector3 Path = Level.Vec3Diff( Pos, OldPos );
 			Double Distance = Path.Length();
 			If (Distance <= 1) Return;
@@ -291,11 +299,14 @@ Class KAI_BaseProjectile : FastProjectile
 			For( Double I = InitialTrailsSkipped; I < Distance; I += TrailLineSpacing )
 			{
 				If (MaxTrails != 0 && MaxTrails <= I) Break; //Too many trail actors.
-				
-				Let Trail = Spawn(TrailActor,level.Vec3Offset(pos, Path*i));
+				Vector3 SpawnPos = level.Vec3Offset(pos, Path*i);
+				Let Trail = Spawn(TrailActor,SpawnPos);
 				If (Trail)
 				{
+					//FIXME: Stop the trails from sticking to projectiles at a crooked angle, why does just passing the position they spawned at not fucking work ?
 					TrailSpawn (Trail); //Return spawned trail.
+					Vector3 Vec = Level.Vec3Diff (Pos,Path*I);
+					If (Trail Is "KAI_Tracer") KAI_Tracer(Trail).WarpOffsets = Vec3Offset (Vec.X,Vec.Y,Vec.Z);
 					//If it's time to begin scaling and fading the trail.
 					If (I >= TrailFadeAndScaleStart)
 					{
@@ -308,6 +319,8 @@ Class KAI_BaseProjectile : FastProjectile
 					}
 				}
 			}
+			
+			TrailSpawned = True;
 		}
 	}
 	
@@ -332,13 +345,14 @@ Class KAI_BaseProjectile : FastProjectile
 			If (Act != Null)
 			{
 				TrailSpawn (Act);
-				If (bGetOwner && Target != Null)
+				//These are handled by TrailSpawn().
+				/*If (bGetOwner && Target != Null)
 					Act.Target = Target;
 				Else
 					Act.Target = Self;
 				
-				//Act.Angle = Angle; //These are handled by TrailSpawn().
-				//Act.Pitch = Pitch;
+				Act.Angle = Angle;
+				Act.Pitch = Pitch;*/
 			}
 		}
 	}
@@ -348,16 +362,12 @@ Class KAI_BaseProjectile : FastProjectile
 	{
 		If (!Trail) Return;
 		
-		Trail.Master = Self;
+		If (bGetOwner && Target != Null)
+			Trail.Target = Target;
+		Else
+			Trail.Target = Self;
 		Trail.Angle = Angle;
 		Trail.Pitch = Pitch;
-		//Pass trail properties. Only really works for the dedicated trail class in particular, so it only runs if the trail is KAI_Tracer or a child class.
-		If (Trail Is "KAI_Tracer")
-		{
-			KAI_Tracer(Trail).SpawnOffsets.X = SpawnOffsetX;
-			KAI_Tracer(Trail).SpawnOffsets.Y = SpawnOffsetY;
-			KAI_Tracer(Trail).SpawnOffsets.Z = SpawnOffsetZ;
-		}
 	}
 	
 	//DOCUMENT: The actual parameters on this function. Here in the code, and on the GitHub wiki I'll set up once the KAI is tidy and finished enough.
@@ -449,7 +459,7 @@ Class KAI_BaseProjectile : FastProjectile
 	Private Int ProjectileFlags;
 	FlagDef NoTrailLine : ProjectileFlags, 0; //The projectile uses the normal FastProjectile trail spawning code.
 	FlagDef NoFriendlyFire : ProjectileFlags, 1; //The projectile should not collide with actors friendly to its' shooter.
-	Class <Actor> TrailActor;
+	Class <KAI_Tracer> TrailActor;
 	Property TrailActor : TrailActor;
 	
 	Int TrailDelay, MaxTrails, InitialTrailsSkipped, TrailFadeAndScaleStart;
@@ -465,34 +475,27 @@ Class KAI_BaseProjectile : FastProjectile
 	Property ScaleAmountX : ScaleAmountX;
 	Property ScaleAmountY : ScaleAmountY;
 	Property FadeAmount : FadeAmount;
-	
-	Double SpawnOffsetX, SpawnOffsetY, SpawnOffsetZ;
-	Property SpawnOffsetX : SpawnOffsetX;
-	Property SpawnOffsetY : SpawnOffsetY;
-	Property SpawnOffsetZ : SpawnOffsetZ;
 }
 
 //A generic tracer effect particle.
+//ReactionTime: The tracer code uses this as a timer for how long the trail should last before vanishing.
+//bNeverRespawn: Turning on this flag causes the trail to automatically vanish if it has no master or its' master is dead.
 //MAYDO: A flag to enable state progression ? Maybe not. The entire point is for this actor to be as "light" as ZScript allows.
 Class KAI_Tracer : Actor
 {
-	Default {RenderStyle "Add"; Scale 0.5; ReactionTime 1; +NoBlockmap; +NoInteraction;}
+	Default {RenderStyle "Add"; Scale 0.5; ReactionTime INT.MAX; +NoBlockmap; +NoInteraction;}
 	
-	Override Void PostBeginPlay ()
-	{
-		Super.PostBeginPlay();
-		
-		SetOrigin (KAI_Math.Vec3OffsetRelative (Self,SpawnOffsets),False);
-	}
 	Override Void Tick()
 	{
 		If (IsFrozen()) Return;
 		//Super.Tick(); //Not needed.
-		If (GetAge() >= ReactionTime)
-			Destroy();
+		If (GetAge() >= ReactionTime || bNeverRespawn && (!Target || Target.Default.bMissile && !Target.bMissile))
+			{a_log ("bye");Destroy();}
+		
+		If (Target) SetOrigin (KAI_Math.Vec3OffsetRelative (Target,WarpOffsets),False);
 	}
 	
-	Vector3 SpawnOffsets;
+	Vector3 WarpOffsets;
 }
 
 Class KAI_DebugPoint : Actor

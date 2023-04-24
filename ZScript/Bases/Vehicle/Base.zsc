@@ -3,8 +3,7 @@ However, the CurrentOrder variable, bNoRadio flag, and VehicleCommands enum is s
 If I do implement the order system to KAI actors, it will probably be before the marine rewrite. So I'll have to rewrite the vehicle chase function.*/
 
 //TODO:
-//Add a headlightsound property, that plays a sound when the vehicles' headlights turn on or off. Good excuse to also stop the lights from turn on/off EVERY TICK !
-//Make the retreat distance and chase time of vehicles into properties. Then these properties are controlled back in the MVP using user variables instead.
+//Add a headlightsound property, that plays a sound when the vehicles' headlights turn on or off.
 
 //FIXME:
 /*Try and fix the vehicle turrets to be at the top of their vehicle even at the first tick of their existance.
@@ -48,12 +47,6 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 		-CanUseWalls; //Vehicles shouldn't be able to use walls, well, not the large ones anyway.
 	}
 	
-	Override Void UserVariableDefaults ()
-	{
-		If (User_RetreatDistance == 0) User_RetreatDistance = 768;
-		If (User_ChaseTime == 0) User_ChaseTime = (35/2)*30; //This is 35/2, because it assumes that the default See state on the vehicles has 2 tic long states.
-	}
-	
 	//Handles spawning each vehicles' turret, if they have any.
 	Virtual Void SpawnVehicleTurret ()
 	{
@@ -82,11 +75,11 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	Virtual Bool StayStillAndShoot (Actor CheckSightFrom)
 	{
 		If (StayStillDelay) Return False; //Too soon
-		If (Turret && Turret.bDontStayAround) Return False; //Turret told you to not move.
+		If (Turret && Turret.bDontStayAround) Return False; //Turret told you to not stop.
 		If (Turret && Turret.ElevationState != Turret.ELEVATION_INBOUNDS) Return False; //The turrets' target is too high up or low down to shoot.
 		If (IsPatrolling (Self) && bChaseGoal) Return False; //Don't stop if patrolling and "Don't Chase Goal" is on.
 		
-		Double Distance = (User_RetreatDistance > 0) ? User_RetreatDistance : 512; //Fall back to a distance of 512 MU if the vehicle is set to not retreat.
+		Double Distance = (RetreatRange > 0) ? RetreatRange : 512; //Fall back to a distance of 512 MU if the vehicle is set to not retreat.
 		//Check if you are far enough from your nearest enemy or target.
 		Actor Whomstve = (NearestEnemy ? NearestEnemy : Target);
 		If ((Whomstve && Distance3DSquared (Whomstve) >= (Distance*Distance)*1.2))
@@ -127,8 +120,7 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 		If (StayStillDelay)
 			StayStillDelay--;
 		
-		//MAYDO: Maybe make User_NoHeadlights into a flag. That's then handled as a user variable back in the MVP.
-		If (!User_NoHeadlights)
+		If (!bNoHeadlights)
 			HeadLightsOn = (CurSector && CurSector.LightLevel <= HeadLightLevel);
 		
 		If (HeadLightsOn)
@@ -208,7 +200,7 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	Const DEFAULT_SEEDISTANCE = 8192; //The default sight distance.
 	
 	//AI variables
-	Actor NearestEnemy; //The enemy closest to the vehicle, if any. Does nothing by default, but can be filled with FindNearestEnemy().
+	Actor NearestEnemy; //The enemy closest to the vehicle, if any.
 	Int ChaseTimer; //Makes the vehicle only chase its' target for a certain amount of time after it goes out of sight. Is also used to determine how long turreted vehicles stay in one place.
 	Int CurrentOrder; //The current order the vehicle is following.
 	Int StayStillDelay; //How long before the vehicle can stand still to attack again.
@@ -220,7 +212,7 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	Vector3 TurretOffsets; //The offsets of the turret relative to the vehicle.
 	Bool LightsOnAlready; //Used to stop the headlight code from constantly iterating through the headlights.
 	
-	Double MaxCorpseRadius, MaxCorpseHeight;
+	Double MaxCorpseRadius, MaxCorpseHeight; //The maximum dimensions of a corpse that the vehicle can crush, anything above this can't be crushed.
 	Property MaxCorpseRadius : MaxCorpseRadius;
 	Property MaxCorpseHeight : MaxCorpseHeight;
 	
@@ -228,18 +220,19 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	Private Int VehicleFlags;
 	FlagDef Transport : VehicleFlags, 0; //The vehicle is marked as being able to transport soldiers.
 	FlagDef NoOrders : VehicleFlags, 1; //The vehicle ignores orders given to it by the radio item.
-	FlagDef PassThreatLevelToTurrets : VehicleFlags, 2; //Turrets will inherit the vehicles' threat level, unless they have a threat level defined.
+	FlagDef NoHeadlights : VehicleFlags, 2; //The vehicle does not have working headlights. For vehicle props however, this is basically an on/off switch.
+	FlagDef PassThreatLevelToTurrets : VehicleFlags, 3; //Turrets will inherit the vehicles' threat level, unless they have a threat level defined.
+	
 	//Properties
 	Class<KAI_BaseTurret> VehicleTurret; //The vehicles' turret, if any.
 	Property VehicleTurret : VehicleTurret;
 	Int HeadlightLevel; //If the light level of the sector the vehicle is in is at this value or less. It will turn its' headlights on.
 	Property HeadlightLevel : HeadlightLevel;
+	Double RetreatRange; //If an enemy is within this range, drive away.
+	Property RetreatRange : RetreatRange;
+	Int SearchTime; //How much time the vehicle spends looking for its target. The timer resets every time the target is in sight. And decrements with every chase call.
+	Property SearchTime : SearchTime;
 	
-	//Generic user variables
-	Bool User_NoHeadLights; //Vehicle doesn't use it's headlights, or if its' a prop, the headlights should be off.
-	//Bool User_NoTargetPrediction; //The vehicle will not calculate it's targets' movement and lead its' shots, this is only available to certain vehicles as not all of them have projectile attacks.
-	Double User_RetreatDistance; //The amount of distance the vehicle keeps from enemies.
-	Int User_ChaseTime; //How much time the vehicle spends looking for it's out-of-sight target before giving up. //MAYDO: Move this out of here too.
 	States
 	{
 		StickAround: //Generic state shared by all vehicles, for when they are far enough from any enemies to be able to just sit and let their turrets do the work.
@@ -252,7 +245,7 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 			}
 			#### # 4 //If an enemy has gotten too close, the turret can't attack, or enough time has passed, then stop standing around.
 			{
-				If (ChaseTimer <= 0 || FindNearestEnemy (User_RetreatDistance/1.4) || Turret && (!Turret.CanAttack() || Turret.bDontStayAround))
+				If (ChaseTimer <= 0 || FindNearestEnemy (RetreatRange/1.4) || Turret && (!Turret.CanAttack() || Turret.bDontStayAround))
 				{
 					ChaseTimer = 0;
 					Return ResolveState ("See");
@@ -326,12 +319,6 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 		KAI_Actor.PostBeginPlay ();
 		SpawnVehicleTurret();
 		If (!bFriendly) Species = 'MilitaryHostile';
-	}
-	
-	Override Void UserVariableDefaults ()
-	{
-		User_RetreatDistance = -1; //Turrets can't move or be scared anyway.
-		User_ChaseTime = 30*4;
 	}
 	
 	//It's assumed that a turret can attack by default, as long as it is withini ts' elevation limits and alive.

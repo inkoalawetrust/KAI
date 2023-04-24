@@ -41,7 +41,7 @@ Class KAI_BaseProp : KAI_BaseVehicle Abstract
 		If (IsFrozen()) Return;
 		
 		//Props don't move, so just let mappers be able to manually turn the lights on or off per prop.
-		If (!User_NoHeadlights)
+		If (!bNoHeadlights)
 			HeadlightsOn = True;
 		Else
 			HeadlightsOn = False;

@@ -166,7 +166,7 @@ Extend Class KAI_BaseTurret
 			
 			If (Origin.Distance3DSquared(Mobj) > CheckRange) Continue; //Too out of reach.
 			
-			If (!IsHostile (Mobj)) Continue; //Actor isn't hostile.
+			If (!IsActorHostile (Mobj)) Continue; //Actor isn't hostile.
 			
 			If (!CheckSight(Mobj)) Continue; //Actor is not visible.
 			
@@ -181,7 +181,7 @@ Extend Class KAI_BaseTurret
 		
 		For (Int I = 0; I < TargetList.Size(); I++)
 		{
-			If (I == TargetList.Size()-1) Return TargetList[I]; //No target that were further than the actor to avoid, so return the last candidate left.
+			If (I == TargetList.Size()-1) Return TargetList[I]; //No target that is further than the actor to avoid, so return the last candidate left.
 			
 			If (TargetList[I].Distance3DSquared(Avoid) > MinAlternateTargetRange) Return TargetList[I]; //Candidate is too close to the actor to avoid.
 			Else {} //Found a potential target that is far enough away from the actor that must be avoided.

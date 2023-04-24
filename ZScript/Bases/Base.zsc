@@ -125,6 +125,10 @@ Class KAI_Actor : Actor Abstract
 		Return IsHostile(Other);
 	}
 	
+	Bool ThreatHealthCheck (Actor Other, Int Amount)
+	{
+		Return (Other.SpawnHealth() >= Amount || Other.Health >= Amount);
+	}
 	//Tries to heuristically determine how dangerous another actor is. This is pretty hard to do universally. Since stuff like attacks can't be checked.
 	//Other: The actor to check.
 	//CheckPlayers: Should the checks factor in players too ? e.g counting players with god or buddha mode as THREAT_UNSTOPPABLE. Useful for say not having NPCs just run away from cheating players.
@@ -153,13 +157,17 @@ Class KAI_Actor : Actor Abstract
 		Other.bNonShootable && Other.bNoBlockmap && Other.bNoRadiusDmg)
 			Return THREAT_UNSTOPPABLE;
 		
+		//If the actor has over 10000 health, or has 2500 or more health and can fly super fast, or can deflect.
+		If (ThreatHealthCheck (Other,10000) || ThreatHealthCheck(Other,2500) && ( (IsFlying (Other) && Other.Speed >= 25) || (Other.bReflective && Other.bAimReflect) ))
+			{a_log ("oh god oh fuck");Return THREAT_SUPERDANGER;}
+		
 		//If the actor has 2500+ health.
-		If ((Other.SpawnHealth() >= 2500 || Other.Health >= 2500) ||
+		If (ThreatHealthCheck(Other,2500) ||
 		//Or it's enormous (3.4m tall and 4.5m wide or bigger, larger than the Challenger 2 tank, which is huge).
 		(Other.Height >= 110 && Other.Radius >= 72))
 			Return THREAT_VERYDANGEROUS;
 		//Alternatively, if the actor has as much health as a THREAT_DANGEROUS actor, but can reflect projectiles back at enemies, it's also very dangerous.
-		Else If ((Other.SpawnHealth() >= 1000 || Other.Health >= 1000) && Other.bReflective && Other.bAimReflect)
+		Else If (ThreatHealthCheck(Other,1000) && Other.bReflective && Other.bAimReflect)
 			Return THREAT_VERYDANGEROUS;
 		
 		//Players are automatically dangerous. Since they have a brain and are intelligent, unless they are me lmfao.
@@ -167,31 +175,35 @@ Class KAI_Actor : Actor Abstract
 			Return THREAT_DANGEROUS;
 		
 		//If the actor has 1000+ health. Or 500+ health and deflects projectiles, then it's dangerous.
-		If ((Other.SpawnHealth() >= 1000 || Other.Health >= 1000) || (Other.SpawnHealth() >= 500 || Other.Health >= 500) && Other.bReflective)
+		If (ThreatHealthCheck(Other,1000) || ThreatHealthCheck(Other,500) && Other.bReflective)
 			Return THREAT_DANGEROUS;
 		
 		//If the actor has 500+ health.
-		If ((Other.SpawnHealth() >= 500 || Other.Health >= 500) ||
+		If (ThreatHealthCheck(Other,500) ||
 		//Or has 100+ health and flies or is fast.
-		(Other.SpawnHealth() >= 100 || Other.Health >= 100) && (IsFlying (Other) || Other.Speed >= 15) ||
+		ThreatHealthCheck(Other,100) && (IsFlying (Other) || Other.Speed >= 15) ||
 		//Or is weak, but flies around fast.
-		(Other.SpawnHealth() >= 50 || Other.Health >= 50) && IsFlying (Other) && Other.Speed >= 15)
+		ThreatHealthCheck(Other,50) && IsFlying (Other) && Other.Speed >= 15)
 			Return THREAT_ABOVENORMAL;
 		
-		//If the actor has 100+ health. Or is weak, but fast.
-		If ((Other.SpawnHealth() >= 100 || Other.Health >= 100) || (Other.SpawnHealth() >= 20 || Other.Health >= 20) && Other.Speed >= 15)
+		//If the actor has 100+ health. Or is very weak, but fast.
+		If (ThreatHealthCheck(Other,100) || ThreatHealthCheck(Other,20) && Other.Speed >= 15)
 			Return THREAT_NORMAL;
 		
 		//If the actor has 50+ health (About as much as an Imp or Chaingunner)
-		If ((Other.SpawnHealth() >= 50 || Other.Health >= 50))
+		If (ThreatHealthCheck(Other,50))
 			Return THREAT_MILD;
 		
+		//If we are this low down, we are checking for very weak NPCs, so if any of these die on contact, they are automatically barely a threat.
+		If (Other.bTouchy)
+			Return THREAT_VERYLOW;
+		
 		//If the actor has 20+ health. AKA is about as strong as a Shotgunner or Zombieman.
-		If ((Other.SpawnHealth() >= 20 || Other.Health >= 20))
+		If (ThreatHealthCheck(Other,20))
 			Return THREAT_LOW;
 		
 		//If the actor has 10 health OR LESS. Or it's health is lower than 20 (As specified right above) and it dies on contact with anything, then it's super weak.
-		If ((Other.SpawnHealth() <= 10 || Other.Health <= 10) || Other.bTouchy)
+		If (ThreatHealthCheck(Other,10))
 			Return THREAT_VERYLOW;
 		
 		Return THREAT_NONE; //If it's none of the above, then it's probably not a problem, probably.
@@ -227,6 +239,7 @@ Class KAI_Actor : Actor Abstract
 		THREAT_ABOVENORMAL	= 6, //The actor is an above average threat. e.g a Hell Knight, Cacodemon, or Revenant
 		THREAT_DANGEROUS	= 7, //The actor is dangerous. e.g a Baron of Hell, Arachnotron or Mancubus
 		THREAT_VERYDANGEROUS= 8, //The actor is a major threat. e.g bosses like Cyberdemons and Spider Masterminds
+		THREAT_SUPERDANGER	= 9, //The actor is a GIGANTIC THREAT. Like, literally as strong as 5-6 Cyberdemons or more.
 		
 		THREAT_UNSTOPPABLE	= 666, //The actor is straight up unstoppable, like an NPC with NODAMAGE, or player with ultimate god mode, a good time to run away.
 	}
@@ -259,16 +272,16 @@ Class KAI_BaseProjectile : FastProjectile
 		Super.PostBeginPlay();
 		
 		If (Target) Species = Target.Species; //MAYDO: Have this rely on a flag ? It's kinda here because of the MVP where it was ripped from.
-		
+		A_FaceMovementDirection(); //Projectile faces where it's going, used by the trail line spawning code.
 	}
 	
 	Bool TrailSpawned;
+	Vector3 OldPos;
 	
 	Override Void Tick ()
 	{
-		Vector3 OldPos = Pos;
+		OldPos = Pos;
 		Super.Tick();
-		console.printf ("old %d %d %d",oldpos.x,oldpos.y,oldpos.z);
 		//bMissile is removed when a projectile explodes.
 		If (!bMissile || IsFrozen()) Return;
 		
@@ -286,7 +299,7 @@ Class KAI_BaseProjectile : FastProjectile
 		
 		//CREDIT: Boondorl wrote the original code that draws a line of tracers between the current and previous position.
 		If (TrailActor && !TrailSpawned)
-		{console.printf ("current %d %d %d",pos.x,pos.y,pos.z);
+		{
 			Vector3 Path = Level.Vec3Diff( Pos, OldPos );
 			Double Distance = Path.Length();
 			If (Distance <= 1) Return;
@@ -303,10 +316,8 @@ Class KAI_BaseProjectile : FastProjectile
 				Let Trail = Spawn(TrailActor,SpawnPos);
 				If (Trail)
 				{
-					//FIXME: Stop the trails from sticking to projectiles at a crooked angle, why does just passing the position they spawned at not fucking work ?
 					TrailSpawn (Trail); //Return spawned trail.
-					Vector3 Vec = Level.Vec3Diff (Pos,Path*I);
-					If (Trail Is "KAI_Tracer") KAI_Tracer(Trail).WarpOffsets = Vec3Offset (Vec.X,Vec.Y,Vec.Z);
+					If (Trail Is "KAI_Tracer") KAI_Tracer(Trail).WarpOffsets = (-(Path*I).Length(),0,0);
 					//If it's time to begin scaling and fading the trail.
 					If (I >= TrailFadeAndScaleStart)
 					{
@@ -366,8 +377,12 @@ Class KAI_BaseProjectile : FastProjectile
 			Trail.Target = Target;
 		Else
 			Trail.Target = Self;
-		Trail.Angle = Angle;
-		Trail.Pitch = Pitch;
+		Vector3 OldVel = Trail.Vel;
+		Trail.Vel = Level.Vec3Diff (OldPos,Pos);
+		Trail.A_FaceMovementDirection();
+		Trail.Vel = OldVel;
+		//Trail.Angle = Trail.Angle = Normalize180 (Angle);;
+		//Trail.Pitch = Pitch;
 	}
 	
 	//DOCUMENT: The actual parameters on this function. Here in the code, and on the GitHub wiki I'll set up once the KAI is tidy and finished enough.
@@ -480,7 +495,6 @@ Class KAI_BaseProjectile : FastProjectile
 //A generic tracer effect particle.
 //ReactionTime: The tracer code uses this as a timer for how long the trail should last before vanishing.
 //bNeverRespawn: Turning on this flag causes the trail to automatically vanish if it has no master or its' master is dead.
-//MAYDO: A flag to enable state progression ? Maybe not. The entire point is for this actor to be as "light" as ZScript allows.
 Class KAI_Tracer : Actor
 {
 	Default {RenderStyle "Add"; Scale 0.5; ReactionTime INT.MAX; +NoBlockmap; +NoInteraction;}
@@ -490,9 +504,9 @@ Class KAI_Tracer : Actor
 		If (IsFrozen()) Return;
 		//Super.Tick(); //Not needed.
 		If (GetAge() >= ReactionTime || bNeverRespawn && (!Target || Target.Default.bMissile && !Target.bMissile))
-			{a_log ("bye");Destroy();}
+			Destroy();
 		
-		If (Target) SetOrigin (KAI_Math.Vec3OffsetRelative (Target,WarpOffsets),False);
+		If (Target) SetOrigin (KAI_Math.Vec3OffsetRelative (Target,WarpOffsets),True);
 	}
 	
 	Vector3 WarpOffsets;
@@ -510,7 +524,7 @@ Class KAI_DebugPoint : Actor
 	}
 }
 
-//PLAYTEST: The token and its' associated ACS API work for simply setting the threat level. But I'm not sure how dynamically changing the tokens' threat level would work for non-KAI actors exactly.
+//DOCUMENT: Write instructions on using this to add support for KAI NPCs without making the library needed for the non-KAI mod to run.
 //This inventory token is a surrogate to allow non-KAI NPCs and mods to use certain types of KAI info. Such as threat levels.
 //This token is useful for tasks like:
 //Adding optional KAI support to your mod without turning your actors into KAI NPCs. And also without needing to make a compatibility patch, or getting startup errors without the library loaded.
@@ -539,8 +553,8 @@ Class KAI_DataToken : Inventory
 			//user_threatlevel = 666; //THREAT_UNSTOPPABLE
 	}*/
 }
-//Debug actor to assess the threat level of an actor in front of it, to see if the system works as intended.
-class threatassess : kai_Actor replaces gibbedmarineextra
+//DEBUG: Assesses the threat level of an actor in front of it, to see if the system works as intended.
+class threatassess : kai_Actor// replaces gibbedmarineextra
 {
 states
 {
@@ -553,6 +567,9 @@ states
 			string text;
 			switch (AssessThreatLevel (Target))
 			{
+				case THREAT_SUPERDANGER:
+					text = "THREAT_SUPERDANGER";
+					break;
 				case THREAT_VERYDANGEROUS:
 					text = "THREAT_VERYDANGEROUS";
 					break;

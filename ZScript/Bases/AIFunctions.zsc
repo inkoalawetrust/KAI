@@ -426,7 +426,7 @@ Extend Class KAI_Actor
 	//Does exactly what it says, finds the nearest enemy that can be targeted and is visible, and returns a pointer to it.
 	Actor FindNearestEnemy (Double Range = 256)
 	{
-		If (Range <= -1) Return Null; //Return nothing at negative ranges.
+		If (Range <= 0) Return Null;
 		
 		Array <Actor> NearbyEnemies;
 		Double NearestDistance = INT.MAX;

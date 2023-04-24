@@ -48,27 +48,32 @@ Mixin Class KAI_UniversalFunctions
 	Array <Actor> TempAllyList; //Used to prevent friends of the explosions' source from being harmed.
 	
 	//Temporarily give NORADIUSDMG to allies, to stop them from being harmed by explosions.
-	//Used by exploding projectiles.
-	Void MakeAlliesImmuneToExplosion (Double Radius = 256)
+	//Used by exploding projectiles and the likes.
+	//Source: The actor to check from.
+	//Radius: The radius aroun which to exclude allies from damage.
+	Void MakeAlliesImmuneToExplosion (Actor Source, Double Radius = 256)
 	{
-		If (Radius <= 0) Return;
+		If (Radius <= 0 || !Source) Return;
 		BlockThingsIterator AllyFind = BlockThingsIterator.Create (Self,Radius);
 		
 		While (AllyFind.Next())
 		{
 			Actor Ally = AllyFind.Thing;
 			//Add friendly living monsters or players to the list. But only ones that aren't already exempt from splash damage.
-			If (Ally && Target && Ally != Target && Ally.Health > 0 && !Ally.bNoRadiusDmg)
+			If (Ally && Source && Ally != Source && Ally.Health > 0 && !Ally.bNoRadiusDmg)
 			{
-				If (Target.bFriendly || Target.Player)
+				//Check if the found actor is an enemy. KAI NPCs use their IsActorHostile virtual, non-KAI actors use the native IsHostile().
+				Bool IsEnemy = ((Source Is "KAI_Actor") ? KAI_Actor(Source).IsActorHostile(Ally) : Source.IsHostile(Ally));
+				If (Source.bFriendly || Source.Player)
 				{
-					If (!(Target.IsHostile(Ally)) && (Ally.bIsMonster || Ally.Player))
+					If (!IsEnemy && (Ally.bIsMonster || Ally.Player))
 						TempAllyList.Push (Ally);
 				}
-				//Unless the shooter is not friendly, in which case only count friendly actors of the same species as allies.
+				
+				//If the caller is not friendly.
 				Else
 				{
-					If (!(Target.IsHostile(Ally)) && Target.Species && Ally.Species == Target.Species)
+					If (!IsEnemy && (Ally.bIsMonster || Ally.Player))// && Source.Species && Ally.Species == Source.Species)
 						TempAllyList.Push (Ally);
 				}
 			}
@@ -217,7 +222,7 @@ Mixin Class KAI_CheckFunctions
 			If (Other.Target && Other.Target == Caller)
 				Return True;
 			
-			//If you the caller is a vehicle, is the other actor targeting its' turret ?
+			//If the caller is a vehicle, is the other actor targeting its' turret ?
 			If (Caller Is "KAI_BaseVehicle" && Other.Target == KAI_BaseVehicle(Caller).Turret)
 				Return True;
 			
@@ -511,7 +516,7 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 		}
 		
 		//Solid corpse of an enemy in the way, shell can't go through.
-		If (Mobj && !OtherInBlast && Shooter.IsHostile(Mobj)/*KAIVehicle_IsHostile(Shooter,Mobj)*/ && IsSolidCorpse(Mobj))
+		If (Mobj && !OtherInBlast && Shooter.IsHostile(Mobj) && IsSolidCorpse(Mobj))
 		{
 			BadLOF = True;
 			Return Trace_Stop;

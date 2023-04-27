@@ -144,7 +144,7 @@ Extend Class KAI_BaseVehicle
 			If (!(IsPatrolling(Self) && bChaseGoal)) NearestEnemy = FindNearestEnemy (RetreatDist);
 			//If you aren't patrolling and not allowed off your route, and there is an enemy nearby.
 			If (NearestEnemy)
-			{a_log ("the danger zone");
+			{
 				KAI_MoveAway (NearestEnemy,MoveParams.Attempts,MoveParams.RunRad,MoveParams.StepThreshold,0.5,TurnRadius,ChaseFlags); //Keep your distance.
 				MovedAlready = True;
 			}
@@ -154,16 +154,12 @@ Extend Class KAI_BaseVehicle
 				KAI_MoveAway (Turret.Target,MoveParams.Attempts,MoveParams.RunRad,MoveParams.StepThreshold,0.5,TurnRadius,ChaseFlags); //Back off to allow your turret to shoot.
 				MovedAlready = True;
 			}
-			//If none of the other conditions are true. Run the standard A_Chase code (Minus movement), and KAI_MoveTowards.
+			//If none of the other conditions are true.
 			Else
 			{
 				Bool B;
-				//A_Chase (Null,Null,CHF_DONTMOVE|CHF_DONTTURN|ChaseFlags); //This breaks the custom movement despite the self-explanatory flags. Okay GZDoom.
 				KAI_Chase_HandleStrafing (Target,ChaseFlags); //No idea why the fuck you'd want a ground vehicle to do this. But here you go.
 				[B,MovedAlready] = KAI_Chase_PatrolHandling(WaitState, 0.2, anglelimit:TurnRadius, chaseflags:ChaseFlags);
-				//Finding a new target should be handled by the above A_Chase call, however if no new target was found. Call OnWander().
-				//If (!Target && !(ChaseFlags & CHF_DONTIDLE))
-				//	OnWander();
 				
 				//Finally, if you do have a target, DO move towards it, but with KAI_MoveTowards instead of the shitty native movement code.
 				If (Target && !MovedAlready)

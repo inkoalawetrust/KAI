@@ -10,7 +10,7 @@ Extend Class KAI_Actor
 	}
 	
 	//Returns true if the caller is in melee range of the other actor. Basically a rip of P_CheckMeleeRange().
-	//PLAYTESt: Technically this isn't tested yet, however it's a direct rip of the native code. So it should already work.
+	//PLAYTEST: Technically this isn't tested yet, however it's a direct rip of the native code. So it should already work.
 	Bool KAI_CheckMeleeRange (Actor Other, Double Range = -1, Int Flags = 0)
 	{
 		Double Dist;
@@ -387,6 +387,7 @@ Extend Class KAI_Actor
 	
 	//BUG: For some reason the function will sometimes return positions that are behind drops too tall for the caller as valid. I have no fucking idea why.
 	//BUG: It's not portal aware, because of course it isn't ! DESPITE LITERALLY CHECKING BY *ACTUALLY* MOVING THE CALLER IN A STRAIGHT LINE !
+	//NOTE: A potential fix might be making Vec3Offset absolute, it should at least fix portals, since it fixed movement through them for KAI_MoveTowards.
 	//Checks if the straight line between the callers' position and the specified position can be walked up to.
 	//TargetPos: The position to check if it's walkable.
 	/*DistCutoff: The amount of map units to trim off the distance between the callers' pos and TargetPos. Useful for subtracting the radius of another actor,
@@ -439,13 +440,11 @@ Extend Class KAI_Actor
 			//Skip this actor if it's dead, cannot be targeted, is not a monster nor a player, or is not even an enemy.
 			If (!Mobj || IsDead (Mobj) || IsInanimateObject(Mobj) || !CanBeTargeted (Self, Mobj) || !IsActorHostile (Mobj)) Continue;
 			
-			If (Distance3DSquared (Mobj) > Range*Range) Continue; //Out of range.
-			
 			If (!CheckSight (Mobj)) Continue; //And at last, check if the enemy is even visible.
 			
 			NearbyEnemies.Push(Mobj); //Add it to the list.
 		}
-		Return GetClosestActor (NearbyEnemies,Self.Pos);
+		Return GetClosestActor (NearbyEnemies,Self.Pos,Range);
 	}
 	
 	//=====|Miscelleneous AI functions|=====\\

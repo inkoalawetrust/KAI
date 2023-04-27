@@ -3,7 +3,7 @@ Class KAI_Math
 {
 	//=====|Talking in tongues|=====\\
 	//What does this do ? I have no fucking idea, Agent_Ash gave it to me to fix how much the truck slows down based on the mass of the object it hit while ramming.
-	//DOCUMENT: I need someone who passed elementary school math to document what the fuck this does.
+	//Remap `Val` from <o_min, o_max> range to <n_min, n_max> range. Still got little idea what this means, RaveYard wrote this description not me lmao.
 	ClearScope Static Double LinearMap (Double Val, Double O_Min, Double O_Max, Double N_Min, Double N_Max) 
 	{
 		Return (Val - O_Min) * (N_Max - N_Min) / (O_Max - O_Min) + N_Min;
@@ -121,7 +121,7 @@ Mixin Class KAI_CheckFunctions
 	
 	ClearScope Bool HasGodMode (Actor Other, Bool NoPlayerCheck = False)
 	{
-		If (!Other || Other.Player && NoPlayerCheck) Return False;
+		If (!Other || NoPlayerCheck) Return False;
 		Return (Other.Player && Other.Player.Cheats & (CF_GODMODE | CF_GODMODE2));
 	}
 	
@@ -193,10 +193,7 @@ Mixin Class KAI_CheckFunctions
 	ClearScope Bool IsNecromancer (Actor Other)
 	{
 		If (!Other) Return False;
-		
-		If (Other.FindState ("Heal")) Return True; //I checked several mods with Archvile-type monsters. And all of them have a Heal state. Making this the only universal way to check for them.
-		
-		Return False;
+		Return (Other.FindState ("Heal"));//I checked several mods with Archvile-type monsters. And all of them have a Heal state. Making this the only universal way to check for them.
 	}
 	
 	/*IDEA: I may add a generic group system for KAI_Actors in the future, similar to the squad system in the old Smart Marines.
@@ -277,9 +274,7 @@ Class KAI_LOFRaycast : LineTracer
 	//Add the Other actor to the Mobjs array.
 	Void AddToMobjList (Actor Other)
 	{
-		If (Other)
-			Mobjs.Push(Other);
-		Return;
+		If (Other) Mobjs.Push(Other);
 	}
 	
 	//Should the actor shoot at the prop ?

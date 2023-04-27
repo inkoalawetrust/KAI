@@ -21,44 +21,41 @@ But there are also some I want to make specifically for this codebase, like MAYD
 //IDEA:
 //Add a projectile array that is updated every time a projectile appears and vanishes from the world. Will probably do this for the active protection system for the MVPs' tank.
 //DEBUG DEBUG DEBUG
-class TestImp : KAI_Actor Replaces DoomImp
+class TestPinky : KAI_Actor// Replaces Demon
 {
-	Default
+Default
 	{
-		Health 60;
-		Radius 20;
+		Health 150;
+		PainChance 180;
+		Speed 10;
+		Radius 30;
 		Height 56;
-		Mass 100;
-		Speed 8;
-		PainChance 200;
+		Mass 400;
 		Monster;
 		+FLOORCLIP
-		SeeSound "imp/sight";
-		PainSound "imp/pain";
-		DeathSound "imp/death";
-		ActiveSound "imp/active";
-		HitObituary "$OB_IMPHIT";
-		Obituary "$OB_IMP";
-		Tag "$FN_IMP";
-	}bool done;
+		SeeSound "demon/sight";
+		AttackSound "demon/melee";
+		PainSound "demon/pain";
+		DeathSound "demon/death";
+		ActiveSound "demon/active";
+		Obituary "$OB_DEMONHIT";
+		Tag "$FN_DEMON";
+	}
 	States
 	{
 	Spawn:
-		TROO AB 10 A_Look;
+		SARG AB 10 A_Look;
 		Loop;
 	See:
-		TROO AABBCCDD 3
+		SARG AABBCCDD 2 Fast// A_Chase;
 		{
 			//If (!done && Target) {done = true;IsPosReachable(Target.Pos,(Target.Radius*2)+(Radius*2)+8);}
-			if (target)KAI_MoveTowards(Target.Pos,detourfactor:1);
+			//if (target)KAI_MoveTowards(Target.Pos,detourfactor:0.5);KAI_Chase_HandleActiveSound(0);
 			//KAI_Wander();
+			if (target) KAI_MoveAway(target,runrad:256,detourfactor:0.5);
+			//A_Chase (Null,Null);
 		}
 		Loop;
-	Melee:
-	Missile:
-		TROO EF 8 A_FaceTarget;
-		TROO G 6 A_TroopAttack ;
-		Goto See;
 	}
 }
 

@@ -66,7 +66,7 @@ Class KAI_Actor : Actor Abstract
 	because it allows default user variable values to be set for actors that are spawned in-game as well, not just ones placed in UDB*/
 	Virtual Void UserVariableDefaults(){}
 	
-	/*PLAYTEST: For the time being I'm focusing on the vehicles (This code IS a rip from the MVP after all.)
+	/*PLAYTEST: For the time being I'm focusing on the vehicles (This codebase IS still mostly a rip from the MVP after all, for now.)
 	So I have not actually playtested if the default CanAttack() and ShouldAttack() code works like the native code. Since the vehicles just override it.
 	I'll begin putting more attention to the non-vehicle NPC code once I begin rewriting the Smart Marines, to code them more properly this time.*/
 	//TODO: Maybe have this check for SECF_NOATTACK sectors ? Or not, since it would trigger vehicles in my MVP to run away from enemies in them.
@@ -130,6 +130,7 @@ Class KAI_Actor : Actor Abstract
 		Return (Other.SpawnHealth() >= Amount || Other.Health >= Amount);
 	}
 	//Tries to heuristically determine how dangerous another actor is. This is pretty hard to do universally. Since stuff like attacks can't be checked.
+	//TODO: Add a forceassess parameter, that skips returning the other actors' preset threat level.
 	//Other: The actor to check.
 	//CheckPlayers: Should the checks factor in players too ? e.g counting players with god or buddha mode as THREAT_UNSTOPPABLE. Useful for say not having NPCs just run away from cheating players.
 	//DOCUMENT: For an example of how to make a custom AssessThreatLevel override, use the example of a big Baron of Hell that is scared of small Pinkies.
@@ -241,7 +242,7 @@ Class KAI_Actor : Actor Abstract
 		THREAT_VERYDANGEROUS= 8, //The actor is a major threat. e.g bosses like Cyberdemons and Spider Masterminds
 		THREAT_SUPERDANGER	= 9, //The actor is a GIGANTIC THREAT. Like, literally as strong as 5-6 Cyberdemons or more.
 		
-		THREAT_UNSTOPPABLE	= 666, //The actor is straight up unstoppable, like an NPC with NODAMAGE, or player with ultimate god mode, a good time to run away.
+		THREAT_UNSTOPPABLE	= 666, //The actor is straight up unstoppable, like an NPC with NODAMAGE, or player with ultimate god mode, should probably run away.
 	}
 	
 	//Constants
@@ -402,7 +403,7 @@ Class KAI_BaseProjectile : FastProjectile
 		Vel3DFromAngle (Speed,Angle,Pitch);
 		
 		//Spark effect.
-		//MAYDO: Make the spark effect customizable ? Potentially through an OnDeflection() virtual.
+		//MAYDO: Make the spark effect customizable ? Potentially by handling it in an OnDeflection() virtual.
 		TextureID NullTex;
 		For (Int I = 0; I < 24; I++)
 		{
@@ -554,7 +555,7 @@ Class KAI_DataToken : Inventory
 	}*/
 }
 //DEBUG: Assesses the threat level of an actor in front of it, to see if the system works as intended.
-class threatassess : kai_Actor// replaces gibbedmarineextra
+class threatassess : kai_Actor replaces gibbedmarineextra
 {
 states
 {

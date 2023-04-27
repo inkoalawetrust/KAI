@@ -141,20 +141,11 @@ Extend Class KAI_Actor
 		TempList.Move (ActorList);
 		Double NearestDistance = INT.MAX;
 		
-		If (MaxRange > 0)
-		{
-			For (Int I = TempList.Size()-1; I >= 0; I--)
-			{
-				If (Level.Vec3Diff(Pos,TempList[I].Pos).LengthSquared() > MaxRange)
-					TempList.Delete(I);
-			}
-		}
-		
 		Actor ClosestActor;
 		For (Int I = TempList.Size()-1; I >= 0; I--)
 		{
 			Double CurrentDistance = Level.Vec3Diff(Pos,TempList[I].Pos).LengthSquared();
-			If (NearestDistance > CurrentDistance)
+			If (NearestDistance > CurrentDistance && CurrentDistance <= MaxRange*MaxRange)
 			{
 				NearestDistance = CurrentDistance;
 				ClosestActor = TempList[I];
@@ -175,20 +166,11 @@ Extend Class KAI_Actor
 		TempList.Move (ActorList);
 		Double FurthestDistance;
 		
-		If (MinDist > 0)
-		{
-			For (Int I = TempList.Size()-1; I >= 0; I--)
-			{
-				If (Level.Vec3Diff(Pos,TempList[I].Pos).LengthSquared() < MinDist)
-					TempList.Delete(I);
-			}
-		}
-		
 		Actor FurthestActor;
 		For (Int I = TempList.Size()-1; I >= 0; I--)
 		{
 			Double CurrentDistance = Level.Vec3Diff(Pos,TempList[I].Pos).LengthSquared();
-			If (FurthestDistance < CurrentDistance)
+			If (FurthestDistance < CurrentDistance && CurrentDistance > MinDist*MinDist)
 			{
 				FurthestDistance = CurrentDistance;
 				FurthestActor = TempList[I];

@@ -1,5 +1,5 @@
 # Koala AI Library
-This is an AI library for the [GZDoom](https://github.com/ZDoom/gzdoom) engine that allows for the (Relatively) easy creation of Doom NPCs with sophisticated AI. The library serves both the purpose of making my mods compatible with each other, and also for other modders to use.
+This is an AI library for the [GZDoom](https://github.com/ZDoom/gzdoom) engine that allows for the (Relatively) easy creation of Doom NPCs with sophisticated AI. The library serves both the purpose of making my mods compatible with each other, and also for other modders to use. It is vaguely modelled after GMod's [VJ Base](https://github.com/DrVrej/VJ-Base) addon, e.g how it includes multiple base NPC types.
 
 ## Why ?
 While GZDoom has the functionality to extend or replace Doom's original stupid AI, there is no simple way to go about it. And every implementation varies from mod to mod. With every modder having to reinvent the wheel for their projects.

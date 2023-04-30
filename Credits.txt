@@ -1,4 +1,4 @@
-For more detailed credits, you can do a codebase-wide search from the CREDIT code tag.
+For more detailed credits, you can do a codebase-wide search for the CREDIT code tag.
 
 Written by inkoalawetrust. With help for a few miscellaneous tasks by RaveYard.
 

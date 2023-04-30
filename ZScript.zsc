@@ -75,7 +75,9 @@ So, the code that is meant to be shared by all NPCs also goes here.*/
 	#Include "ZScript/Bases/Vehicle/TurretFunctions.zsc"
 		//Air, sea, etc vehicles.
 	
-	//The base humanoid/creature/(whatever I decide to call it) class.
-	/*This will stay empty until I get around to remaking the Smart Marines. Once the rewrite starts,
-	I will begin moving any generic code to this base.*/
-	#Include "ZScript/Bases/Humanoid/Base.zsc"
+	//The base creature class, for living NPCs like demons and animals.
+	#Include "ZScript/Bases/Creature/Base.zsc"
+		//The base class for more intelligent creatures, based on KAI_Creature.
+		/*This will stay empty until I get around to remaking the Smart Marines. Once the rewrite starts,
+		I will begin moving any generic code to this base.*/
+		#Include "ZScript/Bases/Humanoid/Base.zsc"

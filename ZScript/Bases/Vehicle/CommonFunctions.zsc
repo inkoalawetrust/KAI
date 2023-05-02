@@ -117,8 +117,8 @@ Extend Class KAI_BaseVehicle
 		{
 			If (!(ChaseFlags & CHF_DONTMOVE))
 			{
-				//If you can't attack, run. Also run if the other actor is frightening or you're frightened.
-				If (!CanAttack() || bFrightened || IsFrightening (Target) ||
+				//If you can't attack (But not because you are in a NOATTACK sector), run. Also run if the other actor is frightening or you're frightened.
+				If ((!CanAttack() && !(CurSector.Flags & Sector.SECF_NOATTACK))|| bFrightened || IsFrightening (Target) ||
 				//If the targets' threat level is over the threshold, and it's visible and nearby, GTFO. Unless it's a cheating player.
 				ThreatLevelThreshold != THREAT_ASSESS && AssessThreatLevel(Target, Flags & LVC_PLAYERSASTHREATS) >= ThreatLevelThreshold && (Distance3DSquared(Target) < MajorThreatRange))
 				{

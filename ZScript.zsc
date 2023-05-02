@@ -21,13 +21,14 @@ But there are also some I want to make specifically for this codebase, like MAYD
 //IDEA:
 //Add a projectile array that is updated every time a projectile appears and vanishes from the world. Will probably do this for the active protection system for the MVPs' tank.
 //DEBUG DEBUG DEBUG
-class TestPinky : KAI_Actor// Replaces Demon
+class TestPinky : KAI_Actor Replaces Demon
 {
 Default
 	{
 		Health 150;
 		PainChance 180;
-		Speed 10;
+		Speed 48;
+		//+ALWAYSFAST
 		Radius 30;
 		Height 56;
 		Mass 400;
@@ -41,6 +42,7 @@ Default
 		Obituary "$OB_DEMONHIT";
 		Tag "$FN_DEMON";
 	}
+	
 	States
 	{
 	Spawn:
@@ -50,10 +52,10 @@ Default
 		SARG AABBCCDD 2 Fast// A_Chase;
 		{
 			//If (!done && Target) {done = true;IsPosReachable(Target.Pos,(Target.Radius*2)+(Radius*2)+8);}
-			//if (target)KAI_MoveTowards(Target.Pos,detourfactor:0.5);KAI_Chase_HandleActiveSound(0);
-			//KAI_Wander();
-			if (target) KAI_MoveAway(target,runrad:256,detourfactor:0.5);
-			//A_Chase (Null,Null);
+			//if (goal)KAI_MoveTowards(goal.Pos,detourfactor:0.5);KAI_Chase_HandleActiveSound(0);KAI_Chase_PatrolHandling();
+			//KAI_Wander(32,1024,256);
+			//if (target) KAI_MoveAway(target,runrad:256,detourfactor:0.5);
+			A_Chase (Null,Null);
 		}
 		Loop;
 	}
@@ -68,7 +70,7 @@ So, the code that is meant to be shared by all NPCs also goes here.*/
 #Include "ZScript/Bases/OtherCode.zsc"
 	
 	//The base *land* vehicle class. As of 8/4/2023, this basically a direct rip from a dev build of MVP 0.5.0.
-	//Any future vehicle types like air and water vehicles will probably be based on this.
+	//Any future vehicle types like air and water vehicles will be based on this.
 	#Include "ZScript/Bases/Vehicle/Base.zsc"
 	#Include "ZScript/Bases/Vehicle/BaseProp.zsc"
 	#Include "ZScript/Bases/Vehicle/CommonFunctions.zsc"

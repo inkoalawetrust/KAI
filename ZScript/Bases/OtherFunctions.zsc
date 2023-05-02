@@ -2,6 +2,7 @@
 //Non AI related functions 
 Extend Class KAI_Actor
 {
+	//BUG: I think the target prediction is fucked in some way. It seems to not lead shots properly with targets that have 1 tic long states.
 	//Allows NPCs to lead their shots based on their targets' movement, regardless of whether or not it's a player or monster. Unlike VelIntercept().
 	//This is called after the projectile has been spawned, to modify its' trajectory post-spawn. Code is also run in the NPCs' tick for target position updates.
 	//Projectile: The projectile to modify.

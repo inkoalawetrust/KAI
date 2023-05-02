@@ -318,12 +318,13 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 	{
 		KAI_Actor.PostBeginPlay ();
 		SpawnVehicleTurret();
-		If (!bFriendly) Species = 'MilitaryHostile';
+		//If (!bFriendly) Species = 'MilitaryHostile';
 	}
 	
-	//It's assumed that a turret can attack by default, as long as it is withini ts' elevation limits and alive.
+	//It's assumed that a turret can attack by default, as long as it is within its' elevation limits and alive.
 	Override Bool CanAttack()
 	{
+		If (CurSector.Flags & Sector.SECF_NOATTACK) Return False;
 		If (IsDead(Self)) Return False; 
 		If (ElevationState != ELEVATION_INBOUNDS) Return False;
 		

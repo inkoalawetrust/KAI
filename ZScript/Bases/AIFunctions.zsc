@@ -430,7 +430,6 @@ Extend Class KAI_Actor
 		If (Range <= 0) Return Null;
 		
 		Array <Actor> NearbyEnemies;
-		Double NearestDistance = INT.MAX;
 		BlockThingsIterator FindEnemies = BlockThingsIterator.Create (Self,Range);
 		
 		While (FindEnemies.Next())

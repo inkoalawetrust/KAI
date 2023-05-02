@@ -59,7 +59,7 @@ Class KAI_Actor : Actor Abstract
 			CurrentEnemyPosition = Target.Pos;
 		}
 		Else If (!Target)
-			LastEnemyPosition = CurrentEnemyPosition = (Double.NaN,Double.NaN,Double.NaN);
+			LastEnemyPosition = CurrentEnemyPosition = (0,0,0);
 	}
 	
 	/*Allows actors to define the defaults for their own user variables. This is better than the //$UserDefaultValue editor key,
@@ -69,11 +69,10 @@ Class KAI_Actor : Actor Abstract
 	/*PLAYTEST: For the time being I'm focusing on the vehicles (This codebase IS still mostly a rip from the MVP after all, for now.)
 	So I have not actually playtested if the default CanAttack() and ShouldAttack() code works like the native code. Since the vehicles just override it.
 	I'll begin putting more attention to the non-vehicle NPC code once I begin rewriting the Smart Marines, to code them more properly this time.*/
-	//TODO: Maybe have this check for SECF_NOATTACK sectors ? Or not, since it would trigger vehicles in my MVP to run away from enemies in them.
 	//Used by the chase functions of each NPC type to check for all the different methods each actor has to attack.
 	Virtual Bool CanAttack()
 	{
-		If ((MissileState || MeleeState) && !IsDead(Self)) Return True; //Actors just check if they have an attack state and are alive by default. More or less stock ZDoom.
+		If ((MissileState || MeleeState) && !IsDead(Self) && !(CurSector && CurSector.Flags & Sector.SECF_NOATTACK)) Return True; //Actors just check if they have an attack state, are alive, and not in a NOATTACK sector by default. More or less stock ZDoom.
 		Return False;
 	}
 	
@@ -133,12 +132,11 @@ Class KAI_Actor : Actor Abstract
 	//TODO: Add a forceassess parameter, that skips returning the other actors' preset threat level.
 	//Other: The actor to check.
 	//CheckPlayers: Should the checks factor in players too ? e.g counting players with god or buddha mode as THREAT_UNSTOPPABLE. Useful for say not having NPCs just run away from cheating players.
-	//DOCUMENT: For an example of how to make a custom AssessThreatLevel override, use the example of a big Baron of Hell that is scared of small Pinkies.
 	Virtual Int AssessThreatLevel (Actor Other, Bool CheckPlayers = True)
 	{
 		If (!Other || IsDead (Other)) Return THREAT_NONE; //Nonexistent or dead actors aren't a problem.
 		
-		//KAI NPCs can have specific threat levels set, in which case, just return whatever the NPCs' threat level is.
+		//KAI NPCs can have specific threat levels set, in which Case, just return whatever the NPCs' threat level is.
 		If (Other Is "KAI_Actor" && KAI_Actor(Other).ThreatLevel != THREAT_ASSESS)
 			Return KAI_Actor(Other).ThreatLevel;
 		
@@ -160,7 +158,7 @@ Class KAI_Actor : Actor Abstract
 		
 		//If the actor has over 10000 health, or has 2500 or more health and can fly super fast, or can deflect.
 		If (ThreatHealthCheck (Other,10000) || ThreatHealthCheck(Other,2500) && ( (IsFlying (Other) && Other.Speed >= 25) || (Other.bReflective && Other.bAimReflect) ))
-			{a_log ("oh god oh fuck");Return THREAT_SUPERDANGER;}
+			Return THREAT_SUPERDANGER;
 		
 		//If the actor has 2500+ health.
 		If (ThreatHealthCheck(Other,2500) ||
@@ -172,7 +170,7 @@ Class KAI_Actor : Actor Abstract
 			Return THREAT_VERYDANGEROUS;
 		
 		//Players are automatically dangerous. Since they have a brain and are intelligent, unless they are me lmfao.
-		If (CheckPlayers && Other.Player && !(Other.Player.GetUsername() ~== "Inkoalawetrust"))
+		If (CheckPlayers && Other.Player && !(Other.Player.GetUsername() ~== "inkoalawetrust"))
 			Return THREAT_DANGEROUS;
 		
 		//If the actor has 1000+ health. Or 500+ health and deflects projectiles, then it's dangerous.
@@ -255,7 +253,7 @@ Class KAI_Actor : Actor Abstract
 //The base projectile for KAI actors, it's not necessary to really use this. But it does have some advantages:
 //It's based on FastProjectile, so it can properly move both with fast and slow velocities.
 /*It's got a toggleable custom trail system. The default trail spawn code for FastProjectile works for actors faster than normal projectiles.
-But begins breaking up with truly fast projectiles, this custom trail code doesn't. You can reenable the stock FastProjectile trails.*/
+But begins Breaking up with truly fast projectiles, this custom trail code doesn't. You can reenable the stock FastProjectile trails.*/
 //It has a deflection function, which makes the projectile deflect like a bullet.
 //It has code that allows you to change the visual pitch of the projectile based on its' actual pitch. Similar to what KAI_BaseTurret allows for on the vehicle base.
 //Has a virtual that is called for each trail spawned, with a pointer to the trail.
@@ -555,55 +553,56 @@ Class KAI_DataToken : Inventory
 	}*/
 }
 //DEBUG: Assesses the threat level of an actor in front of it, to see if the system works as intended.
-class threatassess : kai_Actor replaces gibbedmarineextra
+Class ThreatAssess : KAI_Actor// replaces gibbedmarineextra
 {
-states
-{
-	spawn:
-		tnt1 a 1 a_lookex(fov:360);
-		loop;
-	see:
-		tnt1 a 1
-		{
-			string text;
-			switch (AssessThreatLevel (Target))
+	Default {+NoTarget;}
+	States
+	{
+		Spawn:
+			TNT1 A 1 A_LookEx(fov:360);
+			loop;
+		See:
+			TNT1 A 1
 			{
-				case THREAT_SUPERDANGER:
-					text = "THREAT_SUPERDANGER";
-					break;
-				case THREAT_VERYDANGEROUS:
-					text = "THREAT_VERYDANGEROUS";
-					break;
-				case THREAT_DANGEROUS:
-					text = "THREAT_DANGEROUS";
-					break;
-				case THREAT_ABOVENORMAL:
-					text = "THREAT_ABOVENORMAL";
-					break;
-				case THREAT_NORMAL:
-					text = "THREAT_NORMAL";
-					break;
-				case THREAT_MILD:
-					text = "THREAT_MILD";
-					break;
-				case THREAT_LOW:
-					text = "THREAT_LOW";
-					break;
-				case THREAT_VERYLOW:
-					text = "THREAT_VERYLOW";
-					break;
-				case THREAT_UNSTOPPABLE:
-					text = "THREAT_UNSTOPPABLE";
-					break;
-				case THREAT_NONE:
-					text = "THREAT_NONE";
-					break;
-				default:
-					text = "oops";
-					break;
+				String Text;
+				Switch (AssessThreatLevel (Target))
+				{
+					Case THREAT_SUPERDANGER:
+						Text = "THREAT_SUPERDANGER";
+						Break;
+					Case THREAT_VERYDANGEROUS:
+						Text = "THREAT_VERYDANGEROUS";
+						Break;
+					Case THREAT_DANGEROUS:
+						Text = "THREAT_DANGEROUS";
+						Break;
+					Case THREAT_ABOVENORMAL:
+						Text = "THREAT_ABOVENORMAL";
+						Break;
+					Case THREAT_NORMAL:
+						Text = "THREAT_NORMAL";
+						Break;
+					Case THREAT_MILD:
+						Text = "THREAT_MILD";
+						Break;
+					Case THREAT_LOW:
+						Text = "THREAT_LOW";
+						Break;
+					Case THREAT_VERYLOW:
+						Text = "THREAT_VERYLOW";
+						Break;
+					Case THREAT_UNSTOPPABLE:
+						Text = "THREAT_UNSTOPPABLE";
+						Break;
+					Case THREAT_NONE:
+						Text = "THREAT_NONE";
+						Break;
+					Default:
+						Text = "Oops";
+						Break;
+				}
+				Console.Printf ("%s threat level:%s",Target.GetClassName(),Text);
 			}
-			Console.Printf ("%s threat level:%s",target.getclassname(),text);
-		}
-		stop;
-}
+			Stop;
+	}
 }

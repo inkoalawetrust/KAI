@@ -59,7 +59,7 @@ Class KAI_Actor : Actor Abstract
 			CurrentEnemyPosition = Target.Pos;
 		}
 		Else If (!Target)
-			LastEnemyPosition = CurrentEnemyPosition = (0,0,0);
+			LastEnemyPosition = CurrentEnemyPosition = (Double.NaN,Double.NaN,Double.NaN);
 	}
 	
 	/*Allows actors to define the defaults for their own user variables. This is better than the //$UserDefaultValue editor key,
@@ -211,9 +211,9 @@ Class KAI_Actor : Actor Abstract
 	//Actor properties and flags.
 	Double AggressionMultiplier; //Can be used to further increase the chance of KAI_CheckMissileRange returning true. The LOWER it is the more frequent the attacking.
 	Int ThreatLevelThreshold; //If another actors' threat level is at or over this threshold, then the NPC should do some action (Like run away, or be more likely to use stronger attacks).
+	Int ThreatLevel; //The NPCs' predetermined threat level. In its basic form it can be used as just a static value. But you could also dynamically change it, e.g based on what attacks your NPC currently has available.
 	Property AggressionMultiplier : AggressionMultiplier;
 	Property ThreatLevelThreshold : ThreatLevelThreshold;
-	Int ThreatLevel; //The NPCs' predetermined threat level. In its basic form it can be used as just a static value. But you could also dynamically change it, e.g based on what attacks your NPC currently has available.
 	Property ThreatLevel : ThreatLevel;
 	Private Int NPCFlags;
 	FlagDef NoTargetPrediction : NPCFlags, 0; //The NPC will not calculate its' targets' movement and lead its' shots.
@@ -223,7 +223,7 @@ Class KAI_Actor : Actor Abstract
 	Vector3 LastEnemyPosition; //Used by the target prediction. If the turret has a target with no velocity, it grabs their last position every tick to compare it to the current position.
 	Vector3 CurrentEnemyPosition;
 	Vector3 NextMovePos; //The next position the NPC should move to. Used by KAI_MoveAway() and KAI_Wander().
-	Int NewPosStepCount; //How many steps the actor has taken before NextMovePos is reset, so the actor will get a new point to move to. Like if gets stuck.
+	Int NewPosStepCount; //How many steps the actor has taken before NextMovePos is reset, so the actor will get a new point to move to. Like if it gets stuck.
 	
 	//Keep in mind that the threat level descriptions are mostly based on the stock AssessThreatLevel() code.
 	Enum ThreatLevels
@@ -338,7 +338,7 @@ Class KAI_BaseProjectile : FastProjectile
 	Override Void Effect()
 	{
 		If (!bNoTrailLine) Return;
-		Class<Actor> Trail = TrailActor;
+		Class<Actor> Trail = MissileName;
 		Actor Act;
 		If (Trail != Null)
 		{
@@ -385,7 +385,7 @@ Class KAI_BaseProjectile : FastProjectile
 	}
 	
 	//DOCUMENT: The actual parameters on this function. Here in the code, and on the GitHub wiki I'll set up once the KAI is tidy and finished enough.
-	Bool DeflectProjectile (Actor Victim, Int DeflectChance, Double DamageReductionFactor, Double SlowDownFactor = 0,
+	Bool DeflectProjectile (Actor Victim, Int DeflectChance, Double DamageReductionFactor, Double SlowDownFactor = 1,
 	Vector2 RandomAngle = (0,0), Vector2 RandomPitch = (0,0), Double Volume = 1, Double Attenuation = 0.9)
 	{
 		If (Random (0,255) < DeflectChance) Return False; //Fission mailed.
@@ -494,6 +494,7 @@ Class KAI_BaseProjectile : FastProjectile
 //A generic tracer effect particle.
 //ReactionTime: The tracer code uses this as a timer for how long the trail should last before vanishing.
 //bNeverRespawn: Turning on this flag causes the trail to automatically vanish if it has no master or its' master is dead.
+//bStandStill: The trail will not warp relative to its' target.
 Class KAI_Tracer : Actor
 {
 	Default {RenderStyle "Add"; Scale 0.5; ReactionTime INT.MAX; +NoBlockmap; +NoInteraction;}
@@ -505,7 +506,7 @@ Class KAI_Tracer : Actor
 		If (GetAge() >= ReactionTime || bNeverRespawn && (!Target || Target.Default.bMissile && !Target.bMissile))
 			Destroy();
 		
-		If (Target) SetOrigin (KAI_Math.Vec3OffsetRelative (Target,WarpOffsets),True);
+		If (Target && !bStandStill) SetOrigin (KAI_Math.Vec3OffsetRelative (Target,WarpOffsets),True);
 	}
 	
 	Vector3 WarpOffsets;

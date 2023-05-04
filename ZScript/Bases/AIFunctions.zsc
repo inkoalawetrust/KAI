@@ -134,11 +134,11 @@ Extend Class KAI_Actor
 	//AngleLimit: How much the actor can turn per detour. Used to not have it snap back 180 or anything like that.
 	//ChaseFlags: What flags from A_Chase should the function use ? Supports CHF_DONTMOVE, CHF_NODIRECTIONTURN, CHF_NORANDOMTURN, and CHF_STOPIFBLOCKED.
 	//Flags: The functions' own flags, see above for a list of flags.
-	void KAI_MoveTowards (Vector3 TargetPos, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0)
+	Void KAI_MoveTowards (Vector3 TargetPos, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0)
 	{
 		If (ChaseFlags & CHF_DONTMOVE || KAI_Math.IsEmptyVector3 (TargetPos)) Return;
 		
-		//Basically does what P_NewChaseDir() does to handle Thing_SetGoal's "Don't chase target" flag:https://sourcegraph.com/github.com/ZDoom/gzdoom/-/blob/src/playsim/p_enemy.cpp?L943-946
+		//Basically does what P_NewChaseDir() does to handle Thing_SetGoal's "Don't chase target" flag: https://sourcegraph.com/github.com/ZDoom/gzdoom/-/blob/src/playsim/p_enemy.cpp?L943-946
 		If (Flags & KMT_CHASEGOAL && Goal && bChaseGoal)
 			TargetPos = Goal.Pos;
 		
@@ -227,7 +227,7 @@ Extend Class KAI_Actor
 	//Makes the NPC wander around aimlessly.
 	//Attempts: How many positions to try per next position picked.
 	//MoveRad: The radius around which to find a viable position to move to.
-	//MaxSteps: How many steps the actor is allowed to take before having to find a new position to move away to.
+	//MaxSteps: How many steps the actor is allowed to take before having to find a new position to move to.
 	//The rest are KAI_MoveTowards' parameters.
 	Void KAI_Wander (Int Attempts = 24, Double MoveRad = 256, Int MaxSteps = 72, Double DetourFactor = 0.5, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0)
 	{
@@ -479,7 +479,6 @@ Extend Class KAI_Actor
 	
 	//=====|A_Chase exports (Building blocks for custom chase functions)|=====\\
 	//The checks A_Chase runs before it begins running the chase code.
-	//The A_Chase flags to pass.
 	//https://sourcegraph.com/github.com/ZDoom/gzdoom/-/blob/src/playsim/p_enemy.cpp?L2325-2376
 	Void KAI_Chase_PreChecks (Int Flags = 0)
 	{
@@ -661,9 +660,9 @@ Extend Class KAI_Actor
 	}
 	
 	//Handles the playing of the active sound.
-	Bool KAI_Chase_HandleActiveSound (Int Flags)
+	Bool KAI_Chase_HandleActiveSound (Int Flags, Int Frequency = 3)
 	{
-		if (!(Flags & CHF_NOPLAYACTIVE) && random[pr_chase](0,255) < 3)
+		if (!(Flags & CHF_NOPLAYACTIVE) && random[pr_chase](0,255) < Frequency)
 		{
 			PlayActiveSound();
 			Return True;
@@ -690,7 +689,7 @@ Extend Class KAI_Actor
 			{
 				FastChaseStrafeCount = 0;
 				Vel.X = Vel.Y = 0;
-				If (Random[pr_chase](0,255) < 100 && Distance2D(StrafeTarget) < StrafeRange)
+				If ((ForceStrafe || Random[pr_chase](0,255) < 100) && Distance2D(StrafeTarget) < StrafeRange)
 				{
 					Double Ang = AngleTo (StrafeTarget);
 					If (Random[pr_chase](0,255) < 128) Ang += 90;

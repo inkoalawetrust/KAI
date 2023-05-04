@@ -21,7 +21,7 @@ Extend Class KAI_Actor
 		}
 		
 		//Target has no velocity for VelIntercept to work with. This is almost always the case for normal NPCs, which move using small teleport steps, instead of actual movement.
-		If ((Target.Vel.X == 0 && Target.Vel.Y == 0 && Target.Vel.Z == 0))
+		If (KAI_Math.IsZeroVector3 (Target.Vel))
 		{
 			OldVel = Target.Vel;
 			
@@ -30,7 +30,7 @@ Extend Class KAI_Actor
 			Else //Fallback to prevent division by zero.
 				Target.Vel = Level.Vec3Diff (LastEnemyPosition,CurrentEnemyPosition);
 			
-			If ((Target.Vel.X == 0 && Target.Vel.Y == 0 && Target.Vel.Z == 0)) //Still no velocity
+			If (KAI_Math.IsZeroVector3 (Target.Vel)) //Still no velocity
 			{
 				NormalProjectileFire (Projectile,SpreadHorz,SpreadVert);
 				Target.Vel = OldVel; //Revert velocity.

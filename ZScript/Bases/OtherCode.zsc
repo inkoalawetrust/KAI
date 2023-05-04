@@ -41,6 +41,12 @@ Class KAI_Math
 	{
 		Return (Vec != Vec);
 	}
+	
+	//Is the vector (0,0,0) ?
+	ClearScope Static Bool IsZeroVector3 (Vector3 Vec)
+	{
+		Return (Vec.X == 0 && Vec.Y == 0 && Vec.Z == 0);
+	}
 }
 
 Mixin Class KAI_UniversalFunctions

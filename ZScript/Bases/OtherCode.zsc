@@ -288,10 +288,10 @@ Class KAI_LOFRaycast : LineTracer
 	//HealthThreshold: If the props' health is at or below this value, then shoot.
 	Bool CanShootAtProp (Actor Other, Int HealthThreshold = 400)
 	{
-		If (!Other || !Shooter) Return False;
+		If (!Other/* || !Shooter*/) Return False;
 		If (HealthThreshold <= 0) Return True; //No health limit specified. You can shoot it.
 		
-		//Actor is an destructible inanimate object. And it's health is at or below the minimum threshold.
+		//Actor is an destructible inanimate object. And its health is at or below the minimum threshold.
 		If (IsInanimateObject (Other) && !IsIndestructible (Other) && Other.Health <= HealthThreshold)
 			Return True;
 		
@@ -537,7 +537,7 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 			Double Distance;
 			If (SplashRadius > 0 && Other && !Other.bNoRadiusDmg && Distance <= SplashRadius)
 			{
-				Distance = Level.Vec3Diff (Other.Pos,Results.HitPos).Length();;
+				Distance = Level.Vec3Diff (Other.Pos,Results.HitPos).Length();
 				If (CheckSightTo (Shooter,Other,Distance))
 					Return Trace_Stop;
 				Else

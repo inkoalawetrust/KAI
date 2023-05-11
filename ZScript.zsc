@@ -21,7 +21,7 @@ But there are also some I want to make specifically for this codebase, like MAYD
 //IDEA:
 //Add a projectile array that is updated every time a projectile appears and vanishes from the world. Will probably do this for the active protection system for the MVPs' tank.
 //DEBUG DEBUG DEBUG
-class TestPinky : KAI_Actor Replaces Demon
+class TestPinky : KAI_Actor// Replaces Demon
 {
 Default
 	{

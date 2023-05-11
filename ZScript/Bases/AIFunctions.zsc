@@ -126,7 +126,9 @@ Extend Class KAI_Actor
 	
 	Double LastTurnDir;
 	Int TurnCount; //Keeps track of how many turns in a row an actor calling KAI_MoveTowards with CHF_NORANDOMTURN should make.
+	
 	//Makes the actor move towards the specified actor.
+	//IDEA: Make actors move using velocity instead of TryMove(). This will require GetFriction() for CheckMove().
 	//FIXME: There's some flickering between different sprite angles, try fixing it.
 	//CREDIT: Written by Custodian. Modified and expanded by me (inkoalawetrust).
 	//Other: The actor to move to.
@@ -231,12 +233,13 @@ Extend Class KAI_Actor
 	//The rest are KAI_MoveTowards' parameters.
 	Void KAI_Wander (Int Attempts = 24, Double MoveRad = 256, Int MaxSteps = 72, Double DetourFactor = 0.5, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0)
 	{
+		Int Friend = KAI_GetFriendPlayer();
 		OnWander(); //Virtual callback
 		
 		//Friendly monsters follow the player they work for by default.
-		If (bFriendly && !bDontFollowPlayers && PlayerInGame[FriendPlayer-1] && Players[FriendPlayer-1].Mo)
+		If (bFriendly && !bDontFollowPlayers && PlayerInGame[Friend] && Players[Friend].Mo)
 		{
-			KAI_MoveTowards (Players[FriendPlayer-1].Mo.Pos, DetourFactor, AngleLimit, ChaseFlags, Flags);
+			KAI_MoveTowards (Players[Friend].Mo.Pos, DetourFactor, AngleLimit, ChaseFlags, Flags);
 			Return;
 		}
 		
@@ -447,6 +450,20 @@ Extend Class KAI_Actor
 	}
 	
 	//=====|Miscelleneous AI functions|=====\\
+	
+	Int KAI_GetFriendPlayer()
+	{
+		If (FriendPlayer != 0)
+			Return FriendPlayer-1;
+		Else
+		{
+			If (!Multiplayer)
+				Return 0;
+		}
+		
+		Return 0;
+	}
+	
 	//Checks if the actor is in any of the attack states defined, and if it is, it also returns a pointer to that state.
 	State IsInAttackState()
 	{

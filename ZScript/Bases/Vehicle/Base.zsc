@@ -3,6 +3,7 @@ However, the CurrentOrder variable, bNoRadio flag, and VehicleCommands enum is s
 If I do implement the order system to KAI actors, it will probably be before the marine rewrite. So I'll have to rewrite the vehicle chase function.*/
 
 //TODO:
+//Add a function that makes turrets actually rotate ahead of where their target will be. Replacing HandleTargetPrediction().
 //Add a headlightsound property, that plays a sound when the vehicles' headlights turn on or off.
 
 //FIXME:
@@ -31,6 +32,7 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 		KAI_BaseVehicle.MaxCorpseRadius 64;
 		KAI_BaseVehicle.MaxCorpseHeight 48;
 		KAI_BaseVehicle.HeadlightLevel 104;
+		KAI_BaseVehicle.RetreatRange 768;
 		Tag "Vehicle Base (You really shouldn't be seeing this in-game)";
 		
 		//Flags
@@ -239,9 +241,11 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 			#### # 0
 			{
 				//Face sideways from your target, if any.
-				A_FaceTarget ();
 				If (Target)
-					Angle += RandomPick (75,80,85,90,95,10,105);
+				{
+					A_FaceTarget ();
+					Angle += RandomPick (75,80,85,90,95,100,105);
+				}
 			}
 			#### # 4 //If an enemy has gotten too close, the turret can't attack, or enough time has passed, then stop standing around.
 			{
@@ -365,7 +369,7 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 				A_StartSound (TurnSound,CHAN_BODY,0,0.8,0.8);
 		}
 		
-		ElevationState = TurretOverPitchLimits();
+		ElevationState = GetElevationState();
 		If (ElevationState != ELEVATION_INBOUNDS) Pitch = Clamp (Pitch,MaxPitch,MinPitch); //Turrets can't move past their elevation limits.
 		
 		If (!Master || IsDead && bFallOnDeath) Return;

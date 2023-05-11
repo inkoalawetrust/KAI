@@ -79,14 +79,13 @@ Extend Class KAI_BaseVehicle
 	}
 	
 	//The standard land vehicle chase function.
-	//WaitState: The state the vehicle should wait in if it stopped at a delayed patrol point. No state means it just calls SetState.
+	//WaitState: The state the vehicle should wait in if it stopped at a delayed patrol point. No state means it just calls SetIdle.
 	//Flags: The flags to use. Look above for a list.
 	//ChaseFlags: The A_Chase flags to use. Supports the same flags' KAI_MoveTowards does.
 	//TurnRadius: How wide the turns the vehicle takes are, the smaller the number the bigger the turn. Default is 10 degrees per step.
 	//FollowDist: The minimum distance the vehicle must have from its' friend player (If friendly) before it stops following them. To prevent dogpiling.
-	//RetreatDist: The amount of distance the vehicle generally keeps from enemies. Quadrupled for actors whose threat level is above the ThreatLevelThreshold property.
 	//MoveParams: A struct that can pass detailed parameters for KAI_MoveTowards/Away. For the ChaseFlags and AngleLimit params, use the ChaseFlags and TurnRadius properties.
-	Void KAI_LandVehicleChase (StateLabel WaitState = Null, Int Flags = 0, Int ChaseFlags = 0, Double TurnRadius = 10, Double FollowDist = 384, Double RetreatDist = 768, MoveToParams MoveParams = Null)
+	Void KAI_LandVehicleChase (StateLabel WaitState = Null, Int Flags = 0, Int ChaseFlags = 0, Double TurnRadius = 10, Double FollowDist = 384, MoveToParams MoveParams = Null)
 	{
 		//No detailed movement parameters, use defaults
 		//HACK: ZScript does not allow me to make a struct instance for MoveParams if none is passed. So we create a struct and call Chase again :>>>>>>>>
@@ -97,12 +96,12 @@ Extend Class KAI_BaseVehicle
 			Default_Params.DetourFactor = 1.0;
 			Default_Params.Attempts = 32;
 			Default_Params.StepThreshold = 32;
-			KAI_LandVehicleChase(WaitState, Flags, ChaseFlags, TurnRadius, FollowDist, RetreatDist, Default_Params); //The optimal GZDoom solution.
+			KAI_LandVehicleChase(WaitState, Flags, ChaseFlags, TurnRadius, FollowDist, Default_Params); //The optimal GZDoom solution.
 			Return;
 		}
 		
 		Bool MovedAlready; //If one of the KAI_MoveTowards/Away calls was made. Don't call the rest.
-		Double MajorThreatRange = (RetreatDist*4)*(RetreatDist*4);
+		Double MajorThreatRange = (RetreatRange*4)*(RetreatRange*4);
 		//Temporarily store the aggro multiplier that is changed by the fear code. Then reset it after ShouldAttack() finishes.
 		Double OldAggro = AggressionMultiplier;
 		
@@ -141,7 +140,7 @@ Extend Class KAI_BaseVehicle
 		//If you can move and haven't done so already.
 		If (!(ChaseFlags & CHF_DONTMOVE) && !MovedAlready)
 		{
-			If (!(IsPatrolling(Self) && bChaseGoal)) NearestEnemy = FindNearestEnemy (RetreatDist);
+			If (!(IsPatrolling(Self) && bChaseGoal)) NearestEnemy = FindNearestEnemy (RetreatRange);
 			//If you aren't patrolling and not allowed off your route, and there is an enemy nearby.
 			If (NearestEnemy)
 			{
@@ -216,19 +215,22 @@ Extend Class KAI_BaseVehicle
 	//As a friendly vehicle, only follow the player until within a certain distance from them, to prevent the player from being dogpiled by vehicles.
 	Void FollowPlayerControl (Double MaxDist = 384)
 	{
-		If (!bFriendly || !PlayerInGame[FriendPlayer-1] || CurrentOrder == ORDER_WANDER)
+		If (!bFriendly || !Players[KAI_GetFriendPlayer()].Mo || CurrentOrder == ORDER_WANDER)
 			Return;
 		
-		bDontFollowPlayers = (Distance3DSquared (Players[FriendPlayer-1].Mo) <= MaxDist*MaxDist);
+		bDontFollowPlayers = (Distance3DSquared (Players[KAI_GetFriendPlayer()].Mo) <= MaxDist*MaxDist);
 	}
 	
 	Enum RetargetHullFlags
 	{
 		RVHF_NOTARGETCHANGE 		= 1 << 0, //This function should only return if the hull should be targeted, instead of also doing the actual retargeting.
-		RVHF_NOTRANSFERDAMAGECHECK	= 1 << 1, //The function should not retarget hulls larger than their bTransferDamage turret.
-		RVHF_NOWEAKHULLCHECK		= 1 << 2, //The function should not retarget hulls weaker than whatever turret the caller is targeting.
+		RVHF_NOTRANSFERDAMAGECHECK	= 1 << 1, //Don't retarget hulls larger than their bTransferDamage turret.
+		RVHF_NOWEAKHULLCHECK		= 1 << 2, //Don't retarget hulls weaker than whatever turret the caller is targeting.
 	}
 	
+	/*MAYDO: Move this to KAI_Actor, or add a function similar to it to KAI_Actor.
+	To make it possible to easily prevent dumb scenarios like non-flying melee enemies (e.g) trying to attack a turret porched on top of a vehicle.*/
+	//MAYDO: Add a check where even if any of these retarget conditions are met, the caller will not retarget if the hull is not actually hittable or visible.
 	//Makes vehicles target the hulls of vehicles instead of their turrets' under certain conditions:
 	//If the turret has bTransferDamage and is smaller than the vehicle it's attached to. Since attacking the turret only harms the vehicle, might as well shoot the bigger hull instead.
 	//If the hulls' health is less than the health of the turret being targeted. Would be quicker to kill the vehicle than the turret.
@@ -237,13 +239,14 @@ Extend Class KAI_BaseVehicle
 	{
 		If (!Target || !Master) Return False;
 		
+		//Turret must be attached on a vehicle to actually retarget.
 		If (Target Is "KAI_BaseTurret" && Target.Master)
 		{
 			//If the damage that the targeted turret takes is transfered to the vehicle anyway (bTransferDamage).
 			If (!(Flags & RVHF_NOTRANSFERDAMAGECHECK) && KAI_BaseTurret(Target).bTransferDamage)
 			{
 				//And the vehicle the turret is attached to is overall bigger than the turret.
-				If (Master.Radius > Target.Radius && Master.Height > Turret.Height)
+				If (Target.Master.Radius > Target.Radius && Target.Master.Height > Turret.Height)
 				{
 					If (!(Flags & RVHF_NOTARGETCHANGE)) Target = Target.Master; //Then target the vehicle the turret is attached to.
 					Return True;
@@ -260,9 +263,9 @@ Extend Class KAI_BaseVehicle
 	}
 	
 	//Used to make vehicles able to run over and grind corpses like crushers.
-	Void KAI_CrushCorpses (Double RadiusMultiplier = 1.75)
+	Void KAI_CrushCorpses (Double RadiusMultiplier = 1.0)
 	{
-		BlockThingsIterator Crusher = BlockThingsIterator.Create (Self);
+		BlockThingsIterator Crusher = BlockThingsIterator.Create (Self,Radius*RadiusMultiplier);
 		Actor Mobj;
 		
 		While (Crusher.Next())
@@ -281,32 +284,6 @@ Extend Class KAI_BaseVehicle
 			Mobj.Grind (False); //Crush corpse, but not items.
 		}
 	}
-	
-	//Throws actors away from the caller, the code is mostly copied from BlastActor.
-	Void FlingActor (Actor Victim, Double Speed, Bool Harmless, Bool PushImmovables = False)
-	{
-		Double Ang = AngleTo(Victim);
-		Vector2 Move = AngleToVector(Ang, Speed);
-		
-		Victim.Vel.XY = Move;
-		Victim.Vel.Z = 500. / Victim.Mass;
-		
-		If (Victim.Player)
-		{
-			// Players handled automatically
-		}
-		Else If (!Harmless)
-		{
-			Victim.bBlasted = True;
-		}
-		
-		If (Victim.bTouchy) // Touchy objects die when blasted
-		{
-			Victim.bArmed = False; // Disarm
-			Victim.DamageMobj(Self, Self, Victim.Health, 'Melee', DMG_FORCED|DMG_EXPLOSION);
-		}
-	}
-	
 		//=====|Headlight functions|=====\\
 		//Turn the vehicles' headlights on.
 		Void TurnHeadlightsOn()

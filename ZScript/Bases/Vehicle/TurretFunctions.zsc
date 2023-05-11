@@ -3,7 +3,7 @@
 Extend Class KAI_BaseTurret
 {
 	//Is the turret too high or too low over its' elevation limits ?
-	Int TurretOverPitchLimits()
+	Int GetElevationState()
 	{
 		Double Diff = 0.1; //The turret pitch is clamped every tick, so this small difference allows them to still stop shooting.
 		If (MaxPitch != 0 && Pitch-Diff < MaxPitch) Return ELEVATION_TOOHIGH;
@@ -15,7 +15,7 @@ Extend Class KAI_BaseTurret
 	//ZOfs and TargZOfs are properties passed over to PitchTo().
 	Int IsOverPitchLimits (Actor Other, Double ZOfs = 0, Double TargetZOfs = 0)
 	{
-		If (!Other) Return ELEVATION_INBOUNDS; //No other actor specified.
+		If (!Other || MaxPitch == 0 && MinPitch == 0) Return ELEVATION_INBOUNDS; //No other actor or pitch limits specified.
 		
 		Double PitchToOther = PitchTo (Other,ZOfs,TargetZOfs);
 		
@@ -42,8 +42,8 @@ Extend Class KAI_BaseTurret
 	
 	Enum TurretRotationFlags
 	{
-		RTVF_NOTARGETCHECK	= 1 << 0, //The turret will apply its' rotation mechanics even without a target.
-		RTVF_RELATIVEONLY	= 1 << 1, //The turret will only rotate relative to its masters' angle + its' DeathAngleOffset, even if the turret isn't destroyed.
+		RTVF_NOTARGETCHECK	= 1 << 0, //The turret will apply its' rotation mechanics even if it has a target.
+		RTVF_RELATIVEONLY	= 1 << 1, //The turret will only rotate relative to its masters' angle + its' TurretRotationOffset, even if the turret isn't destroyed.
 	}
 	
 	//Makes the turret rotate back over time to the direction that the vehicle is facing. Instead of snapping back instantly.
@@ -90,6 +90,7 @@ Extend Class KAI_BaseTurret
 	//Performs the special combat traverse code when the turret is in one of its' defined AttackStates. This is called in KAI_BaseTurrets' Tick().
 	Void DoCombatTraverse (Actor ToWhat)
 	{
+		If (bNoCombatTraverse || !ToWhat) Return;
 		//NOTE: A pitch of 270 means no pitch shifting in A_Face, which is bad for the turrets, since code like their LOF checks normally relies on them actually facing the target properly.
 		Double AngleTraverse = CombatAngleTurnRate > 0 ? CombatAngleTurnRate/GameTicRate : 0;
 		Double PitchTraverse = CombatPitchTurnRate > 0 ? CombatPitchTurnRate/GameTicRate : 0;

@@ -3,7 +3,7 @@ However, the CurrentOrder variable, bNoRadio flag, and VehicleCommands enum is s
 If I do implement the order system to KAI actors, it will probably be before the marine rewrite. So I'll have to rewrite the vehicle chase function.*/
 
 //TODO:
-//Add a function that makes turrets actually rotate ahead of where their target will be. Replacing HandleTargetPrediction().
+//Probably remove or deprecate RotateToVehicle()'s super fast turning, or something.
 //Add a headlightsound property, that plays a sound when the vehicles' headlights turn on or off.
 
 //FIXME:
@@ -293,7 +293,7 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 	//Note: If your turret has bTransferDamage, any splash damage the vehicle itself receives will be effectively doubled due to the damage transfer.
 	//If you do not want this unintended consequence of the flag, then give the turret the +NORADIUSDMG flag !
 	FlagDef TransferDamage : TurretFlags, 2; //The turret will transfer damage taken to its' master (The vehicle it's on). Instead of taking any of its' own.
-	FlagDef NoCombatTraverse: TurretFlags, 3; //The stock combat traverse code will not run, can be used to give the turret its' own turn logic when firing.
+	FlagDef NoCombatTraverse : TurretFlags, 3; //The stock combat traverse code will not run, can be used to give the turret its' own turn logic when firing.
 	
 	//Turret turning variables and properties.
 	Double MaxPitch, MinPitch, TurnAmount, TurnSoundRadius, CombatAngleTurnRate, CombatPitchTurnRate;
@@ -305,6 +305,8 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 	Property TurnSound : TurnSound; //The sound the turret makes when it turns.
 	Property CombatAngleTurnRate : CombatAngleTurnRate; //How fast the turret changes its' angle to face its' target when in combat. In degrees per second.
 	Property CombatPitchTurnRate : CombatPitchTurnRate; //How fast the turret changes its' pitch to face its' target when in combat. In degrees per second.
+	Double TurretAttackSpeed; //The speed of the turrets' attack, in MU/tic, used by the target prediction code to estimate where the turret should aim ahead at.
+	Property AttackSpeed : TurretAttackSpeed;
 	
 	Int TurretSnapDelay; //Used for the turret rotating code, to make it so the turret snaps back to the vehicle after some time of not having a target.
 	Double TurretRotationOffset; //Can be used to offset the rotation of the turret by this exact amount. Used by turrets when they are destroyed, and by prop turrets.
@@ -358,7 +360,7 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 		//Combat turret traverse handling.
 		If (!bNoCombatTraverse && !IsDead)
 			If (IsInAttackState())
-				DoCombatTraverse (Target);
+				DoCombatTraverse();
 		
 		//Play the turrets' turning sound whenever it's not dead.
 		If (TurnSound && !IsDead)

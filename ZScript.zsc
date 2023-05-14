@@ -51,14 +51,14 @@ Default
 		SARG AABBCCDD 2 Fast// A_Chase;
 		{
 			//If (!done && Target) {done = true;IsPosReachable(Target.Pos,(Target.Radius*2)+(Radius*2)+8);}
-			//KAI_Chase_PreChecks(0);
-			//KAI_Chase_Retarget(0);if (goal && target != goal) target = goal;
-			//if (goal)KAI_MoveTowards(goal.Pos,detourfactor:0.5);
-			//KAI_Chase_HandleActiveSound(0);
-			//KAI_Chase_PatrolHandling();
+			KAI_Chase_PreChecks(0);
+			KAI_Chase_Retarget(0);if (goal && target != goal) target = goal;
+			if (goal)KAI_MoveTowards(goal.Pos,detourfactor:0.5);
+			KAI_Chase_HandleActiveSound(0);
+			KAI_Chase_PatrolHandling();
 			//KAI_Wander(32,1024,256);
 			//if (target) KAI_MoveAway(target,runrad:256,detourfactor:0.5);
-			A_Chase (Null,Null);
+			//A_Chase (Null,Null);
 		}
 		Loop;
 	}

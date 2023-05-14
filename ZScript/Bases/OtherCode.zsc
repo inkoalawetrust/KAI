@@ -36,6 +36,12 @@ Class KAI_Math
 		Return Level.Vec3Offset (Other.Pos,Dir * Offs,NoPortal);
 	}
 	
+	//CREDIT: RicardoLuis0
+	ClearScope Static Vector3 AngleToVector3D(Double Angle, Double Pitch, Double Len = 1.0)
+	{
+		Return (Cos(Angle)*Cos(Pitch)*Len,Sin(Angle)*Cos(Pitch)*Len,Sin(Pitch)*Len);
+	}
+	
 	//Is the vector empty ? Not (0,0,0), but completely empty.
 	ClearScope Static Bool IsEmptyVector3 (Vector3 Vec)
 	{
@@ -202,6 +208,16 @@ Mixin Class KAI_CheckFunctions
 		Return (Other.FindState ("Heal"));//I checked several mods with Archvile-type monsters. And all of them have a Heal state. Making this the only universal way to check for them.
 	}
 	
+	/*TODO: Add a VelocityMonster variable to KAI_DataToken, to mark actors as moving with velocity instead of TryMove().
+	I will also probably change KAI_MoveTowards to move monsters with velocity instead of TryMove if a new +OLDMOVEMENT flag is off.
+	Obviously these should be checked here.*/
+	ClearScope Bool IsTeleportingMonster (Actor Other)
+	{
+		If (!Other) Return False;
+		
+		Return (Other.bIsMonster && !Other.Player);
+	}
+	
 	/*IDEA: I may add a generic group system for KAI_Actors in the future, similar to the squad system in the old Smart Marines.
 	If I do that, then this function should be able to return true if an actor in the callers' group is attacked, even for hostile monsters !*/
 	//Is the other actor targeting an ally of the caller ?
@@ -254,25 +270,33 @@ Class KAI_LOFRaycast : LineTracer
 	Array <Actor> Mobjs; //An array of all the mobjs that were found. Can be returned to functions by using the out keyword.
 	
 	//Visualizes a path between OriginPos and FinalPos with a length specified by Distance. Used to debug where LOF checks start, go to, and end.
-	Static Void VisualizeTracePath (Vector3 OriginPos, Vector3 FinalPos, Double Distance)
+	Static Void VisualizeTracePath (Vector3 OriginPos, Vector3 FinalPos, Double Distance, Double Spacing = 4, FSpawnParticleParams Params = Null)
 	{
 		Vector3 Path = Level.Vec3Diff (OriginPos,FinalPos);
 		Double PathDist = Distance;
 		Path /= PathDist;
 		If (!(PathDist <= 1))
 		{
-			For( Double I = 0; I < PathDist; I += 4)
+			For( Double I = 0; I < PathDist; I += Spacing)
 			{
-				FSpawnParticleParams P;
-				P.Color1 = "White";
-				P.Style = STYLE_None;
-				P.Lifetime = GameTicRate/2;
-				P.Pos = Level.Vec3Offset (OriginPos,Path*I);
-				P.Size = 4;
-				P.StartAlpha = 1;
-				P.FadeStep = -1;
-				P.Flags = SPF_FULLBRIGHT;
-				Level.SpawnParticle (P);
+				If (!Params)
+				{
+					FSpawnParticleParams P;
+					P.Color1 = "White";
+					P.Style = STYLE_None;
+					P.Lifetime = GameTicRate/2;
+					P.Pos = Level.Vec3Offset (OriginPos,Path*I);
+					P.Size = 4;
+					P.StartAlpha = 1;
+					P.FadeStep = -1;
+					P.Flags = SPF_FULLBRIGHT;
+					Level.SpawnParticle (P);
+				}
+				Else
+				{
+					Params.Pos = Level.Vec3Offset (OriginPos,Path*I);
+					Level.SpawnParticle (Params);
+				}
 			}
 		}
 	}
@@ -548,6 +572,45 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 			}
 			Else
 				BadLOF = True;
+			Return Trace_Stop;
+		}
+		
+		Return Trace_Skip;
+	}
+}
+
+//Generic LOF check used by turrets that are aiming ahead of their target to shoot their projectiles during combat traversal.
+//Can be used to make the turret stop shooting if the point it's shooting ahead off has obstacle that will stop the shots anyway, or if allies will be hurt.
+/*Class KAI_TargetTrackCheck : KAI_LOFRaycast
+{
+	Bool FriendlyFire; //Can the attack we are checking hurt the friends of its' shooter ?
+	Int StopChance; //The chance it'll return BadLOF if a blocking non-friendly actor is in the way.
+	Bool ShouldStop()
+	{
+		Return (StopChance <= 0 || Random2[pr_monsterrefire]() >= StopChance);
+	}
+	Override ETraceStatus TraceCallback()
+	{
+		Actor Mobj = Results.HitActor;
+		
+		//Stop if friendly fire prevention is on and you are going to hit an ally.
+		If (FriendlyFire && !IsInanimateObject (Mobj) && !IsDead (Mobj) && !IsHostile (Shooter,Mobj))
+		{
+			BadLOF = True;
+			Return Trace_Stop;
+		}
+		
+		//Projectile blocking actor in the way, stop if the chance is met.
+		If ((IsCollidable(Mobj,Shooter) || IsSolidCorpse (Mobj)) && ShouldStop())
+		{
+			BadLOF = True;
+			Return Trace_Stop;
+		}
+		
+		//Level geometry in the way, stop if the chance is met..
+		If ((HitLevelGeometry(Results) || BlockingLineInTheWay (Results.HitLine,0)) && ShouldStop())
+		{
+			BadLOF = True;
 			Return Trace_Stop;
 		}
 		

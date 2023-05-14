@@ -37,7 +37,7 @@ Class KAI_Actor : Actor Abstract
 	{
 		Super.PostBeginPlay ();
 		UserVariableDefaults(); //User variables cannot be handled in BeginPlay().
-		NextMovePos = (Double.NaN,Double.NaN,Double.NaN); //This should be empty.
+		NextMovePos = LastEnemyPosition = CurrentEnemyPosition = (Double.NaN,Double.NaN,Double.NaN); //These should be empty.
 		if (!(self is "kai_baseturret"))debugpoint = spawn ("kai_debugpoint",pos);//DEBUG
 	}
 	actor debugpoint; //DEBUG
@@ -53,13 +53,16 @@ Class KAI_Actor : Actor Abstract
 		If (IsFrozen()) Return;
 		if (!kai_math.isemptyvector3(NextMovePos) && debugpoint) debugpoint.setorigin (NextMovePos,true); //DEBUG
 		//Keeps track of the current targets' position for the target prediction code.
-		If (Target && Target.Tics == Target.CurState.Tics)
+		If (Target && Target.Tics != 0 && Target.Tics == Target.CurState.Tics || Target && !IsTeleportingMonster(Target))
 		{
+			If (KAI_Math.IsEmptyVector3(CurrentEnemyPosition))
+				CurrentEnemyPosition = Target.Pos;
+			
 			LastEnemyPosition = CurrentEnemyPosition;
 			CurrentEnemyPosition = Target.Pos;
 		}
 		Else If (!Target)
-			LastEnemyPosition = CurrentEnemyPosition = (Double.NaN,Double.NaN,Double.NaN);
+			{LastEnemyPosition = CurrentEnemyPosition = (Double.NaN,Double.NaN,Double.NaN);a_log ("nulled my pants");}
 	}
 	
 	/*Allows actors to define the defaults for their own user variables. This is better than the //$UserDefaultValue editor key,

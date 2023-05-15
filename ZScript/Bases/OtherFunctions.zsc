@@ -5,6 +5,7 @@ Extend Class KAI_Actor
 	//BUG: I think the target prediction is fucked in some way. It seems to not lead shots properly with targets that have 1 tic long states.
 	//TODO: Implement the tracking code from KAI_BaseTurret()'s AimAtTarget() function.
 	//TODO: Add an FOV cone check to prevent backshots and other oddities. Also probably rename this to VelInterceptEx.
+	//DOCUMENT: When I rename this to VelInterceptEx(), document that change to the wiki.
 	//Allows NPCs to lead their shots based on their targets' movement, regardless of whether or not it's a player or monster. Unlike VelIntercept().
 	//This is called after the projectile has been spawned, to modify its' trajectory post-spawn. Code is also run in the NPCs' tick for target position updates.
 	//Projectile: The projectile to modify.
@@ -27,10 +28,11 @@ Extend Class KAI_Actor
 		{
 			OldVel = Target.Vel;
 			
-			If (Target.CurState.Tics)
+			Target.Vel = GetTeleportMoveDivision();
+			/*If (Target.CurState.Tics)
 				Target.Vel = Level.Vec3Diff (LastEnemyPosition,CurrentEnemyPosition) / Target.CurState.Tics;
 			Else //Fallback to prevent division by zero.
-				Target.Vel = Level.Vec3Diff (LastEnemyPosition,CurrentEnemyPosition);
+				Target.Vel = Level.Vec3Diff (LastEnemyPosition,CurrentEnemyPosition);*/
 			
 			If (KAI_Math.IsZeroVector3 (Target.Vel)) //Still no velocity
 			{

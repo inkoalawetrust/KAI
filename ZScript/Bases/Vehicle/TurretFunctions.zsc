@@ -123,97 +123,30 @@ Extend Class KAI_BaseTurret
 		Tics = Clamp (Tics,1,INT.MAX); //Needs at least 1 tic.
 		FloatTics = Tics; //Finer precision on multiplier the extrapolated velocity, for extra accuracy.
 		Vector3 OldPos = Target.Pos;
-		//If the actor to face is your target and it has no velocity.
-		/*If (FaceTo == Target && KAI_Math.IsZeroVector3 (FaceTo.Vel))
+		Vector3 Test = Level.Vec3Diff (LastEnemyPosition,Target.Pos);
+		If (IsTeleportingMonster(Target))
 		{
-			//IsTeleportMonster = False;
-			Vector3 FuturePos = PredictFutureTargetPosition(FloatTics);
-			If (FuturePos == FaceTo.Pos || KAI_Math.IsEmptyVector3(FuturePos))
-			{a_log ("still nothing");
-				TraceAimingDirection (MaxTargetRange);
-				A_Face (FaceTo, Max_Turn, Max_Pitch, Ang_Offset, Pitch_Offset, Flags, Z_Ofs);
-				Return;
-			}
-			//IsTeleportMonster = True; //If the target brought the turret here, and does have some fake velocity, then it's probably a normal monster.
-			//a_log ("tracking monster");
-			//Then try to predict its' future velocity and turn there instead.
-			FaceTo.SetOrigin (FuturePos,True);
-			console.printf ("future %.4f %.4f %.4f, present %.4f %.4f %.4f",futurepos.x,futurepos.y,futurepos.z,target.pos.x,target.pos.y,target.pos.z);
-			//DEBUG: Fire a white beam at the desired turret direction.
-			FSpawnParticleParams P; P.Color1 = "White"; P.Style = STYLE_None; P.Lifetime = 1; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
-			KAI_LOFRaycast.VisualizeTracePath(Pos,faceto.pos,MaxTargetRange,params:p);
-			TraceAimingDirection (MaxTargetRange);
-			A_Face (FaceTo, Max_Turn, Max_Pitch, Ang_Offset, Pitch_Offset, Flags, Z_Ofs);
-			FaceTo.SetOrigin (OldPos,True);
-			Return;
-		}*/
-		//If it's not your target or already has velocity, the prediction should be much simpler.
-		//Else If (!KAI_Math.IsZeroVector3 (FaceTo.Vel))
-		//{
-			//console.printf ("non-target current position is %d %d %d",faceto.pos.x,faceto.pos.y,faceto.pos.z);
-			Vector3 Test = Level.Vec3Diff (LastEnemyPosition,Target.Pos);
-			If (IsTeleportingMonster(Target))
-			{
-				Vector3 TPOnly = Level.Vec3Diff (Test,Target.Vel); //Get the teleport movement, sans velocity.
-				TPOnly = GetTeleportMoveDivision();
-				console.printf ("tponly is %.3f %.3f %.3f",tponly.x,tponly.y,tponly.z);
-				Test = Level.Vec3Offset (TPOnly,Target.Vel);
-			}
-			console.printf ("velocity is %.3f %.3f %.3f",target.vel.x,target.vel.y,target.vel.z);
-			Target.SetXYZ (Level.Vec3Offset (Target.Pos,Test*FloatTics));
-			a_log ("go velocity");
-			//DEBUG: Fire a white beam at the desired turret direction.
-			FSpawnParticleParams P; P.Color1 = "White"; P.Style = STYLE_None; P.Lifetime = 1; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
-			KAI_LOFRaycast.VisualizeTracePath(Pos,Target.pos,MaxTargetRange,8,p);
-			//DEBUG: And fire a yellow beam at the actual direction.
-			TraceAimingDirection (MaxTargetRange);
-			
-			//console.printf ("non-target future position is %d %d %d",faceto.pos.x,faceto.pos.y,faceto.pos.z);
-			A_Face (Target, Max_Turn, Max_Pitch, Ang_Offset, Pitch_Offset, Flags, Z_Ofs);
-			Target.SetXYZ (OldPos);
-			Return;
-		//}
-		//If all else fails, just call A_Face normally.
-		//Else
-		//	{A_Face (FaceTo, Max_Turn, Max_Pitch, Ang_Offset, Pitch_Offset, Flags, Z_Ofs);a_log ("you fell off+mid");}
-	}
-	
-	//Fire a yellow ray at the specified distance away from the direction the turret is at. Debug function.
-	Void TraceAimingDirection (Double Distance)
-	{
-		FSpawnParticleParams PP; PP.Color1 = "Yellow"; PP.Style = STYLE_None; PP.Lifetime = 1; PP.Size = 10; PP.StartAlpha = 1; PP.FadeStep = -1; PP.Flags = SPF_FULLBRIGHT;
-		Vector3 FacingPos = Level.Vec3Offset(Pos,KAI_Math.AngleToVector3D(Angle, -Pitch, Distance));
-		KAI_LOFRaycast.VisualizeTracePath(Pos,FacingPos,Distance,8,pp);
-	}
-	
-	//Tries to very crudely predict where the target will be in the next tick.
-	//KLUDGE: The fact that GZDoom doesn't store the position actors had in the last tick is a huge pain in the ass.
-	//FIXME: Figure out why every few dozen tics or so, the future position stops being returned.
-	Vector3 PredictFutureTargetPosition (Int FutureTics = 1, Bool ForceFakeVel = False)
-	{
-		If (!Target) Return (Double.NaN,Double.NaN,Double.NaN);
-		
-		FutureTics = Clamp (FutureTics,1,INT.MAX); //Needs at least 1 tic.
-		
-		If (KAI_Math.IsZeroVector3 (Target.Vel) || ForceFakeVel)
-		{
-			Vector3 FakeVel;
-			spawn ("kai_debugpoint",lastenemyposition);
-			//Copied from HandleTargetPrediction() (VellIntercept() wrapper)
-			If (Target.CurState.Tics)
-				FakeVel = Level.Vec3Diff (LastEnemyPosition,CurrentEnemyPosition) / Target.CurState.Tics;
-			Else //Fallback to prevent division by zero.
-				FakeVel = Level.Vec3Diff (LastEnemyPosition,CurrentEnemyPosition);
-			
-			If (KAI_Math.IsZeroVector3 (FakeVel)) //The target is just flat out not actually moving.
-				{a_log ("epic monster tracking fail");Return (Double.NaN,Double.NaN,Double.NaN);}
-			
-			Return Level.Vec3Offset (Target.Pos,FakeVel*FutureTics);
+			Vector3 TPOnly = Level.Vec3Diff (Test,Target.Vel); //Get the teleport movement, sans velocity.
+			TPOnly = GetTeleportMoveDivision();
+			console.printf ("tponly is %.3f %.3f %.3f",tponly.x,tponly.y,tponly.z);
+			Test = Level.Vec3Offset (TPOnly,Target.Vel);
 		}
+		console.printf ("velocity is %.3f %.3f %.3f",target.vel.x,target.vel.y,target.vel.z);
+		Target.SetXYZ (Level.Vec3Offset (Target.Pos,Test*FloatTics));
+		a_log ("go velocity");
+		//IDEA: Add a debug CVAR that can be enabled to spawn these trails ?
+		//DEBUG: Fire a white beam at the desired turret direction.
+		FSpawnParticleParams P; P.Color1 = "White"; P.Style = STYLE_None; P.Lifetime = 1; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+		KAI_LOFRaycast.VisualizeTracePath(Pos,Target.pos,MaxTargetRange,8,p);
+		//DEBUG: And fire a yellow beam at the actual direction.
+		FSpawnParticleParams PP; PP.Color1 = "Yellow"; PP.Style = STYLE_None; PP.Lifetime = 1; PP.Size = 10; PP.StartAlpha = 1; PP.FadeStep = -1; PP.Flags = SPF_FULLBRIGHT;
+		Vector3 FacingPos = Level.Vec3Offset(Pos,KAI_Math.AngleToVector3D(Angle, -Pitch, MaxTargetRange));
+		KAI_LOFRaycast.VisualizeTracePath(Pos,FacingPos,MaxTargetRange,8,pp);
 		
-		//If the above didn't trigger, the presumably the target has a velocity to extrapolate.
-		//Return Level.Vec3Diff (Target.Pos,Target.Vel*FutureTics);
-		Return (Double.NaN,Double.NaN,Double.NaN);
+		//console.printf ("non-target future position is %d %d %d",faceto.pos.x,faceto.pos.y,faceto.pos.z);
+		A_Face (Target, Max_Turn, Max_Pitch, Ang_Offset, Pitch_Offset, Flags, Z_Ofs);
+		Target.SetXYZ (OldPos);
+		Return;
 	}
 	//==============================
 	
@@ -319,7 +252,7 @@ Extend Class KAI_BaseTurret
 	{
 		TLOF_FaceOther		= 1 << 0, //Should the ray be fired at the direction of the other actor instead of the direction the turret is facing ?
 		TLOF_DoStayAround	= 1 << 1, //Should the function not mess with the turrets' bDontStayAround flag ?
-		TLOF_FriendlyFire	= 1 << 2, //The turret can hit and harm its' allies, used by the lead check code if LeadStopChance is above -1.
+		TLOF_FriendlyFire	= 1 << 2, //The turret can hit and harm its' allies.
 	}
 	
 	//A generic turret LOF check, that is a wrapper for the stock projectile line of fire check.
@@ -328,17 +261,11 @@ Extend Class KAI_BaseTurret
 	//SplashRadius: For explosive attacks, if the LOF misses and hits level geometry, then still return true if the Other actor would be caught in the blast.
 	//CheckOffsets: How much to offset the checks' origin relative to the callers' position, default is offset 32 map units off the callers' Z position.
 	//Flags: What flags to pass to the check, a list of flags can be found above.
-	/*LeadStopChance: The chance that the turret will stop firing if in the calculated trajectory to its' target, there is an obstacle.
-	If TLOF_FriendlyFire is on and the check finds an ally, it will immediately stop firing. Default is -1, which means the check doesn't run, if set to 0
-	then the check will run, but the turret will stop firing no matter what kind of obstacle is ahead of it.
-	*/
-	Bool KAI_TurretCheckLOF (Actor Other = Null, Int PropHealthThreshold = 400, Double SplashRadius = 0, Vector3 CheckOffsets = (0,0,32), Int Flags = 0, Int LeadStopChance = -1)
+	Bool KAI_TurretCheckLOF (Actor Other = Null, Int PropHealthThreshold = 400, Double SplashRadius = 0, Vector3 CheckOffsets = (0,0,32), Int Flags = 0)
 	{
-		Vector3 Direction;
-		//Let's check in the direction the turret is aiming ahead to first.
-		//If (LeadStopChance > -1) KAI_LeadLOFCheck
 		Let Check = New ("KAI_ProjectileLOFCheck");
 		
+		Vector3 Direction;
 		If (!(Flags & TLOF_FaceOther)/* && (Other && Distance3DSquared(Other) > 2048)&& !IsInCone(Other,10)*/)
 			Direction = (AngleToVector(Angle, Cos(Pitch)), -Sin(Pitch));
 		Else
@@ -357,6 +284,7 @@ Extend Class KAI_BaseTurret
 		Check.Other = Other;
 		Check.SplashRadius = SplashRadius;
 		Check.PropHealthThreshold = ProphealthThreshold;
+		Check.FriendlyFire = Flags & TLOF_FriendlyFire;
 		Check.Trace (Level.Vec3Offset (Pos,CheckOffsets),CurSector,Direction,Distance,0);
 		
 		//KAI_LOFRaycast.VisualizeTracePath (Level.Vec3Offset (Pos,CheckOffsets),Check.Results.HitPos,Check.Results.Distance);
@@ -372,32 +300,6 @@ Extend Class KAI_BaseTurret
 		Check.Destroy();
 		Return True;
 	}
-	/*
-	//Checks the direction that the turret is actually aiming attack when target tracking is enabled. To stop shooting if certain obstacles can stop the lead shots.
-	//CheckOffsets: How much to offset the checks' origin relative to the callers' position, default is offset 32 map units off the callers' Z position.
-	//StopChance: The chance that the turret will stop firing if it would hit an obstacle. Default is 0, which means that the turret stops immediately.
-	Bool KAI_LeadLOFCheck (Vector3 CheckOffsets = (0,0,32), Bool FriendlyFire = False, Int StopChance = 0)
-	{
-		If (!bNoTargetPrediction)
-		{
-			Let Lead = New ("KAI_TargetTrackCheck");
-			Double Distance = Target ? Distance3D (Target)+32 : MaxTargetRange;
-			Vector3 Direction = (AngleToVector(Angle, Cos(Pitch)), -Sin(Pitch));
-			
-			Lead.Shooter = Self;
-			Lead.StopChance = StopChance;
-			Lead.FriendlyFire = FriendlyFire;
-			Lead.Trace (Level.Vec3Offset (Pos,CheckOffsets),CurSector,Direction,Distance,0);
-			
-			If (Lead.BadLOF)
-			{a_log ("getting a little ahead of myself");
-				Lead.Destroy();
-				Return False;
-			}
-		}
-		
-		Return True;
-	}*/
 	
 	Enum FindInLOFFlags
 	{

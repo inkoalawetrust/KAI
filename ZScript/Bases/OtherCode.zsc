@@ -496,10 +496,13 @@ Class KAI_LOFActorFinder : KAI_LOFRaycast
 //Generic projectile LOF check for non-ripping projectiles, should be applicable to most projectiles.
 //PropHealthThreshold: If a destructible prop actor with this much health or less is standing in the way, then shoot at it anyway.
 //SplashRadius: If the check hit level geometry, but the target is within the specified distance from the hit spot. Then don't return BadLOF.
+//PLAYTEST: The friendly fire prevention needs testing. Should work though, it just calls the shooters' IsActorHostile()/IsHostile().
+Class KAI_LOFProjectileCheck : KAI_ProjectileLOFCheck{} //Misnamed the class on the wiki, oops. Not going to change every wiki reference to said class though.
 Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 {
 	Int PropHealthThreshold;
 	Double SplashRadius;
+	Bool FriendlyFire; //The attack this LOF check is for can harm the shooters' friends.
 	
 	//Is the other actor in the blast radius ?
 	Bool CaughtInTheBlast()
@@ -528,6 +531,13 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 		If (Other && Mobj == Other)
 			Return Trace_Stop;
 		
+		//If friendly fire prevention is on, return false if an ally is in the way.
+		If (FriendlyFire && Mobj && !IsDead(Mobj) && IsCollidable (Mobj) && !IsInanimateObject(Mobj) && !IsHostile(Shooter,Mobj))
+		{
+			BadLOF = True;
+			Return Trace_Stop;
+		}
+		
 		Bool OtherInBlast = CaughtInTheBlast(); //Caching
 		
 		//Indestructible prop in the way.
@@ -544,8 +554,9 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 			Return Trace_Stop;
 		}
 		
-		//Solid corpse of an enemy in the way, shell can't go through.
-		If (Mobj && !OtherInBlast && Shooter.IsHostile(Mobj) && IsSolidCorpse(Mobj))
+		//Solid corpse in the way, attack can't go through.
+		Bool StopAtCorpse = !FriendlyFire ? IsHostile(Shooter,Mobj) : True;
+		If (Mobj && !OtherInBlast && IsSolidCorpse(Mobj) && StopAtCorpse)
 		{
 			BadLOF = True;
 			Return Trace_Stop;
@@ -576,45 +587,6 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 			}
 			Else
 				BadLOF = True;
-			Return Trace_Stop;
-		}
-		
-		Return Trace_Skip;
-	}
-}
-
-//Generic LOF check used by turrets that are aiming ahead of their target to shoot their projectiles during combat traversal.
-//Can be used to make the turret stop shooting if the point it's shooting ahead off has obstacle that will stop the shots anyway, or if allies will be hurt.
-/*Class KAI_TargetTrackCheck : KAI_LOFRaycast
-{
-	Bool FriendlyFire; //Can the attack we are checking hurt the friends of its' shooter ?
-	Int StopChance; //The chance it'll return BadLOF if a blocking non-friendly actor is in the way.
-	Bool ShouldStop()
-	{
-		Return (StopChance <= 0 || Random2[pr_monsterrefire]() >= StopChance);
-	}
-	Override ETraceStatus TraceCallback()
-	{
-		Actor Mobj = Results.HitActor;
-		
-		//Stop if friendly fire prevention is on and you are going to hit an ally.
-		If (FriendlyFire && !IsInanimateObject (Mobj) && !IsDead (Mobj) && !IsHostile (Shooter,Mobj))
-		{
-			BadLOF = True;
-			Return Trace_Stop;
-		}
-		
-		//Projectile blocking actor in the way, stop if the chance is met.
-		If ((IsCollidable(Mobj,Shooter) || IsSolidCorpse (Mobj)) && ShouldStop())
-		{
-			BadLOF = True;
-			Return Trace_Stop;
-		}
-		
-		//Level geometry in the way, stop if the chance is met..
-		If ((HitLevelGeometry(Results) || BlockingLineInTheWay (Results.HitLine,0)) && ShouldStop())
-		{
-			BadLOF = True;
 			Return Trace_Stop;
 		}
 		

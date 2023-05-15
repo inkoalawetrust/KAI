@@ -123,16 +123,16 @@ Extend Class KAI_BaseTurret
 		Tics = Clamp (Tics,1,INT.MAX); //Needs at least 1 tic.
 		FloatTics = Tics; //Finer precision on multiplier the extrapolated velocity, for extra accuracy.
 		Vector3 OldPos = Target.Pos;
-		Vector3 Test = Level.Vec3Diff (LastEnemyPosition,Target.Pos);
+		Vector3 Diff = Level.Vec3Diff (LastEnemyPosition,Target.Pos);
 		If (IsTeleportingMonster(Target))
 		{
-			Vector3 TPOnly = Level.Vec3Diff (Test,Target.Vel); //Get the teleport movement, sans velocity.
+			Vector3 TPOnly = Level.Vec3Diff (Diff,Target.Vel); //Get the teleport movement, sans velocity.
 			TPOnly = GetTeleportMoveDivision();
 			console.printf ("tponly is %.3f %.3f %.3f",tponly.x,tponly.y,tponly.z);
-			Test = Level.Vec3Offset (TPOnly,Target.Vel);
+			Diff = Level.Vec3Offset (TPOnly,Target.Vel);
 		}
 		console.printf ("velocity is %.3f %.3f %.3f",target.vel.x,target.vel.y,target.vel.z);
-		Target.SetXYZ (Level.Vec3Offset (Target.Pos,Test*FloatTics));
+		Target.SetXYZ (Level.Vec3Offset (Target.Pos,Diff*FloatTics));
 		a_log ("go velocity");
 		//IDEA: Add a debug CVAR that can be enabled to spawn these trails ?
 		//DEBUG: Fire a white beam at the desired turret direction.

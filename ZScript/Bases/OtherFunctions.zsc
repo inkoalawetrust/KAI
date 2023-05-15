@@ -2,57 +2,46 @@
 //Non AI related functions 
 Extend Class KAI_Actor
 {
-	//BUG: I think the target prediction is fucked in some way. It seems to not lead shots properly with targets that have 1 tic long states.
-	//TODO: Implement the tracking code from KAI_BaseTurret()'s AimAtTarget() function.
-	//TODO: Add an FOV cone check to prevent backshots and other oddities. Also probably rename this to VelInterceptEx.
 	//DOCUMENT: When I rename this to VelInterceptEx(), document that change to the wiki.
 	//Allows NPCs to lead their shots based on their targets' movement, regardless of whether or not it's a player or monster. Unlike VelIntercept().
 	//This is called after the projectile has been spawned, to modify its' trajectory post-spawn. Code is also run in the NPCs' tick for target position updates.
 	//Projectile: The projectile to modify.
 	//SpreadHorz/SpreadVert: Maximum and minimum horizontal and vertical spread, stored in Vector2s.
 	//MinDist: The minimum distance below which target prediction won't be used. And the projectile will be fired straight at the target instead.
-	Void HandleTargetPrediction (Actor Projectile, Vector2 SpreadHorz = (0,0), Vector2 SpreadVert = (0,0), Double MinDist = 1024)
+	//FOV: The field of view that the target must be in for the function to run. Useful for preventing monsters from doing things like shooting behind themselves.
+	Void VelInterceptEx (Actor Projectile, Vector2 SpreadHorz = (0,0), Vector2 SpreadVert = (0,0), Double MinDist = 1024, Double FOV = 90/2)
 	{
 		Vector3 OldVel;
 		If (!Projectile || !Target) Return;
 		
-		//No movement prediction, so just shoot normally and move on.
-		If (bNoTargetPrediction || Distance3DSquared(Target) <= MinDist*MinDist)
+		//No movement prediction, other actor is too far, or out of the FOV, so just shoot normally and move on.
+		If (bNoTargetPrediction || (Target && !CheckFOV(Target,FOV) )|| Distance3DSquared(Target) <= MinDist*MinDist)
 		{
 			AddProjectileSpread (Projectile,SpreadHorz,SpreadVert);
 			Return;
 		}
 		
 		//Target has no velocity for VelIntercept to work with. This is almost always the case for normal NPCs, which move using small teleport steps, instead of actual movement.
-		If (KAI_Math.IsZeroVector3 (Target.Vel))
+		If (IsTeleportingMonster (Target))
 		{
 			OldVel = Target.Vel;
 			
-			Target.Vel = GetTeleportMoveDivision();
-			/*If (Target.CurState.Tics)
-				Target.Vel = Level.Vec3Diff (LastEnemyPosition,CurrentEnemyPosition) / Target.CurState.Tics;
-			Else //Fallback to prevent division by zero.
-				Target.Vel = Level.Vec3Diff (LastEnemyPosition,CurrentEnemyPosition);*/
-			
-			If (KAI_Math.IsZeroVector3 (Target.Vel)) //Still no velocity
-			{
-				AddProjectileSpread (Projectile,SpreadHorz,SpreadVert);
-				Target.Vel = OldVel; //Revert velocity.
-				Return;
-			}
+			Vector3 Diff = Level.Vec3Diff (LastEnemyPosition,Target.Pos);
+			Vector3 TPOnly = Level.Vec3Diff (Diff,Target.Vel); //Get the teleport movement, sans velocity.
+			TPOnly = GetTeleportMoveDivision();
+			console.printf ("tponly is %.3f %.3f %.3f",tponly.x,tponly.y,tponly.z);
+			Vector3 FakeVel = Level.Vec3Offset (TPOnly,Target.Vel);
+			console.printf ("fakevel is %.3f %.3f %.3f",fakevel.xy,fakevel.z);
+			Target.Vel = FakeVel;
 			Projectile.VelIntercept (Target);
-			Projectile.Angle += FRandom (SpreadHorz.X,SpreadHorz.Y);
-			Projectile.Pitch += FRandom (SpreadVert.X,SpreadVert.Y);
-			Projectile.Vel3DFromAngle (Projectile.Speed,Projectile.Angle,Projectile.Pitch);
+			AddProjectileSpread (Projectile,SpreadHorz,SpreadVert);
 			Target.Vel = OldVel;
 		}
 		//Target has velocity, like if it's a player or a custom actor with velocity-based movement.
 		Else
 		{
 			Projectile.VelIntercept (Target);
-			Projectile.Angle += FRandom (SpreadHorz.X,SpreadHorz.Y);
-			Projectile.Pitch += FRandom (SpreadVert.X,SpreadVert.Y);
-			Projectile.Vel3DFromAngle (Projectile.Speed,Projectile.Angle,Projectile.Pitch);
+			AddProjectileSpread (Projectile,SpreadHorz,SpreadVert);
 		}
 	}
 	

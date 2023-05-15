@@ -387,7 +387,7 @@ Class KAI_BaseProjectile : FastProjectile
 		//Trail.Pitch = Pitch;
 	}
 	
-	//DOCUMENT: The actual parameters on this function. Here in the code, and on the GitHub wiki I'll set up once the KAI is tidy and finished enough.
+	//Called in SpecialMissileHit() to handle bullet-like projectiles bouncing off actors.
 	Bool DeflectProjectile (Actor Victim, Int DeflectChance, Double DamageReductionFactor, Double SlowDownFactor = 1,
 	Vector2 RandomAngle = (0,0), Vector2 RandomPitch = (0,0), Double Volume = 1, Double Attenuation = 0.9)
 	{

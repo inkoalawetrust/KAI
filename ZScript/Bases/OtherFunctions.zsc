@@ -2,7 +2,6 @@
 //Non AI related functions 
 Extend Class KAI_Actor
 {
-	//DOCUMENT: When I rename this to VelInterceptEx(), document that change to the wiki.
 	//Allows NPCs to lead their shots based on their targets' movement, regardless of whether or not it's a player or monster. Unlike VelIntercept().
 	//This is called after the projectile has been spawned, to modify its' trajectory post-spawn. Code is also run in the NPCs' tick for target position updates.
 	//Projectile: The projectile to modify.
@@ -55,7 +54,6 @@ Extend Class KAI_Actor
 	}
 	
 	//Adds projectile spread and adjusts the projectiles' velocity accordingly.
-	//DOCUMENT: This is now meant to be used to add spread to turret projectiles. So document it on the wiki.
 	Void AddProjectileSpread (Actor Projectile, Vector2 SpreadHorz, Vector2 SpreadVert)
 	{
 		Projectile.A_FaceMovementDirection();

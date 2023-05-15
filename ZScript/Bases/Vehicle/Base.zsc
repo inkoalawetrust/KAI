@@ -305,8 +305,9 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 	Property TurnSound : TurnSound; //The sound the turret makes when it turns.
 	Property CombatAngleTurnRate : CombatAngleTurnRate; //How fast the turret changes its' angle to face its' target when in combat. In degrees per second.
 	Property CombatPitchTurnRate : CombatPitchTurnRate; //How fast the turret changes its' pitch to face its' target when in combat. In degrees per second.
-	Double TurretAttackSpeed; //The speed of the turrets' attack, in MU/tic, used by the target prediction code to estimate where the turret should aim ahead at.
+	Double TurretAttackSpeed, FastTurretAttackSpeed; //The speed (And -fast speed) of the turrets' attack, in MU/tic, used by the target prediction code to estimate where the turret should aim ahead at.
 	Property AttackSpeed : TurretAttackSpeed;
+	Property FastAttackSpeed : FastTurretAttackSpeed;
 	
 	Int TurretSnapDelay; //Used for the turret rotating code, to make it so the turret snaps back to the vehicle after some time of not having a target.
 	Double TurretRotationOffset; //Can be used to offset the rotation of the turret by this exact amount. Used by turrets when they are destroyed, and by prop turrets.

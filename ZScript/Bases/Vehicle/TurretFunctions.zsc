@@ -97,14 +97,15 @@ Extend Class KAI_BaseTurret
 		Double AngleTraverse = CombatAngleTurnRate > 0 ? CombatAngleTurnRate/GameTicRate : 0;
 		Double PitchTraverse = CombatPitchTurnRate > 0 ? CombatPitchTurnRate/GameTicRate : 0;
 		//console.printf ("horz traverse %f, vert traverse %f",angletraverse,pitchtraverse); //DEBUG
-		AimAtTarget (AngleTraverse,PitchTraverse,flags:FAF_MIDDLE);
+		If (!bNoTargetPrediction)
+			AimAtTarget (AngleTraverse,PitchTraverse,flags:FAF_MIDDLE);
+		Else
+			A_Face (Target,AngleTraverse,PitchTraverse,flags:FAF_MIDDLE);
 	}
 	
 	//Aim the turret ahead of the targets' trajectory, allowing to fire in anticipation of where they'll be. Basically, this is the turrets' fire control system.
-	//TODO: Probably make a FastTurretAttackSpeed for FastSpeed of projectiles with -fastmonsters on.
-	//It basically tries to move the other actor 1 tick into the future, makes the turret face there instead. And revert their position.
+	//The Max_Turn, Max_Pitch, Ang_Offset, Pitch_Offset, Flags, and Z_Ofs properties are passed to A_Face(). Such as for controlling HOW fast it aims.
 	//Tics: The travel time of the turrets' attack in tics. Used to estimate where the target will be once the attack arrives. -1 is an automatic estimation based on the TurretAttackSpeed property.
-	//TODO: Change the LOF checks on the MVP turrets to fire at the direction of the target instead of the turrets' aiming direction.
 	Void AimAtTarget (Double Max_Turn = 0, Double Max_Pitch = 270, Double Ang_Offset = 0, Double Pitch_Offset = 0, Int Flags = 0, Double Z_Ofs = 0,
 	Int Tics = -1)
 	{
@@ -112,8 +113,13 @@ Extend Class KAI_BaseTurret
 		
 		Float FloatTics;
 		//Estimate the travel time the turrets' attack needs.
-		If (Tics == -1 && TurretAttackSpeed > 0)
-			Tics = Distance3D (Target)/TurretAttackSpeed;
+		If (Tics == -1)
+		{
+			If (TurretAttackSpeed > 0 && !G_SkillPropertyInt (SKILLP_FastMonsters))
+				Tics = Distance3D (Target)/TurretAttackSpeed;
+			Else If (FastTurretAttackSpeed > 0 && G_SkillPropertyInt (SKILLP_FastMonsters))
+				Tics = Distance3D (Target)/FastTurretAttackSpeed;
+		}
 		Tics = Clamp (Tics,1,INT.MAX); //Needs at least 1 tic.
 		FloatTics = Tics; //Finer precision on multiplier the extrapolated velocity, for extra accuracy.
 		Vector3 OldPos = Target.Pos;

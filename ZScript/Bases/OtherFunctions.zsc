@@ -18,7 +18,7 @@ Extend Class KAI_Actor
 		//No movement prediction, so just shoot normally and move on.
 		If (bNoTargetPrediction || Distance3DSquared(Target) <= MinDist*MinDist)
 		{
-			NormalProjectileFire (Projectile,SpreadHorz,SpreadVert);
+			AddProjectileSpread (Projectile,SpreadHorz,SpreadVert);
 			Return;
 		}
 		
@@ -34,7 +34,7 @@ Extend Class KAI_Actor
 			
 			If (KAI_Math.IsZeroVector3 (Target.Vel)) //Still no velocity
 			{
-				NormalProjectileFire (Projectile,SpreadHorz,SpreadVert);
+				AddProjectileSpread (Projectile,SpreadHorz,SpreadVert);
 				Target.Vel = OldVel; //Revert velocity.
 				Return;
 			}
@@ -63,8 +63,9 @@ Extend Class KAI_Actor
 			Return Level.Vec3Diff (LastEnemyPosition,CurrentEnemyPosition);
 	}
 	
-	//Adds projectile spread and adjusts the projectiles' velocity accordingly. Basically just normal shooting with no prediction.
-	Void NormalProjectileFire (Actor Projectile, Vector2 SpreadHorz, Vector2 SpreadVert)
+	//Adds projectile spread and adjusts the projectiles' velocity accordingly.
+	//DOCUMENT: This is now meant to be used to add spread to turret projectiles. So document it on the wiki.
+	Void AddProjectileSpread (Actor Projectile, Vector2 SpreadHorz, Vector2 SpreadVert)
 	{
 		Projectile.A_FaceMovementDirection();
 		Projectile.Angle += FRandom (SpreadHorz.X,SpreadHorz.Y);

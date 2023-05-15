@@ -8,11 +8,35 @@ loaded alongside the library. The best solution ? This ACS API. For how to use i
 //Set the tokens' threat level for the actor it's attached to.
 Script "KAIToken_SetThreatLevel" (Int ThreatLevel)
 {
+	If (!CalledFromToken()) Terminate;
 	SetUserVariable (0,"ThreatLevel",ThreatLevel);
 }
 
 //Return the tokens' threat level.
 Script "KAIToken_GetThreatLevel" (Void)
 {
+	If (!CalledFromToken()) Terminate;
 	SetResultValue(GetUserVariable (0,"ThreatLevel"));
+}
+
+//Specifies if the external non-KAI actor moves only with velocity.
+//If your NPC changes between real momentum and calling P_TryMove(), then change this accordingly on the item. 
+Script "KAI_Token_SetVelocityMonster" (Int Set)
+{
+	If (!CalledFromToken()) Terminate;
+	SetUserVariable (0,"VelocityMonster",Set);
+}
+
+//Return the tokens' VelocityMonster value.
+Script "KAI_Token_GetVelocityMonster" (Int Set)
+{
+	If (!CalledFromToken()) Terminate;
+	SetResultValue(GetUserVariable (0,"VelocityMonster"));
+}
+
+
+//Safety measure to prevent changing the variables of non-token actors the scripts above are called to.
+Function Bool CalledFromToken (Void)
+{
+	Return (CheckActorClass(0,"KAI_DataToken"));
 }

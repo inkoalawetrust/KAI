@@ -547,6 +547,9 @@ Class KAI_DataToken : Inventory
 	}
 	
 	Int ThreatLevel; //The threat level of the tokens' owner.
+	Bool VelocityMonster;	//This actor moves with actual momentum instead of using TryMove() like normal monsters do.
+							//Non-KAI actors that genuinely move need to mark themselves with this to be detected
+							//as moving with momentum by the target prediction code.
 	
 	/*override void attachtoowner (actor other) //DEBUG
 	{

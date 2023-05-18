@@ -11,9 +11,7 @@ Version "4.10.0"
 
 //Uh, add cool license and ASCII art or whatever the fuck here.
 
-//TODO: Okay, there's obviously a fucking lot to do, but here are some mental notes so I don't forget.
-/*Add documentation of the code tags used by the project. The tags include the common ones Wikipedia lists (https://en.wikipedia.org/wiki/Comment_(computer_programming)#Tags)
-But there are also some I want to make specifically for this codebase, like MAYDO.*/
+//TODO:
 //Implement a warning zone system similar to the MVPs. But that works for all actors, not just the Smart Marines. Also maybe keep using inventory tokens for it, for non-KAI mod support.
 
 //IDEA:

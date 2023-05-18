@@ -220,6 +220,7 @@ Class KAI_Actor : Actor Abstract
 	Property ThreatLevel : ThreatLevel;
 	Private Int NPCFlags;
 	FlagDef NoTargetPrediction : NPCFlags, 0; //The NPC will not calculate its' targets' movement and lead its' shots.
+	FlagDef MovesWithVelocity : NPCFlags, 1; //Specifies that the NPC moves using real momentum, like players. For the target prediction code, does nothing else on its' own.
 	
 	//Actor variables
 	Array <State> AttackStates; //Can be used to store all of the attack state labels an actor has. Such as for actors with multiple attacks besides a missile and melee attack, like vanilla monsters only have.

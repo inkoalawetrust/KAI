@@ -11,9 +11,6 @@ If I do implement the order system to KAI actors, it will probably be before the
 The first fix I tried was immediately warping the turret to its vehicle. Which somehow turns the turrets into the vehicle they are attached on in the
 first tick. Which is literally worse than the turrets spawning on the ground.*/
 
-//IDEA:
-//Add a system in the base turrets' ShouldAttack(), where if the target is obstructed, the turret will instead try aiming up or down instead of the middle.
-
 Class KAI_BaseVehicle : KAI_Actor Abstract
 {
 	Default
@@ -321,10 +318,13 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 	}
 	Int ElevationState; //Look above for possible elevation states.
 	
+	Int TurretAimPos; //Where should the turret aim at ? Should be passed at A_Face() functions in their flag parameter. USE THE FAF_ FLAGS FOR THIS !
+	
 	Override Void PostBeginPlay ()
 	{
 		KAI_Actor.PostBeginPlay ();
 		SpawnVehicleTurret();
+		TurretAimPos = FAF_MIDDLE; //Turrets aim in the middle of the targets' hitbox by default.
 		//If (!bFriendly) Species = 'MilitaryHostile';
 	}
 	

@@ -208,11 +208,12 @@ Mixin Class KAI_CheckFunctions
 		Return (Other.FindState ("Heal"));//I checked several mods with Archvile-type monsters. And all of them have a Heal state. Making this the only universal way to check for them.
 	}
 	
-	/*TODO: I will  probably change KAI_MoveTowards to move monsters with velocity instead of TryMove. With a new +OLDMOVEMENT flag to toggle TryMove() again.
-	Obviously this should be checked here too.*/
+	//DOCUMENT: Update the info on this function on the KAI_CheckFunctions page. And document the MOVESWITHVELOCITY flag itself too.
 	ClearScope Bool IsTeleportingMonster (Actor Other)
 	{
 		If (!Other) Return False;
+		
+		If (Other Is "KAI_Actor" && KAI_Actor(Other).bMovesWithVelocity) Return False;
 		
 		//Monster has token info saying it doesn't use TryMove(), so take its' word for it.
 		Inventory Token = Other.FindInventory ("KAI_DataToken");

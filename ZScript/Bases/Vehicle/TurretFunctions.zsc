@@ -98,9 +98,9 @@ Extend Class KAI_BaseTurret
 		Double PitchTraverse = CombatPitchTurnRate > 0 ? CombatPitchTurnRate/GameTicRate : 0;
 		//console.printf ("horz traverse %f, vert traverse %f",angletraverse,pitchtraverse); //DEBUG
 		If (!bNoTargetPrediction)
-			AimAtTarget (AngleTraverse,PitchTraverse,flags:FAF_MIDDLE);
+			AimAtTarget (AngleTraverse,PitchTraverse,flags:TurretAimPos);
 		Else
-			A_Face (Target,AngleTraverse,PitchTraverse,flags:FAF_MIDDLE);
+			A_Face (Target,AngleTraverse,PitchTraverse,flags:TurretAimPos);
 	}
 	
 	//Aim the turret ahead of the targets' trajectory, allowing to fire in anticipation of where they'll be. Basically, this is the turrets' fire control system.
@@ -128,18 +128,17 @@ Extend Class KAI_BaseTurret
 		{
 			Vector3 TPOnly = Level.Vec3Diff (Diff,Target.Vel); //Get the teleport movement, sans velocity.
 			TPOnly = GetTeleportMoveDivision();
-			console.printf ("tponly is %.3f %.3f %.3f",tponly.x,tponly.y,tponly.z);
+			//console.printf ("tponly is %.3f %.3f %.3f",tponly.x,tponly.y,tponly.z);
 			Diff = Level.Vec3Offset (TPOnly,Target.Vel);
 		}
-		console.printf ("velocity is %.3f %.3f %.3f",target.vel.x,target.vel.y,target.vel.z);
+		//console.printf ("velocity is %.3f %.3f %.3f",target.vel.x,target.vel.y,target.vel.z);
 		Target.SetXYZ (Level.Vec3Offset (Target.Pos,Diff*FloatTics));
-		a_log ("go velocity");
 		//IDEA: Add a debug CVAR that can be enabled to spawn these trails ?
 		//DEBUG: Fire a white beam at the desired turret direction.
 		FSpawnParticleParams P; P.Color1 = "White"; P.Style = STYLE_None; P.Lifetime = 1; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
-		KAI_LOFRaycast.VisualizeTracePath(Pos,Target.pos,MaxTargetRange,8,p);
+		KAI_LOFRaycast.VisualizeTracePath(Pos,Target.Pos.PlusZ(GetTurretAimPosOffset()),MaxTargetRange,8,p);
 		//DEBUG: And fire a yellow beam at the actual direction.
-		FSpawnParticleParams PP; PP.Color1 = "Yellow"; PP.Style = STYLE_None; PP.Lifetime = 1; PP.Size = 10; PP.StartAlpha = 1; PP.FadeStep = -1; PP.Flags = SPF_FULLBRIGHT;
+		FSpawnParticleParams PP; PP.Color1 = "Yellow"; PP.Style = STYLE_None; PP.Lifetime = 1; PP.Size = 6; PP.StartAlpha = 1; PP.FadeStep = -1; PP.Flags = SPF_FULLBRIGHT;
 		Vector3 FacingPos = Level.Vec3Offset(Pos,KAI_Math.AngleToVector3D(Angle, -Pitch, MaxTargetRange));
 		KAI_LOFRaycast.VisualizeTracePath(Pos,FacingPos,MaxTargetRange,8,pp);
 		
@@ -176,16 +175,19 @@ Extend Class KAI_BaseTurret
 	State KAI_TurretRefire (Int Chance, StateLabel AbortState, Bool DontFaceTarget = False, Int RetargetCheckChance = -1, Int RetargetCheckFlags = 0, Double FOV = 360)
 	{
 		If (!DontFaceTarget)
-			A_FaceTarget();
+			A_FaceTarget(flags:TurretAimPos);
 		
 		If (RetargetCheckChance != -1 && Random2[pr_monsterrefire]() < RetargetCheckChance)
 			RetargetVehicleHull (RetargetCheckFlags);
 		
 		If (CurSector.Flags & Sector.SECF_NOATTACK)
 			Return FindState (AbortState);
+		
+		TurretAimPos = UpdateTurretAimPos();
 			
 		If (Random2[pr_monsterrefire]() < Chance)
 			Return State (Null);
+		
 		//KLUDGE: Must manually check if Target is null for CheckFOV, because as of GZDoom 4.10, it doesn't natively do a null check, causing a hard crash !
 		If (!Target /*|| HitFriend()*/ || IsDead (Target) || (Target && !CheckFOV (Target,FOV)) || !CheckSight (Target,SF_SEEPASTBLOCKEVERYTHING|SF_SEEPASTSHOOTABLELINES))
 			Return FindState (AbortState);
@@ -248,6 +250,7 @@ Extend Class KAI_BaseTurret
 		Return Null;
 	}
 	
+	//=====|Turret LOF checks|=====\\
 	Enum TurretLOFFlags
 	{
 		TLOF_FaceOther		= 1 << 0, //Should the ray be fired at the direction of the other actor instead of the direction the turret is facing ?
@@ -265,6 +268,7 @@ Extend Class KAI_BaseTurret
 	{
 		Let Check = New ("KAI_ProjectileLOFCheck");
 		
+		TurretAimPos = UpdateTurretAimPos();
 		Vector3 Direction;
 		If (!(Flags & TLOF_FaceOther)/* && (Other && Distance3DSquared(Other) > 2048)&& !IsInCone(Other,10)*/)
 			Direction = (AngleToVector(Angle, Cos(Pitch)), -Sin(Pitch));
@@ -272,7 +276,7 @@ Extend Class KAI_BaseTurret
 		{
 			If (Other)
 			{
-				Double PitchTo = PitchTo (Other,14,Other.Height/2);
+				Double PitchTo = PitchTo (Other,Height/2,GetTurretAimPosOffset());
 				Direction = (AngleToVector(AngleTo(Other), Cos(PitchTo)), -Sin(PitchTo));
 			}
 			Else
@@ -299,6 +303,74 @@ Extend Class KAI_BaseTurret
 		If (!(Flags & TLOF_DoStayAround)) bDontStayAround = False;
 		Check.Destroy();
 		Return True;
+	}
+	
+	//Check if the turret should aim in the middle of the target, or their top or bottom if the middle is obstructed.
+	Int UpdateTurretAimPos (Vector3 Offset = (0,0,0))
+	{
+		If (!Target) Return False; //No need to update anything.
+		Vector3 OldPos = Target.Pos;
+		Vector3 AimDir;
+		Vector3 Start = Level.Vec3Offset (Pos,Offset);
+		
+		//Let's see if the middle of the target is hittable first.
+		Let Check = New ("KAI_BasicSightCheck"); //Should be cheaper than CheckSight(), probably...
+		Target.SetXYZ (Target.Pos.PlusZ(Target.Height/2));
+		AimDir = Vec3To (Target);
+		Check.Shooter = Self;
+		Check.SightTarget = Target;
+		Check.Trace (Start,CurSector,AimDir,MaxTargetRange,0);
+		Target.SetXYZ(OldPos);
+		
+		If (Check.GoodLOS)
+		{a_log ("middle aim");
+			Check.Destroy();
+			Return FAF_MIDDLE;
+		}
+		
+		//If we are this far that should mean the middle isn't visible, aim for the top.
+		Target.SetXYZ (Target.Pos.PlusZ(Target.Height));
+		AimDir = Vec3To (Target);
+		Check.Trace (Start,CurSector,AimDir,MaxTargetRange,0);
+		Target.SetXYZ(OldPos);
+		
+		If (Check.GoodLOS)
+		{a_log ("top aim");
+			Check.Destroy();
+			Return FAF_TOP;
+		}
+		
+		//If that too failed, aim for the bottom.
+		Target.SetXYZ (Target.Pos.PlusZ(-Target.Height));
+		AimDir = Vec3To (Target);
+		Check.Trace (Start,CurSector,AimDir,MaxTargetRange,0);
+		Target.SetXYZ(OldPos);
+		
+		If (Check.GoodLOS)
+		{a_log ("bottom aim");
+			Check.Destroy();
+			Return FAF_BOTTOM;
+		}
+		
+		//All else failed, aim to the middle again and return false;
+		a_log ("fallback aim");
+		Return FAF_MIDDLE;
+	}
+	
+	Double GetTurretAimPosOffset()
+	{
+		If (!Target) Return 0;
+		Switch (TurretAimPos)
+		{
+			Case FAF_MIDDLE:
+				Return Target.Height/2;
+			Case FAF_TOP:
+				Return Target.Height;
+			Case FAF_BOTTOM:
+				Return 0; //The bottom is the origin of actors.
+			Default:
+				Return 0;
+		}
 	}
 	
 	Enum FindInLOFFlags
@@ -344,4 +416,5 @@ Extend Class KAI_BaseTurret
 		
 		Return;
 	}
+	//===============================
 }

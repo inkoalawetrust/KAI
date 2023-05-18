@@ -7,6 +7,88 @@
 //If you think you can do it, feel free to submit a pull request to the library.
 */
 
+/*Here is RaveYard's attempt at doing this on his own without me fucking anything up by the way:
+class Pusher : Actor
+{
+	// https://www.wolframalpha.com/input?i=F%280%29%3Dv%2C+F%28n%29%3D%28F%28n-1%29+*+f%29
+	// https://www.wolframalpha.com/input?i=F%280%29%3D0%2C+F%28n%29%3D+F%28n-1%29+%2B+v*+f%5E%28n-1%29
+	static double TravelDistance(double f, double v, int n)
+	{
+		if(f == 1) return v * n;
+		return (v * ( f ** n - 1)) / (f - 1);
+	}
+	
+	// https://www.wolframalpha.com/input?i=d+%3D+%28v+%28f%5En+-+1%29%29%2F%28f+-+1%29%2C+solve+v
+	static double InitialVelocityRequiredToTravel(double f, double d, int n)
+	{
+		if(f == 1)
+			return d / n; // no friction
+			
+		double fn = f ** n;
+		if(fn == 1)
+			fn = 1.000001; // hack
+			
+		return d * ( f - 1 ) / (fn - 1);
+	}
+
+	// [RaveYard]: Good enough ffs
+	void Pushby(Vector2 offset, int tics)
+	{
+		//Console.Printf("Push by: %f", offset.length());
+		vel.xy += offset.Unit() * InitialVelocityRequiredToTravel(GetFriction(), offset.Length(), tics);
+		//Console.Printf("Estimated travel distance: %f", TravelDistance(GetFriction(), vel.xy.length(), tics));
+	}
+}
+
+class Derp : Pusher
+{
+	Vector3 startPos;
+	states
+	{
+		Spawn:
+			POSS A 0 nodelay {
+				SetZ(floorz);
+				startPos = pos;
+			
+				friction = FRandom(0.1, 1.2);
+				
+				Console.printf("---------------------\nFriction: %f (%f)", GetFriction(), friction);
+				//Console.Printf("est travel dist: %f", TravelDistance(GetFriction(), 8, 35));
+			}
+			POSS A 35 { int t = Random(1, 70); A_SetTics(t); PushBy((64, 0), t);} // wait
+			POSS A 0 {
+				let diff = Level.Vec3Diff(startPos, pos);
+				
+				Console.Printf("Travelled: %f\nVel: %f", diff.length(), vel.length());
+			}
+			POSS A 35 { int t = Random(1, 70); A_SetTics(t); PushBy((64, 0), t);} // wait
+			POSS A 0 {
+				let diff = Level.Vec3Diff(startPos, pos);
+				
+				Console.Printf("Travelled: %f\nVel: %f", diff.length(), vel.length());
+			}
+			POSS A 35 {
+				vel = (0, 0, 0);
+				SetOrigin(startPos, true);
+			}
+			loop;
+	}
+}
+
+class Derp2 : Pusher
+{
+	states
+	{
+		Spawn:
+			POSS ABCD 8 {
+				PushBy(AngleToVector(AngleTo(players[0].mo), 16), 8);
+				angle = VectorAngle(vel.x, vel.y);
+			}
+			loop;
+	}
+}
+*/
+
 Version "4.10.0"
 
 //CUSTOM CODE TAGS: (Temporary list !)

@@ -12,7 +12,8 @@ The first fix I tried was immediately warping the turret to its vehicle. Which s
 first tick. Which is literally worse than the turrets spawning on the ground.*/
 
 //IDEA:
-//Add a system in the base turrets' ShouldAttack(), where if the target is obstructed, the turret will instead try aiming up or down instead of the middle.
+/*Add a system in the base turrets' ShouldAttack(), where if the target is obstructed, the turret will instead try aiming up or down instead of the middle.
+Should be a lot easier to do now that turrets genuinely aim at their targets instead of calling VelInterceptEx(), maybe using an AttackHeight variable.*/
 
 Class KAI_BaseVehicle : KAI_Actor Abstract
 {

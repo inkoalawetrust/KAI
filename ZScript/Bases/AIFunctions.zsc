@@ -167,7 +167,12 @@ Extend Class KAI_Actor
 		
 		//absolute position of next movement
 		vector2 NextPos = Vec2Angle(speed, NextAngle, True);
-		bool moved = TryMove(NextPos, 0, false);
+		bool moved;
+		If (!bOldMovement)
+			Moved = KAI_MoveNPC (NextPos, PCM_DROPOFF);
+		Else
+			Moved = TryMove(NextPos, 0, false);
+
 		
 		//if I hit an obstacle while avoiding another, try moving straight towards Other
 		if (!moved && MoveCount || bCantLeaveFloorPic && FloorPic != OldFloor)
@@ -175,7 +180,10 @@ Extend Class KAI_Actor
 			MoveCount = Int(random(16,32)*DetourFactor);
 			NextAngle = GetAngleToPos(TargetPos,AngleLimit);
 			NextPos = Vec2Angle(speed, NextAngle, True);
-			moved = TryMove(NextPos, 0, false);
+			If (!bOldMovement)
+				Moved = KAI_MoveNPC (NextPos, PCM_DROPOFF);
+			Else
+				Moved = TryMove(NextPos, 0, false);
 		}
 		
 		//If there's a limit to how much the actor can turn per step. Decide an amount of turns for CHF_NORANDOMTURN to make after it hits an obstacle.
@@ -210,20 +218,77 @@ Extend Class KAI_Actor
 			{
 				NextAngle = LastAngle + (i * 48 * lastturndir);
 				NextPos = Vec2Angle(speed, NextAngle, True);
-				moved = TryMove(NextPos, 0, false);
+				If (!bOldMovement)
+					Moved = KAI_MoveNPC (NextPos, PCM_DROPOFF);
+				Else
+					Moved = TryMove(NextPos, 0, false);
+
 				if (moved) break;
 				
 				lastTurnDir *= -1.0;
 				
 				NextAngle = LastAngle + (i * 48 * lastturndir);
 				NextPos = Vec2Angle(speed, NextAngle, True);
-				moved = TryMove(NextPos, 0, false);
+				If (!bOldMovement)
+					Moved = KAI_MoveNPC (NextPos, PCM_DROPOFF);
+				Else
+					Moved = TryMove(NextPos, 0, false);
 				if (moved) break;
 			}
 		}
 		
 		//face movement direction
 		If (!(ChaseFlags & CHF_NODIRECTIONTURN)) angle = Normalize180(NextAngle);
+	}
+	
+	/*EXPLANATION:
+	//This branch was part of my attempt to make monsters move using actual real momentum by default with this TryMove() replacement.
+	//However the friction handling was totally fucked no matter what I did. Even after asking RaveYard for help with the issue.
+	//He couldn't do it either, even when I told him to just try doing it on his own without me interfering, since in practice
+	//he was the one making this function anyway. But he wasn't able to get friction to work on his own either even with his actual
+	//knowledge of math. And since nobody else tried helping me with this either. I just gave up on this feature.
+	//If you think you can do it, feel free to submit a pull request to the library.
+	*/
+	
+	//MAYDO: Add some kind of ignore friction flag that produces a counter-force against ground or air firction ? For frictionless movement like TryMove().
+	Bool KAI_MoveNPC (Vector2 NewPos, Int CheckFlags, FCheckPosition Tm = Null)
+	{
+		Console.Printf ("Travelled %.4f map units since last tick",Level.Vec2Diff (Prev.XY,Pos.XY).Length());
+		//Calculate the move speed based on how far you are from NewPos and the friction you are experiencing.
+		Double Dist = Level.Vec2Diff (Pos.XY,NewPos).Length();
+		Console.Printf ("Must move %.2f MU",Dist);
+		Double MoveSpeed;
+		If (CurState.Tics)
+			MoveSpeed = Dist/CurState.Tics;
+		Else
+			MoveSpeed = Dist;
+		
+		Console.Printf ("Movement velocity is %.2f",MoveSpeed);
+		Console.Printf ("Vel.XY is %.2f",Vel.XY.Length());
+		Vector2 NewVel = AngleToVector (Angle,MoveSpeed);
+		Vector2 RelVel = RotateVector (Vel.XY,-Angle);
+		//Don't go above the speed property by your own motion.
+		Double Fric = GetFriction();
+		If (CurState.Tics)
+			Fric *= CurState.Tics;
+		Console.Printf ("Friction is %.2f",Fric);
+		//CREDIT: Formula written by RaveYard.
+		/*BUG: The handling of friction is fucked. Changing the sector friction through the Sector_SetFriction() ACS function doesn't affect NPCs at all.
+		While setting their friction property to realy low values makes them super fast, and high values make them only move in one axis.*/
+		/*BUG: There is a small discrepancy in the velocity, for example for a pinky, it should move at a velocity of 5 MU/tic, it moves at 5.5 MU/tic instead.
+		This is 101% the result of that stupid fucking, unseen, unknowable phantom force, that forced me to make the target prediction code need to detect
+		velocity-based actors like players through hardcoded flags and tokens. It even scales with velocity too! Fucking Doom physics. Why the fuck?*/
+		double estimatedVelocity = moveSpeed * (fric ** -curstate.tics) - vel.length();
+		//estimatedVelocity *= friction;
+		newVel = newVel.unit() * estimatedVelocity;
+		//newvel *= fric;
+		//DEBUG: See where the NPC is going to go according to CheckMove, to compare it to where it actually ends up.
+		Actor Debug = Spawn ("KAI_DebugPoint",(NewPos,GetZAt (NewPos.X,NewPos.Y)));
+		Debug.bFloatBob = True; Debug.FloatBobStrength = 0.5; //Distinguish it.
+		If (!CheckMove (Vec2Angle (NewVel.Length(),Angle,True),CheckFlags,Tm)) Return False;
+
+		vel.xy += newVel;
+		Return True;
 	}
 	
 	//Makes the NPC wander around aimlessly.

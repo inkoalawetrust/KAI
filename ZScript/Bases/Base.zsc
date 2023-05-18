@@ -1,3 +1,6 @@
+//TODO:
+//Overhaul KAI_MoveTowards() to move monsters by using real velocity by default. While accounting for friction. Keep TryMove() as a +OLDMOVEMENT flag.
+
 /*KLUDGE: Mixins can't be used by different mods, so this class that contains ALL the mixin code in the KAI library is needed. You need to inherit from this
 if you want to make something that's not an NPC, but can still use the mixin code the library includes.*/
 Class KAI_MixinActor : Actor Abstract
@@ -220,6 +223,7 @@ Class KAI_Actor : Actor Abstract
 	Property ThreatLevel : ThreatLevel;
 	Private Int NPCFlags;
 	FlagDef NoTargetPrediction : NPCFlags, 0; //The NPC will not calculate its' targets' movement and lead its' shots.
+	FlagDef OldMovement : NPCFlags, 1; //The NPC moves with TryMove(), like Doom monsters normally do, instead of actually thrusting themsleves like players.
 	
 	//Actor variables
 	Array <State> AttackStates; //Can be used to store all of the attack state labels an actor has. Such as for actors with multiple attacks besides a missile and melee attack, like vanilla monsters only have.

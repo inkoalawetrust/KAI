@@ -1,3 +1,12 @@
+/*EXPLANATION:
+//This branch was part of my attempt to make monsters move using actual real momentum by default with this TryMove() replacement.
+//However the friction handling was totally fucked no matter what I did. Even after asking RaveYard for help with the issue.
+//He couldn't do it either, even when I told him to just try doing it on his own without me interfering, since in practice
+//he was the one making this function anyway. But he wasn't able to get friction to work on his own either even with his actual
+//knowledge of math. And since nobody else tried helping me with this either. I just gave up on this feature.
+//If you think you can do it, feel free to submit a pull request to the library.
+*/
+
 Version "4.10.0"
 
 //CUSTOM CODE TAGS: (Temporary list !)
@@ -19,7 +28,7 @@ But there are also some I want to make specifically for this codebase, like MAYD
 //IDEA:
 //Add a projectile array that is updated every time a projectile appears and vanishes from the world. Will probably do this for the active protection system for the MVPs' tank.
 //DEBUG DEBUG DEBUG
-class TestPinky : KAI_Actor //Replaces Demon
+class TestPinky : KAI_Actor Replaces Demon
 {
 Default
 	{
@@ -39,7 +48,9 @@ Default
 		Obituary "$OB_DEMONHIT";
 		Tag "$FN_DEMON";
 	}
-	
+	int moves;
+	override void postbeginplay(){
+	super.postbeginplay(); boldmovement = random (false,true);}
 	States
 	{
 	Spawn:
@@ -49,6 +60,7 @@ Default
 		SARG AABBCCDD 2 Fast// A_Chase;
 		{
 			//If (!done && Target) {done = true;IsPosReachable(Target.Pos,(Target.Radius*2)+(Radius*2)+8);}
+			If (Target ) {KAI_MoveTowards (Target.Pos);moves++;}
 			
 			/*KAI_Chase_PreChecks(0);
 			KAI_Chase_Retarget(0);if (goal && target != goal) target = goal;
@@ -58,7 +70,7 @@ Default
 			
 			//KAI_Wander(32,1024,256);
 			//if (target) KAI_MoveAway(target,runrad:256,detourfactor:0.5);
-			A_Chase ("Melee",Null);
+			//A_Chase ("Melee",Null);
 		}
 		Loop;
 	//Shit out plasma balls to test VelInterceptEx().

@@ -8,20 +8,17 @@ The KAI's purpose is to allow for an easier way for modders to make intelligent 
 Due to its' nature as library. It allows for all the basic AI code to be consolidated in one place. Which also brings additional benefits, like NPCs from 2 different mods to be able to interact with each other without the need for special patches.
 Even mods that do not have the KAI as a dependancy can have some level of compatibility with the mod, without the mod NEEDING to be loaded alongside the library.
 
+## Documentation
+The wiki for the library can be found [here](https://github.com/inkoalawetrust/KAI/wiki/), containing information on classes, functions, variables, and other code structures, along with guides in the future.
+
 ## Usage
-The recommended way to use this mod/library is as a dependancy for your mods. NOT SIMPLY COPY THE LIBRARY INTO YOUR MOD. Instead, it should be loaded alongside your mod, and any other mods that use this library for their NPCs.
+For the time being, you can check for info on how to use the library [here](https://github.com/inkoalawetrust/KAI/wiki/Mod-interoperability), as I have not yet begun writing guides for it.
 
-![](https://cdn.discordapp.com/attachments/762804188807168010/1094310075507691582/Library_Usage.png)
-
-The reason for this is to prevent any potential conflicts between different bespoke versions of the library used by different mods.
-That being said, you can still merge the library into your project like most GZDoom libraries if you really want, even if it may break compatibility with other mods. Such as if you are making a total conversion, full mapset, or a full game.
+But generally, I'd recommend using the latest stock version (This repositories' master branch) like I do for my own mods that use it, for maximum compatibility with other KAI-based mods. However, you can still make your own version of the library and directly merge it to your project, like how most GZDoom libraries are used for some reason.
 
 ## The present
-As of the time of this writing (25/4/2023) the library is effectively in pre-alpha, it still mostly consists of code I imported from my [Military Vehicles Pack mod](https://github.com/inkoalawetrust/Military-Vehicles-Pack), and is riddled with debug messages and actors.
-A lot of that code serves as the vehicle base (Of course). But a good chunk of the former MVP code (Functions, virtuals, variables etc) has been backported to KAI_Actor as generic actor code, along with addition of some new features like new generic checks, and a generic threat level system. I have not even decided on a license yet.
+Currently, the library is still in very early alpha, and is still massively biased towards just containing code for vehicle NPCs, since it's based on the codebase of my [Military Vehicles Pack mod](https://github.com/inkoalawetrust/Military-Vehicles-Pack), which as of the time of this writing (28/5/2023) is still the mod I'm focusing development on.
 
-More base NPC types will be added in the future. The base humanoid/creature NPC will not be added until I begin rewriting [my Smart Marine mod](https://github.com/inkoalawetrust/Smart-Marines). As of right now it'
-
-The code is currently undocumented outside of comments in the code itself, at some point hopefully soon, I will write a GitHub wiki with proper documentation for classes, functions, variables, and guides on those code structures, along with examples. First however, I need to figure out how to write a GitHub wiki.
+More base NPC types will be added in the future. The base humanoid/creature NPC in particular will not be added until I begin rewriting [my Smart Marine mod](https://github.com/inkoalawetrust/Smart-Marines).
 
 Still very much a work in progress, so most of what you see is subject to change.

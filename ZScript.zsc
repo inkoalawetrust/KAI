@@ -1,7 +1,7 @@
 Version "4.10.0"
 
 //CUSTOM CODE TAGS: (Temporary list !)
-//DOCUMENT: This bit of code needs documentation. Like these tags, which need to be put in a better place.
+//DOCUMENT: This bit of code needs documentation.
 //PLAYTEST: The code has been written, but not tested, so it might be buggy.
 //URGENT: This is something urgent, likely a bugfix, some really visible debug code I don't want to appear in-game etcetera.
 //CREDIT: This is to credit some bit of code or function to someone else. Usually when someone else helps me with writing some code.
@@ -16,6 +16,20 @@ Version "4.10.0"
 
 //IDEA:
 //Add a projectile array that is updated every time a projectile appears and vanishes from the world. Will probably do this for the active protection system for the MVPs' tank.
+/*Today (1/7/2023) I made a suggestion to PBs' developers on how to implement the hitbox system to monsters. Move the hitbox handling to a HandleLocalDamage
+virtual, change the hitbox factors (e.g if an attack hit 0.8 of the monsters' height or above ,it hit the head) into properties instead of hardcoded values etc.
+Maybe I should add locational damage to the library as well based on this suggestion ? Might be out of scope though, since this is an AI library.
+
+The body part types for normal NPCs should be PART_HEAD, PART_TORSO, PART_LEG, and PART_ARM.
+For vehicles it should be PART_ENGINE, PART_WHEEL (With an alternate PART_TRACK name too), PART_SENSOR (?).
+These parts should be interchangeable between NPC types, especially for vehicles. Since a vehicle like a mech can have legs, arms, and an engine.
+Also add generic hit locations for what part of the hitbox was hit relative to the victims' angle. HIT_FRONT, HIT_BACK, HIT_LEFT, HIT_RIGHT, HIT_TOP, HIT BOTTOM.
+This one will be especially useful for vehicles, allowing me to for example, make the top and back of the MBT more vulnerable compared to the sides and front.
+Since these part types will just be ints, it should also be able to define custom parts similar to thread levels. Like PART_DICK, PART_FOOT, PART_HAND etc.
+Add a GetBodyPart virtual to NPCs, to define positions for parts, and return the right part based on position. Callable from other actors like projectiles,
+allowing for projectiles to do special effects like double damage on headshots.
+Maybe also add an OnBodyPartHit callback for projectiles to use. Such as to make the victim itself react to a headshot. Or the back of the tank being hit.
+*/
 //DEBUG DEBUG DEBUG
 class TestPinky : KAI_Actor //Replaces Demon
 {

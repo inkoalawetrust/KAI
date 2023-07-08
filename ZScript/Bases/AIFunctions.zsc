@@ -395,13 +395,14 @@ Extend Class KAI_Actor
 	//TargetPos: The position to check if it's walkable.
 	/*DistCutoff: The amount of map units to trim off the distance between the callers' pos and TargetPos. Useful for subtracting the radius of another actor,
 	so that if you are checking if a position to another actor can be reached, the check doesn't return false because the actor itself is in the way !*/
-	Bool IsPosReachable (Vector3 TargetPos, Double DistCutoff = 0)
+	Bool IsPosReachable (Vector3 TargetPos, Double DistCutoff = 0, Double Spacing = 0)
 	{
 		Vector3 OldPos = Pos;
 		Bool Interp = bDontInterpolate;
 		Vector2 Path = Level.Vec2Diff( Pos.XY, TargetPos.XY );
 		Double Distance = Path.Length()-DistCutoff;
-		Double Spacing = Radius*2;
+		If (Spacing == 0)
+			Spacing = Radius*2;
 		If (Distance <= 1) Return False;
 		Path /= Distance;
 		
@@ -412,7 +413,11 @@ Extend Class KAI_Actor
 			//Run as many times as it takes between you and your destination.
 			FCheckPosition Data;
 			If (TryMove (Level.Vec2Offset(OldPos.XY, Path*I), 1, tm:Data))
-				{SetZ (GetZAt (Pos.X,Pos.Y,flags:GZF_ABSOLUTEPOS)); /*spawn ("candlestick",pos);*/} //Update the actors' Z position. TryMove should do that internally, but it doesn't. GZDoom moment.
+			{
+				SetZ (GetZAt (Pos.X,Pos.Y,flags:GZF_ABSOLUTEPOS)); //Update the actors' Z position. TryMove should do that internally, but it doesn't. GZDoom moment.
+				actor debug = spawn ("kai_debugpoint",(Level.Vec2Offset(OldPos.XY, Path*I),Pos.Z));
+				debug.scale *= 0.5;
+			}
 			//If one of them fails, then return false.
 			Else
 			{//a_log ("i can't head here");

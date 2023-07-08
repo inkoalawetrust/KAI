@@ -208,7 +208,7 @@ Mixin Class KAI_CheckFunctions
 		Return (Other.FindState ("Heal"));//I checked several mods with Archvile-type monsters. And all of them have a Heal state. Making this the only universal way to check for them.
 	}
 	
-	//DOCUMENT: Update the info on this function on the KAI_CheckFunctions page. And document the MOVESWITHVELOCITY flag itself too.
+	//Returns true if the actor moves using TryMove() (Normal monster movement), or false if it moves using real momentum like players.
 	ClearScope Bool IsTeleportingMonster (Actor Other)
 	{
 		If (!Other) Return False;

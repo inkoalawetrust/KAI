@@ -106,6 +106,7 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	Override Void PostBeginPlay()
 	{
 		Super.PostBeginPlay();
+		RetreatState = FindState ("Retreat",True);
 		SpawnVehicleTurret();
 		SpawnHeadlights();
 	}
@@ -203,6 +204,7 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	Int ChaseTimer; //Makes the vehicle only chase its' target for a certain amount of time after it goes out of sight. Is also used to determine how long turreted vehicles stay in one place.
 	Int CurrentOrder; //The current order the vehicle is following.
 	Int StayStillDelay; //How long before the vehicle can stand still to attack again.
+	State RetreatState; //The state the vehicle enters when retreating.
 	
 	//Internal variables
 	Array <KAI_Headlight> Headlights; //Pointers to each headlight the vehicle has.
@@ -291,6 +293,7 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 	//If you do not want this unintended consequence of the flag, then give the turret the +NORADIUSDMG flag !
 	FlagDef TransferDamage : TurretFlags, 2; //The turret will transfer damage taken to its' master (The vehicle it's on). Instead of taking any of its' own.
 	FlagDef NoCombatTraverse : TurretFlags, 3; //The stock combat traverse code will not run, can be used to give the turret its' own turn logic when firing.
+	//FlagDef AltTurnSoundLogic : TurretFlags, 4; //The turn sound loops & increases or decreases in volume based on on how much it has turned since last tick.
 	
 	//Turret turning variables and properties.
 	Double MaxPitch, MinPitch, TurnAmount, TurnSoundRadius, CombatAngleTurnRate, CombatPitchTurnRate;
@@ -325,6 +328,9 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 		KAI_Actor.PostBeginPlay ();
 		SpawnVehicleTurret();
 		TurretAimPos = FAF_MIDDLE; //Turrets aim in the middle of the targets' hitbox by default.
+		//If (bAltTurnSoundLogic) //Start the turn sound and play it on loop, dynamically changing its volume.
+		//The sound engine doesn't play sounds with 0 volume, so set the volume at EQUAL_EPSILON instead.
+		//	A_StartSound (TurnSound,CHAN_BODY,CHANF_LOOP,(1./65536.),0.8);
 		//If (!bFriendly) Species = 'MilitaryHostile';
 	}
 	
@@ -366,10 +372,28 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 		//Play the turrets' turning sound whenever it's not dead.
 		If (TurnSound && !IsDead)
 		{
-			//But only play it when the angle has changed a certain amount.
-			If (AbsAngle (Angle,OldSoundAngle) >= TurnSoundRadius
-			&& !(Master && AbsAngle(Master.Angle,Angle) <= 0.25)) //Stops the turn sound from playing when the turret is snapping to the vehicles' angle.
-				A_StartSound (TurnSound,CHAN_BODY,0,0.8,0.8);
+			//If (!bAltTurnSoundLogic)
+			//{
+				//But only play it when the angle has changed a certain amount.
+				If (AbsAngle (Angle,OldSoundAngle) >= TurnSoundRadius
+				&& !(Master && AbsAngle(Master.Angle,Angle) <= 0.25)) //Stops the turn sound from playing when the turret is snapping to the vehicles' angle.
+					A_StartSound (TurnSound,CHAN_BODY,0,0.8,0.8);
+			//}
+			/*Else
+			{
+				//Or always play it, but change the volume based on how much the turret has turned since last tick.
+				//The TurnSoundRadius instead acts as a threshold, if the angle change is less than it, no sound plays.
+				Double Vol;
+				Double AngDiff = AbsAngle (Angle,OldSoundAngle);
+				Console.Printf ("AngDiff is %f",AngDiff);
+				If (TurnSoundRadius && AngDiff < TurnSoundRadius)
+					Vol = 0.0;
+				Else
+					Vol = -KAI_Math.LinearMap (Vol,AngDiff,TurnSoundRadius,1.,0.);
+				Console.Printf ("Volume is %f",Vol);
+				A_SoundVolume (CHAN_BODY,Vol);
+				//A_StartSound (TurnSound,CHAN_BODY,0,Vol,0.8);
+			}*/
 		}
 		
 		ElevationState = GetElevationState();

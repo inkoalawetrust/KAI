@@ -70,12 +70,68 @@ Extend Class KAI_BaseVehicle
 	}
 	
 	//=====|Vehicle behaviors|=====\\
+	//Other: Actor to back off from.
+	//Distance: How far back to pick a position away from Other.
+	//CheckDistance: How far ahead to check for obstacles, to adjust the move position accordingly.
+	//Slices: How many angles around the caller to check. (360/Slices)
+	//The rest are KAI_MoveTowards' parameters.
+	Void KAI_VehicleRetreat (Actor Other, Double Distance, Double CheckDistance, Int Slices = 16, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0)
+	{
+		If (!Other) Return;
+		
+		//If there's already a prior position to move to, begin moving there instead. Until within melee range of that position.
+		If (!KAI_Math.IsEmptyVector3 (NextMovePos) && NewPosStepCount <= /*MaxSteps*/32 && Level.Vec3Diff (Pos,NextMovePos).Length() >= MeleeRange)
+		{
+			KAI_MoveTowards (NextMovePos, DetourFactor, AngleLimit, ChaseFlags, Flags);
+			NewPosStepCount++;
+			Return;
+		}
+		//Once the position is reached, empty the the NextMovePos vector;
+		Else
+		{
+			NextMovePos = (Double.NaN,Double.NaN,Double.NaN);
+			NewPosStepCount = 0;
+		}
+		Double CheckAngle = (AngleTo(Other)-180); //Try moving right away from the enemy, unless blocked.
+		Vector3 CheckPos = (Vec2Angle (Radius+CheckDistance,CheckAngle),0);
+		CheckPos.Z = GetZAt (CheckPos.X,CheckPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
+		FLineTraceData PathCheck;
+		//Check an arbitrary angles around the vehicle for a valid path. Ooga booga caveman pathfinding.
+		For (Int I = 0; I < Slices; I++)
+		{
+			//LineTrace (CheckAngle,Radius+(Distance*4),0,TRF_SOLIDACTORS|TRF_BLOCKSELF,1,data:PathCheck);
+			//TODO: Use IsPosReachable() ?
+			//Int Type = PathCheck.HitType;
+			//If (Type != Trace_HitWall && Type != Trace_HitFloor && Type != Trace_HitCeiling && Type != Trace_HitActor)
+			If (IsPosReachable (CheckPos,spacing:Radius/2))
+			{
+				console.printf ("epic win after %d tries",I);
+				Break;
+			}
+			console.printf ("%d: obstacle detected",I);
+			CheckAngle += 360/Slices; //There's an obstacle in front of this path, try another angle.
+			CheckPos.XY = (Vec2Angle (Radius+CheckDistance,CheckAngle));
+			CheckPos.Z = GetZAt (CheckPos.X,CheckPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
+			//actor debug = spawn ("kai_debugpoint",CheckPos); debug.bfloatbob = true;
+		}
+		//Subtract the extra distance to check ahead off from the final move position.
+		CheckPos.XY = Vec2Angle (Distance,CheckAngle);
+		CheckPos.Z = GetZAt (CheckPos.X,CheckPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
+		NextMovePos = CheckPos;
+		console.printf ("nextmovepos, %d %d %d",CheckPos.x,CheckPos.y,CheckPos.z);
+		//NextMovePos.XY = Vec2Angle (Distance,CheckAngle);
+		//NextMovePos.Z = GetZAt (NextMovePos.X,NextMovePos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
+		//IsPosReachable (NextMovePos);
+		//NextMovePos = FindRandomMovePos (Other.Pos,Attempts,RunRad,FRMP_FURTHEST); //Pick whichever position is the furthest from Other.
+	}
+	
 	Enum KAIVehicleChaseFlags //LVC = Land Vehicle Chase
 	{
 		LVC_ATTACKWHENSCARED = 1 << 0, //The vehicle will still be very likely to attack when scared of an enemy.
 		LVC_NOTURRETRETARGET = 1 << 1, //The vehicle will never target the hull of a vehicle instead of its' turret. Even if doing so would be better.
 		LVC_MAKEFRIENDSIDLE	 = 1 << 2, //Friendly vehicles will also go to their Idle state when they have no target.
 		LVC_PLAYERSASTHREATS = 1 << 3, //Consider players as threats when deciding if the vehicle should retreat from its' target. e.g to run away from players in god mode the vehicle is targeting
+		LVC_USERETREATSTATE	 = 1 << 4, //Instead of calling KAI_MoveAway to run away. The function will jump straight to the vehicles' RetreatState.
 	}
 	
 	//The standard land vehicle chase function.
@@ -125,7 +181,10 @@ Extend Class KAI_BaseVehicle
 					If (IsVisible (Target, True))
 					{
 						a_log ("oh god oh fuck");
-						KAI_MoveAway (Target,MoveParams.Attempts,MoveParams.RunRad,MoveParams.StepThreshold,0.5,TurnRadius,ChaseFlags,KMT_CHASEGOAL); //DetourFactor is not exposed to the struct.
+						If (!(Flags & LVC_USERETREATSTATE))
+							KAI_MoveAway (Target,MoveParams.Attempts,MoveParams.RunRad,MoveParams.StepThreshold,0.5,TurnRadius,ChaseFlags,KMT_CHASEGOAL); //DetourFactor is not exposed to the struct.
+						Else
+							SetState (RetreatState);
 						MovedAlready = True;
 					}
 				}
@@ -288,7 +347,7 @@ Extend Class KAI_BaseVehicle
 		//Turn the vehicles' headlights on.
 		Void TurnHeadlightsOn()
 		{
-			If (LightsOnAlready) Return;
+			If (LightsOnAlready || IsDead(Self)) Return;
 			LightLevel = 64; //Light up the vehicle.
 			If (Turret) Turret.LightLevel = 64; //And the turret, if any.
 			For (Int I = HeadLights.Size()-1; I >= 0; I--)
@@ -321,6 +380,8 @@ Extend Class KAI_BaseVehicle
 		//Remove them when the vehicle is killed or removed.
 		Void RemoveHeadlights()
 		{
+			LightLevel = 0;
+			If (Turret) Turret.LightLevel = 0;
 			For (Int I = HeadLights.Size()-1; I >= 0; I--)
 			{
 				If (Headlights[I])

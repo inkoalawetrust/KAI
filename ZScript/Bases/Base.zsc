@@ -62,7 +62,7 @@ Class KAI_Actor : Actor Abstract
 			CurrentEnemyPosition = Target.Pos;
 		}
 		Else If (!Target)
-			{LastEnemyPosition = CurrentEnemyPosition = (Double.NaN,Double.NaN,Double.NaN);a_log ("nulled my pants");}
+			LastEnemyPosition = CurrentEnemyPosition = (Double.NaN,Double.NaN,Double.NaN);
 	}
 	
 	/*Allows actors to define the defaults for their own user variables. This is better than the //$UserDefaultValue editor key,

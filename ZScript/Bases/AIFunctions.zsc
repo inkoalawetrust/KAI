@@ -164,9 +164,12 @@ Extend Class KAI_Actor
 		
 		//When CHF_NORANDOMTURN is on. The actor can take a set amount of turns before no longer turning to face its' target.
 		If (ChaseFlags & CHF_NORANDOMTURN && --TurnCount > 0) NextAngle = GetAngleToPos(TargetPos,AngleLimit);
-		
+				
 		//absolute position of next movement
 		vector2 NextPos = Vec2Angle(speed, NextAngle, True);
+		
+		If (Self Is "KAI_BaseVehicle") //Vehicle push handling.
+			KAI_BaseVehicle(Self).KAI_VehiclePushActors(Self, NextPos,KAI_BaseVehicle(Self).MaxPushRadius,KAI_BaseVehicle(Self).MaxPushHeight);
 		bool moved = TryMove(NextPos, 0, false);
 		
 		//if I hit an obstacle while avoiding another, try moving straight towards Other
@@ -395,6 +398,7 @@ Extend Class KAI_Actor
 	//TargetPos: The position to check if it's walkable.
 	/*DistCutoff: The amount of map units to trim off the distance between the callers' pos and TargetPos. Useful for subtracting the radius of another actor,
 	so that if you are checking if a position to another actor can be reached, the check doesn't return false because the actor itself is in the way !*/
+	//Spacing: The spacing of the move checks. Default is 0, which means that the spacing is the diameter of the callers' hitbox.
 	Bool IsPosReachable (Vector3 TargetPos, Double DistCutoff = 0, Double Spacing = 0)
 	{
 		Vector3 OldPos = Pos;

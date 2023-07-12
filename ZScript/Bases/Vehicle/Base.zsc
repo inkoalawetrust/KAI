@@ -2,6 +2,9 @@
 However, the CurrentOrder variable, bNoRadio flag, and VehicleCommands enum is still included in the KAI.
 If I do implement the order system to KAI actors, it will probably be before the marine rewrite. So I'll have to rewrite the vehicle chase function.*/
 
+//PLAYTEST:
+//Check how vehicle turret collision is handled, like, if a vehicle drives under a pipe and the turret is blocked, does it just clip through ?
+
 //TODO:
 //Probably remove or deprecate RotateToVehicle()'s super fast turning, or something.
 //Add a headlightsound property, that plays a sound when the vehicles' headlights turn on or off.
@@ -233,6 +236,12 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	Property RetreatRange : RetreatRange;
 	Int SearchTime; //How much time the vehicle spends looking for its target. The timer resets every time the target is in sight. And decrements with every chase call.
 	Property SearchTime : SearchTime;
+	
+	Int MaxPushableMass; //The maximum amount of mass that the vehicle can shove around. Default is 0, which means the vehicle can't push pushable obstacles.
+	Double MaxPushRadius, MaxPushHeight;
+	Property PushMass : MaxPushableMass; //The maximum dimensions the blocking actors can have before the vehicle can no longer push them.
+	Property MaxPushRadius : MaxPushRadius;
+	Property MaxPushHeight : MaxPushHeight;
 	
 	States
 	{

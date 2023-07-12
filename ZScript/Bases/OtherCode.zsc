@@ -262,6 +262,37 @@ Mixin Class KAI_CheckFunctions
 		
 		Return False;
 	}
+	
+	//Checks if two hitboxes are clipping into one another.
+	ClearScope Bool CheckHitboxIntersection (Actor A, Actor B)
+	{
+		If (!A || !B)
+			Return False;
+		
+		Vector3 AMin, AMax;
+		Vector3 BMin, BMax;
+		[AMin, AMax] = GetHitBoxBoundaries(A);
+		[BMin, BMax] = GetHitBoxBoundaries(B);
+		
+		Return (
+		AMin.X <= BMax.X &&
+		AMax.X >= BMin.X &&
+		AMin.Y <= BMax.Y &&
+		AMax.Y >= BMin.Y &&
+		AMin.Z <= BMax.Z &&
+		AMax.Z >= BMin.Z
+		);
+	}
+	
+	//Returns the minimum and maximum (Respectively) XYZ boundaries of a hitbox in 2 Vector3s.
+	//TODO: Make the above function use this for getting boundaries instead.
+	ClearScope Vector3, Vector3 GetHitboxBoundaries (Actor Mo)
+	{
+		Vector3 MobjMin = (Mo.Pos.X-Mo.Radius,Mo.Pos.Y-Mo.Radius,Mo.Pos.Z);
+		Vector3 MobjMax = (Mo.Pos.X+Mo.Radius,Mo.Pos.Y+Mo.Radius,Mo.Pos.Z+Mo.Height);
+		
+		Return MobjMin, MobjMax;
+	}
 }
 
 //This is the base class for making custom LineTracer-based line of fire checks for actors.

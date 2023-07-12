@@ -70,6 +70,93 @@ Extend Class KAI_BaseVehicle
 	}
 	
 	//=====|Vehicle behaviors|=====\\
+	Int PushRecursions;
+	Array<Actor> PushedAlready;
+	/*FIXME: I tried making this function be called recursively, to make it possible for vehicles to push away groups of objects. By having the obstacles
+	push each other out of the way, but for some reason I just cannot get the recursion handling to fucking work so the game always freezes when a vehicle
+	pushes objects stacked next to each other, so the recursion code has been commented out until someone else can help me get it working.*/
+	//Vehicle push handling. For making large vehicles like tanks push objects out of the way instead of getting blocked by them.
+	//Called before TryMove to push actors out of the way for a successful move.
+	//Source: The actor to push other actors away from.
+	//MovePos: The position the Source actor will move to, if any intersecting actors are there, push them away from the position for the next move.
+	/*MaxPushRadius, MaxPushHeight: The max radius and height the blocking actors can have before the vehicle can't push them. These are normally
+	the push height and radius properties of the vehicle.*/
+	//Pushovers: Returns the actors that blocked the vehicle and were pushed by it to the array passed. Mainly used to apply crush damage to the if desired.
+	Void KAI_VehiclePushActors (Actor Source, Vector2 MovePos, Double MaxPushRadius, Double MaxPushHeight, Out Array<Actor> Pushovers = Null/*, Bool Recursive = False*/)
+	{
+		If (!Source) Return;
+		//If (!Recursive)
+		//	PushedAlready.Clear();
+		If (/*Recursive || */KAI_BaseVehicle(Source).MaxPushableMass > 0)
+		{//a_log ("run push code");
+			/*If (Recursive && PushRecursions <= 0)
+			{
+				a_log ("no recursions left");
+				PushedAlready.Clear();
+				Return;
+			}*/
+			
+			Vector3 OldPos = Source.Pos;
+			If (Source.CheckMove (MovePos,PCM_DROPOFF|PCM_NOACTORS)) //Can we move there anyway ?
+			{//a_log ("run iterator");
+				Actor Mobj;
+				Double TheZ = GetZAt (MovePos.X,MovePos.Y,flags:GZF_ABSOLUTEPOS);
+				Source.SetOrigin ((MovePos,TheZ),False);
+				//Let Pushovers = BlockThingsIterator.CreateFromPos (MovePos.X,MovePos.Y,TheZ,Height,Radius,False);
+				Let Pushables = BlockThingsIterator.Create (Source);
+				Console.printf ("BTI origin: %d %d %d, Source origin %d %d %d",MovePos.X,MovePos.Y,TheZ,pos);
+				While (Pushables.Next())
+				{
+					If (PushedAlready.Find(Mobj)) Continue;
+							
+					Mobj = Pushables.Thing;
+					//Simple pointer checks.
+					If (!Mobj || Mobj == Source || Mobj == Self) Continue;
+					
+					//Trivial actor rejection. Don't consider collisions with actors above or below you.
+					//IDEA: Maybe ignore this if the actor can fly ? Will need handling to vertically move actors too for flying vehicles.
+					If (Mobj.Pos.Z >= Pos.Z+Height || Mobj.Pos.Z+Height <= Pos.Z) Continue;
+					
+					//Ignore very heavy or thrustless actors.
+					If (Mobj.Mass > KAI_BaseVehicle(Self).MaxPushableMass || Mobj.bDontThrust) Continue;
+					
+					//Skip actors that are too big, if a size limited is specified.
+					If (MaxPushRadius != 0 && MaxPushRadius < Mobj.Radius || MaxPushHeight != 0 && MaxPushHeight < Mobj.Height) Continue;
+					else a_log ("small");
+					
+					If (IsCollidable (Mobj,Source) && CheckHitboxIntersection (Source,Mobj))
+					{a_log ("got a pushover");
+						Double PushDist = (Source.Distance2D (Mobj)-Source.Radius); //Push it enough for the corner of the pushover to JUST be away from the vehicle.
+						Vector3 PushPos = Mobj.Vec3Angle (-PushDist,Mobj.AngleTo (Source));
+						console.printf ("PushPos %d %d %d, PushDist %f, Pushover %s",PushPos,PushDist,Mobj.GetClassName());
+						//Mobj.SetOrigin (PushPos,True); //PLACEHOLDER: Making sure the code moves the obstacles to the right position, replace this with TryMove().
+						Mobj.TryMove (PushPos.XY,True);
+						//Move the pushover, if it didn't move, move the actor who blocked it too. And try again.
+						//Do this until there is no more actors in the group blocking each others' movement.
+						/*If (!Mobj.TryMove (PushPos.XY,1))
+						{
+							If (Mobj.BlockingMobj) //Did a blocking object stop the move instead of elevel geometry ?
+							{
+								If (!Recursive) PushRecursions = 32;
+								KAI_VehiclePushActors (BlockingMobj,PushPos.XY,True);
+								If (Mobj.TryMove (PushPos.XY,1))
+									PushedAlready.Push (Mobj); //Unintentional pun thing.
+							}
+						}
+						Else
+							PushedAlready.Push (Mobj); //Unintentional pun thing.*/
+						If (Pushovers)
+							Pushovers.Push(Mobj);
+					}
+				}
+				Source.SetOrigin (OldPos,False);
+				//If (Recursive && PushRecursions > 0)
+				//	PushRecursions--;
+			}
+		}
+	}
+	
+	//Makes the vehicle attempt to drive away from the Other actor, while trying to also avoid obstacles.
 	//Other: Actor to back off from.
 	//Distance: How far back to pick a position away from Other.
 	//CheckDistance: How far ahead to check for obstacles, to adjust the move position accordingly.
@@ -183,7 +270,7 @@ Extend Class KAI_BaseVehicle
 						a_log ("oh god oh fuck");
 						If (!(Flags & LVC_USERETREATSTATE))
 							KAI_MoveAway (Target,MoveParams.Attempts,MoveParams.RunRad,MoveParams.StepThreshold,0.5,TurnRadius,ChaseFlags,KMT_CHASEGOAL); //DetourFactor is not exposed to the struct.
-						Else
+						Else If (Flags & LVC_USERETREATSTATE && RetreatState)
 							SetState (RetreatState);
 						MovedAlready = True;
 					}
@@ -203,13 +290,19 @@ Extend Class KAI_BaseVehicle
 			//If you aren't patrolling and not allowed off your route, and there is an enemy nearby.
 			If (NearestEnemy)
 			{
-				KAI_MoveAway (NearestEnemy,MoveParams.Attempts,MoveParams.RunRad,MoveParams.StepThreshold,0.5,TurnRadius,ChaseFlags); //Keep your distance.
+				If (!(Flags & LVC_USERETREATSTATE))
+					KAI_MoveAway (NearestEnemy,MoveParams.Attempts,MoveParams.RunRad,MoveParams.StepThreshold,0.5,TurnRadius,ChaseFlags); //Keep your distance.
+				Else If (Flags & LVC_USERETREATSTATE && RetreatState)
+					SetState (RetreatState);
 				MovedAlready = True;
 			}
 			//If your turrets' target is too high up for it to reach.
 			Else If (Turret && Turret.Target && Turret.ElevationState == Turret.ELEVATION_TOOHIGH)
 			{a_log ("moving back so my turret can fire");
-				KAI_MoveAway (Turret.Target,MoveParams.Attempts,MoveParams.RunRad,MoveParams.StepThreshold,0.5,TurnRadius,ChaseFlags); //Back off to allow your turret to shoot.
+				If (!(Flags & LVC_USERETREATSTATE))
+					KAI_MoveAway (Turret.Target,MoveParams.Attempts,MoveParams.RunRad,MoveParams.StepThreshold,0.5,TurnRadius,ChaseFlags); //Back off to allow your turret to shoot.
+				Else If (Flags & LVC_USERETREATSTATE && RetreatState)
+					SetState (RetreatState);
 				MovedAlready = True;
 			}
 			//If none of the other conditions are true.

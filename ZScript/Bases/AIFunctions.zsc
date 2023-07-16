@@ -130,6 +130,7 @@ Extend Class KAI_Actor
 	//Makes the actor move towards the specified actor.
 	//IDEA: Make actors move using velocity instead of TryMove(). This will require GetFriction() for CheckMove().
 	//FIXME: There's some flickering between different sprite angles, try fixing it.
+	//FIXME: Fix the function breaking down entirely if an actor is inside the caller. This is not a problem for the stock movement code already.
 	//CREDIT: Written by Custodian. Modified and expanded by me (inkoalawetrust).
 	//Other: The actor to move to.
 	//DetourFactor: How long the actor is allowed to move in a direction after hitting an obstacle, before heading straight for the target again.
@@ -149,6 +150,7 @@ Extend Class KAI_Actor
 		
 		double LastAngle = angle;
 		double NextAngle = LastAngle;
+		Bool IsVehicle = (Self Is "KAI_BaseVehicle");
 		
 		//MoveCount is greater than 0 when avoiding an obstacle
 		if (MoveCount)
@@ -167,9 +169,13 @@ Extend Class KAI_Actor
 				
 		//absolute position of next movement
 		vector2 NextPos = Vec2Angle(speed, NextAngle, True);
-		
-		If (Self Is "KAI_BaseVehicle") //Vehicle push handling.
-			KAI_BaseVehicle(Self).KAI_VehiclePushActors(Self, NextPos,KAI_BaseVehicle(Self).MaxPushRadius,KAI_BaseVehicle(Self).MaxPushHeight);
+		If (IsVehicle) //Vehicle push and crush handling.
+		{
+			Let Vehicle = KAI_BaseVehicle(Self);
+			Array <Actor> Pushovers;
+			KAI_BaseVehicle(Self).KAI_VehiclePushActors(Self, NextPos,Vehicle.MaxPushRadius,Vehicle.MaxPushHeight,Pushovers);
+			KAI_BaseVehicle(Self).KAI_VehicleCrushObstacles (Pushovers,Vehicle.VehicleCrushDamage);
+		}
 		bool moved = TryMove(NextPos, 0, false);
 		
 		//if I hit an obstacle while avoiding another, try moving straight towards Other
@@ -178,6 +184,13 @@ Extend Class KAI_Actor
 			MoveCount = Int(random(16,32)*DetourFactor);
 			NextAngle = GetAngleToPos(TargetPos,AngleLimit);
 			NextPos = Vec2Angle(speed, NextAngle, True);
+			If (IsVehicle) //Vehicle push and crush handling.
+			{
+				Let Vehicle = KAI_BaseVehicle(Self);
+				Array <Actor> Pushovers;
+				KAI_BaseVehicle(Self).KAI_VehiclePushActors(Self, NextPos,Vehicle.MaxPushRadius,Vehicle.MaxPushHeight,Pushovers);
+				KAI_BaseVehicle(Self).KAI_VehicleCrushObstacles (Pushovers,Vehicle.VehicleCrushDamage);
+			}
 			moved = TryMove(NextPos, 0, false);
 		}
 		
@@ -213,6 +226,13 @@ Extend Class KAI_Actor
 			{
 				NextAngle = LastAngle + (i * 48 * lastturndir);
 				NextPos = Vec2Angle(speed, NextAngle, True);
+				If (IsVehicle) //Vehicle push and crush handling.
+				{
+					Let Vehicle = KAI_BaseVehicle(Self);
+					Array <Actor> Pushovers;
+					KAI_BaseVehicle(Self).KAI_VehiclePushActors(Self, NextPos,Vehicle.MaxPushRadius,Vehicle.MaxPushHeight,Pushovers);
+					KAI_BaseVehicle(Self).KAI_VehicleCrushObstacles (Pushovers,Vehicle.VehicleCrushDamage);
+				}
 				moved = TryMove(NextPos, 0, false);
 				if (moved) break;
 				
@@ -220,6 +240,13 @@ Extend Class KAI_Actor
 				
 				NextAngle = LastAngle + (i * 48 * lastturndir);
 				NextPos = Vec2Angle(speed, NextAngle, True);
+				If (IsVehicle) //Vehicle push and crush handling.
+				{
+					Let Vehicle = KAI_BaseVehicle(Self);
+					Array <Actor> Pushovers;
+					KAI_BaseVehicle(Self).KAI_VehiclePushActors(Self, NextPos,Vehicle.MaxPushRadius,Vehicle.MaxPushHeight,Pushovers);
+					KAI_BaseVehicle(Self).KAI_VehicleCrushObstacles (Pushovers,Vehicle.VehicleCrushDamage);
+				}
 				moved = TryMove(NextPos, 0, false);
 				if (moved) break;
 			}

@@ -81,8 +81,8 @@ Extend Class KAI_BaseVehicle
 	//MovePos: The position the Source actor will move to, if any intersecting actors are there, push them away from the position for the next move.
 	/*MaxPushRadius, MaxPushHeight: The max radius and height the blocking actors can have before the vehicle can't push them. These are normally
 	the push height and radius properties of the vehicle.*/
-	//Pushovers: Returns the actors that blocked the vehicle and were pushed by it to the array passed. Mainly used to apply crush damage to the if desired.
-	Void KAI_VehiclePushActors (Actor Source, Vector2 MovePos, Double MaxPushRadius, Double MaxPushHeight, Out Array<Actor> Pushovers = Null/*, Bool Recursive = False*/)
+	//Blockers: Returns the actors that blocked the vehicle to the array passed. Mainly used to apply crush damage to the if desired.
+	Void KAI_VehiclePushActors (Actor Source, Vector2 MovePos, Double MaxPushRadius, Double MaxPushHeight, Out Array<Actor> Blockers = Null/*, Bool Recursive = False*/)
 	{
 		If (!Source) Return;
 		//If (!Recursive)
@@ -98,18 +98,18 @@ Extend Class KAI_BaseVehicle
 			
 			Vector3 OldPos = Source.Pos;
 			If (Source.CheckMove (MovePos,PCM_DROPOFF|PCM_NOACTORS)) //Can we move there anyway ?
-			{//a_log ("run iterator");
+			{
 				Actor Mobj;
 				Double TheZ = GetZAt (MovePos.X,MovePos.Y,flags:GZF_ABSOLUTEPOS);
 				Source.SetOrigin ((MovePos,TheZ),False);
 				//Let Pushovers = BlockThingsIterator.CreateFromPos (MovePos.X,MovePos.Y,TheZ,Height,Radius,False);
-				Let Pushables = BlockThingsIterator.Create (Source);
-				Console.printf ("BTI origin: %d %d %d, Source origin %d %d %d",MovePos.X,MovePos.Y,TheZ,pos);
-				While (Pushables.Next())
+				Let Pushovers = BlockThingsIterator.Create (Source);
+				//Console.printf ("BTI origin: %d %d %d, Source origin %d %d %d",MovePos.X,MovePos.Y,TheZ,pos);
+				While (Pushovers.Next())
 				{
 					If (PushedAlready.Find(Mobj)) Continue;
 							
-					Mobj = Pushables.Thing;
+					Mobj = Pushovers.Thing;
 					//Simple pointer checks.
 					If (!Mobj || Mobj == Source || Mobj == Self) Continue;
 					
@@ -117,20 +117,30 @@ Extend Class KAI_BaseVehicle
 					//IDEA: Maybe ignore this if the actor can fly ? Will need handling to vertically move actors too for flying vehicles.
 					If (Mobj.Pos.Z >= Pos.Z+Height || Mobj.Pos.Z+Height <= Pos.Z) Continue;
 					
+					Bool IsColliding = (IsCollidable (Mobj,Source) && CheckHitboxIntersection (Source,Mobj));
+					
+					If (Blockers && IsColliding)
+						Blockers.Push (Mobj);
+					
 					//Ignore very heavy or thrustless actors.
 					If (Mobj.Mass > KAI_BaseVehicle(Self).MaxPushableMass || Mobj.bDontThrust) Continue;
 					
 					//Skip actors that are too big, if a size limited is specified.
 					If (MaxPushRadius != 0 && MaxPushRadius < Mobj.Radius || MaxPushHeight != 0 && MaxPushHeight < Mobj.Height) Continue;
-					else a_log ("small");
 					
-					If (IsCollidable (Mobj,Source) && CheckHitboxIntersection (Source,Mobj))
-					{a_log ("got a pushover");
+					If (IsColliding)
+					{
 						Double PushDist = (Source.Distance2D (Mobj)-Source.Radius); //Push it enough for the corner of the pushover to JUST be away from the vehicle.
 						Vector3 PushPos = Mobj.Vec3Angle (-PushDist,Mobj.AngleTo (Source));
-						console.printf ("PushPos %d %d %d, PushDist %f, Pushover %s",PushPos,PushDist,Mobj.GetClassName());
-						//Mobj.SetOrigin (PushPos,True); //PLACEHOLDER: Making sure the code moves the obstacles to the right position, replace this with TryMove().
-						Mobj.TryMove (PushPos.XY,True);
+						/*KLUDGE: For some fucking reason, both TryMove and CheckMove return false when trying to push an actor up a step it damn well can
+						reach. So I had to basically reimplement a simple version of CheckMove in ZScript, that only uses CheckPosition and checks the step
+						height. And this magically works despite being basically the same as the native code because*/
+						FCheckPosition Tm;
+						If (Mobj.CheckPosition (PushPos.XY,True,Tm))
+						{
+							If ((Tm.FloorZ - Mobj.Pos.Z) <= Mobj.MaxStepHeight)
+								Mobj.SetOrigin (PushPos,True);
+						}
 						//Move the pushover, if it didn't move, move the actor who blocked it too. And try again.
 						//Do this until there is no more actors in the group blocking each others' movement.
 						/*If (!Mobj.TryMove (PushPos.XY,1))
@@ -145,8 +155,6 @@ Extend Class KAI_BaseVehicle
 						}
 						Else
 							PushedAlready.Push (Mobj); //Unintentional pun thing.*/
-						If (Pushovers)
-							Pushovers.Push(Mobj);
 					}
 				}
 				Source.SetOrigin (OldPos,False);
@@ -156,10 +164,25 @@ Extend Class KAI_BaseVehicle
 		}
 	}
 	
+	//Applies the specified crush damage to the actors in the victims array, as long as they are small enough.
+	//Used in conjunction with KAI_VehiclePushActor, which can export what actors were pushed away, to then crush them.
+	Void KAI_VehicleCrushObstacles (Array <Actor> Victims, Int Damage)
+	{
+		For (Int I = Victims.Size()-1; I >= 0; I--)
+		{a_log ("iterating");
+			If (Victims[I])
+			{console.printf ("smooshing %s",victims[i].getclassname());
+				//Don't crush overly large actors.
+				If (MaxCrushRadius != 0 && MaxCrushRadius < Victims[I].Radius || MaxCrushHeight != 0 && MaxCrushHeight < Victims[I].Height) Continue;
+				Victims[I].DamageMobj (Self, Self, Damage, 'Crush');
+			}
+		}
+	}
+	
 	//Makes the vehicle attempt to drive away from the Other actor, while trying to also avoid obstacles.
 	//Other: Actor to back off from.
 	//Distance: How far back to pick a position away from Other.
-	//CheckDistance: How far ahead to check for obstacles, to adjust the move position accordingly.
+	//CheckDistance: How far ahead to check for obstacles, to adjust the move position accordingly. 0 means no obstacle check is performed.
 	//Slices: How many angles around the caller to check. (360/Slices)
 	//The rest are KAI_MoveTowards' parameters.
 	Void KAI_VehicleRetreat (Actor Other, Double Distance, Double CheckDistance, Int Slices = 16, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0)
@@ -182,28 +205,31 @@ Extend Class KAI_BaseVehicle
 		Double CheckAngle = (AngleTo(Other)-180); //Try moving right away from the enemy, unless blocked.
 		Vector3 CheckPos = (Vec2Angle (Radius+CheckDistance,CheckAngle),0);
 		CheckPos.Z = GetZAt (CheckPos.X,CheckPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
-		FLineTraceData PathCheck;
-		//Check an arbitrary angles around the vehicle for a valid path. Ooga booga caveman pathfinding.
-		For (Int I = 0; I < Slices; I++)
+		//TODO: Make the code somehow ignore actor the vehicle can push away ? This would require reverting to using line traces.
+		If (CheckDistance > 0 && Slices > 0)
 		{
-			//LineTrace (CheckAngle,Radius+(Distance*4),0,TRF_SOLIDACTORS|TRF_BLOCKSELF,1,data:PathCheck);
-			//TODO: Use IsPosReachable() ?
-			//Int Type = PathCheck.HitType;
-			//If (Type != Trace_HitWall && Type != Trace_HitFloor && Type != Trace_HitCeiling && Type != Trace_HitActor)
-			If (IsPosReachable (CheckPos,spacing:Radius/2))
+			FLineTraceData PathCheck;
+			//Check an arbitrary angles around the vehicle for a valid path. Ooga booga caveman pathfinding.
+			For (Int I = 0; I < Slices; I++)
 			{
-				console.printf ("epic win after %d tries",I);
-				Break;
+				//LineTrace (CheckAngle,Radius+(Distance*4),0,TRF_SOLIDACTORS|TRF_BLOCKSELF,1,data:PathCheck);
+				//Int Type = PathCheck.HitType;
+				//If (Type != Trace_HitWall && Type != Trace_HitFloor && Type != Trace_HitCeiling && Type != Trace_HitActor)
+				If (IsPosReachable (CheckPos,spacing:Radius/2))
+				{
+					console.printf ("epic win after %d tries",I);
+					Break;
+				}
+				console.printf ("%d: obstacle detected",I);
+				CheckAngle += 360/Slices; //There's an obstacle in front of this path, try another angle.
+				CheckPos.XY = (Vec2Angle (Radius+CheckDistance,CheckAngle));
+				CheckPos.Z = GetZAt (CheckPos.X,CheckPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
+				//actor debug = spawn ("kai_debugpoint",CheckPos); debug.bfloatbob = true;
 			}
-			console.printf ("%d: obstacle detected",I);
-			CheckAngle += 360/Slices; //There's an obstacle in front of this path, try another angle.
-			CheckPos.XY = (Vec2Angle (Radius+CheckDistance,CheckAngle));
+			//Subtract the extra distance to check ahead off from the final move position.
+			CheckPos.XY = Vec2Angle (Distance,CheckAngle);
 			CheckPos.Z = GetZAt (CheckPos.X,CheckPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
-			//actor debug = spawn ("kai_debugpoint",CheckPos); debug.bfloatbob = true;
 		}
-		//Subtract the extra distance to check ahead off from the final move position.
-		CheckPos.XY = Vec2Angle (Distance,CheckAngle);
-		CheckPos.Z = GetZAt (CheckPos.X,CheckPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
 		NextMovePos = CheckPos;
 		console.printf ("nextmovepos, %d %d %d",CheckPos.x,CheckPos.y,CheckPos.z);
 		//NextMovePos.XY = Vec2Angle (Distance,CheckAngle);

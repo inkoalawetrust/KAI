@@ -285,7 +285,6 @@ Mixin Class KAI_CheckFunctions
 	}
 	
 	//Returns the minimum and maximum (Respectively) XYZ boundaries of a hitbox in 2 Vector3s.
-	//TODO: Make the above function use this for getting boundaries instead.
 	ClearScope Vector3, Vector3 GetHitboxBoundaries (Actor Mo)
 	{
 		Vector3 MobjMin = (Mo.Pos.X-Mo.Radius,Mo.Pos.Y-Mo.Radius,Mo.Pos.Z);

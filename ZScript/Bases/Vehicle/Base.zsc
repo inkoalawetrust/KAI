@@ -239,9 +239,15 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	
 	Int MaxPushableMass; //The maximum amount of mass that the vehicle can shove around. Default is 0, which means the vehicle can't push pushable obstacles.
 	Double MaxPushRadius, MaxPushHeight;
-	Property PushMass : MaxPushableMass; //The maximum dimensions the blocking actors can have before the vehicle can no longer push them.
+	Property MaxPushMass : MaxPushableMass; //The maximum dimensions the blocking actors can have before the vehicle can no longer push them.
 	Property MaxPushRadius : MaxPushRadius;
 	Property MaxPushHeight : MaxPushHeight;
+	
+	Int VehicleCrushDamage; //The crushing damage the vehicle does with every step.
+	Property CrushDamage : VehicleCrushDamage;
+	Double MaxCrushRadius, MaxCrushHeight; //The maximum dimensions an actor blocking a vehicles' way can have before the vehicle can no longer crush it.
+	Property MaxCrushRadius : MaxCrushRadius;
+	Property MaxCrushHeight : MaxCrushHeight;
 	
 	States
 	{

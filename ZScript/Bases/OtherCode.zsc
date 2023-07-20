@@ -53,6 +53,16 @@ Class KAI_Math
 	{
 		Return (Vec.X == 0 && Vec.Y == 0 && Vec.Z == 0);
 	}
+	
+	//CREDIT: RicardoLuis0
+	//Rotate a Vector2 around a non (0,0) origin.
+	ClearScope Static Vector2 RotateAround (Vector2 Origin, Vector2 Vec, Double Angle)
+	{
+		Vec -= Origin;
+		Vec = Actor.RotateVector(Vec, Angle);
+		Vec += Origin;
+		Return Vec;
+	}
 }
 
 Mixin Class KAI_UniversalFunctions

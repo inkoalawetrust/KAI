@@ -130,7 +130,6 @@ Extend Class KAI_Actor
 	//Makes the actor move towards the specified actor.
 	//IDEA: Make actors move using velocity instead of TryMove(). This will require GetFriction() for CheckMove().
 	//FIXME: There's some flickering between different sprite angles, try fixing it.
-	//FIXME: Fix the function breaking down entirely if an actor is inside the caller. This is not a problem for the stock movement code already.
 	//CREDIT: Written by Custodian. Modified and expanded by me (inkoalawetrust).
 	//Other: The actor to move to.
 	//DetourFactor: How long the actor is allowed to move in a direction after hitting an obstacle, before heading straight for the target again.
@@ -176,7 +175,10 @@ Extend Class KAI_Actor
 			KAI_BaseVehicle(Self).KAI_VehiclePushActors(Self, NextPos,Vehicle.MaxPushRadius,Vehicle.MaxPushHeight,Pushovers);
 			KAI_BaseVehicle(Self).KAI_VehicleCrushObstacles (Pushovers,Vehicle.VehicleCrushDamage);
 		}
-		bool moved = TryMove(NextPos, 0, false);
+		
+		FCheckPosition Move;
+		Move.FromPMove = True; //Move anyways if there's an actor within your hitbox already.
+		bool moved = TryMove(NextPos, 0, false, Move);
 		
 		//if I hit an obstacle while avoiding another, try moving straight towards Other
 		if (!moved && MoveCount || bCantLeaveFloorPic && FloorPic != OldFloor)
@@ -191,7 +193,7 @@ Extend Class KAI_Actor
 				KAI_BaseVehicle(Self).KAI_VehiclePushActors(Self, NextPos,Vehicle.MaxPushRadius,Vehicle.MaxPushHeight,Pushovers);
 				KAI_BaseVehicle(Self).KAI_VehicleCrushObstacles (Pushovers,Vehicle.VehicleCrushDamage);
 			}
-			moved = TryMove(NextPos, 0, false);
+			moved = TryMove(NextPos, 0, false, Move);
 		}
 		
 		//If there's a limit to how much the actor can turn per step. Decide an amount of turns for CHF_NORANDOMTURN to make after it hits an obstacle.
@@ -233,7 +235,7 @@ Extend Class KAI_Actor
 					KAI_BaseVehicle(Self).KAI_VehiclePushActors(Self, NextPos,Vehicle.MaxPushRadius,Vehicle.MaxPushHeight,Pushovers);
 					KAI_BaseVehicle(Self).KAI_VehicleCrushObstacles (Pushovers,Vehicle.VehicleCrushDamage);
 				}
-				moved = TryMove(NextPos, 0, false);
+				moved = TryMove(NextPos, 0, false, Move);
 				if (moved) break;
 				
 				lastTurnDir *= -1.0;
@@ -247,7 +249,7 @@ Extend Class KAI_Actor
 					KAI_BaseVehicle(Self).KAI_VehiclePushActors(Self, NextPos,Vehicle.MaxPushRadius,Vehicle.MaxPushHeight,Pushovers);
 					KAI_BaseVehicle(Self).KAI_VehicleCrushObstacles (Pushovers,Vehicle.VehicleCrushDamage);
 				}
-				moved = TryMove(NextPos, 0, false);
+				moved = TryMove(NextPos, 0, false, Move);
 				if (moved) break;
 			}
 		}
@@ -446,8 +448,8 @@ Extend Class KAI_Actor
 			If (TryMove (Level.Vec2Offset(OldPos.XY, Path*I), 1, tm:Data))
 			{
 				SetZ (GetZAt (Pos.X,Pos.Y,flags:GZF_ABSOLUTEPOS)); //Update the actors' Z position. TryMove should do that internally, but it doesn't. GZDoom moment.
-				actor debug = spawn ("kai_debugpoint",(Level.Vec2Offset(OldPos.XY, Path*I),Pos.Z));
-				debug.scale *= 0.5;
+				//actor debug = spawn ("kai_debugpoint",(Level.Vec2Offset(OldPos.XY, Path*I),Pos.Z));
+				//debug.scale *= 0.5;
 			}
 			//If one of them fails, then return false.
 			Else

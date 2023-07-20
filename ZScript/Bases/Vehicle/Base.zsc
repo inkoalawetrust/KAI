@@ -226,6 +226,7 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	FlagDef NoOrders : VehicleFlags, 1; //The vehicle ignores orders given to it by the radio item.
 	FlagDef NoHeadlights : VehicleFlags, 2; //The vehicle does not have working headlights. For vehicle props however, this is basically an on/off switch.
 	FlagDef PassThreatLevelToTurrets : VehicleFlags, 3; //Turrets will inherit the vehicles' threat level, unless they have a threat level defined.
+	FlagDef NoCrushing : VehicleFlags, 4; //The vehicle will never crush enemies and corpses.
 	
 	//Properties
 	Class<KAI_BaseTurret> VehicleTurret; //The vehicles' turret, if any.
@@ -475,6 +476,9 @@ Class KAI_Headlight : DynamicLight
 	Bool Active; //The actual internal m_Active variable that reports if a dynamic light is on isn't exposed to ZScript.
 	Vector3 Offset; //This needs to be here because SetOffset() doesn't work right after a dynamic light spawns.
 	Bool IsBacklight;
+	Bool UseSpriteRotation; //Take the Targets' SpriteRotation into account.
+	Bool UseCardinalAngles; //Snap the headlights' angle to the nearest of 8 cardinal angles of the vehicle.
+	Bool SixteenAngles; //Same, but for 16 angle sprites.
 	
 	Override Void Tick()
 	{
@@ -482,7 +486,16 @@ Class KAI_Headlight : DynamicLight
 		If (Target && KAI_BaseVehicle(Target).HeadlightsOn)
 		{
 			SetOrigin (Target.Pos, True);
-			Angle = IsBackLight ? Target.Angle-180 : Target.Angle;
+			If (!UseCardinalAngles)
+				Angle = IsBackLight ? Target.Angle-180 : Target.Angle;
+			Else
+			{
+				Angle = KAI_Actor(Target).GetNearestCardinalAngle (SixteenAngles)- (IsBackLight ? 0 : 180);
+				//If (IsBackLight)
+				//	Angle -= 180;
+			}
+			If (UseSpriteRotation)
+				Angle += Target.SpriteRotation;
 			Pitch = Target.Pitch;
 		}
 	}

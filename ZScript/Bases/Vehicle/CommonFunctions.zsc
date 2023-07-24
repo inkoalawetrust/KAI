@@ -136,15 +136,23 @@ Extend Class KAI_BaseVehicle
 						/*KLUDGE: For some fucking reason, both TryMove and CheckMove return false when trying to push an actor up a step it damn well can
 						reach. So I had to basically reimplement a simple version of CheckMove in ZScript, that only uses CheckPosition and checks the step
 						height. And this magically works despite being basically the same as the native code because*/
+						Bool IsProp = IsInanimateObject (Mobj);
+						Bool Sol;
+						If (!IsProp)
+						{
+							Sol = Mobj.bSolid;
+							Mobj.bSolid = False;
+						}
 						FCheckPosition Tm;
-						If (Mobj.CheckPosition (PushPos.XY,True,Tm))
+						If (Mobj.CheckPosition (PushPos.XY,False,Tm))
 						{
 							If ((Tm.FloorZ - Mobj.Pos.Z) <= Mobj.MaxStepHeight)
 								Mobj.SetOrigin (PushPos,True);
 						}
+						If (!IsProp) Mobj.bSolid = Sol;
 						//Move the pushover, if it didn't move, move the actor who blocked it too. And try again.
 						//Do this until there is no more actors in the group blocking each others' movement.
-						If (!Mobj.TryMove (PushPos.XY,1))
+						If (IsProp && !Mobj.TryMove (PushPos.XY,1))
 						{
 							If (Mobj.BlockingMobj) //Did a blocking object stop the move instead of elevel geometry ?
 							{
@@ -419,7 +427,7 @@ Extend Class KAI_BaseVehicle
 			If (!(Flags & RVHF_NOTRANSFERDAMAGECHECK) && KAI_BaseTurret(Target).bTransferDamage)
 			{
 				//And the vehicle the turret is attached to is overall bigger than the turret.
-				If (Target.Master.Radius > Target.Radius && Target.Master.Height > Turret.Height)
+				If (Turret && Target.Master.Radius > Turret.Radius && Target.Master.Height > Turret.Height)
 				{
 					If (!(Flags & RVHF_NOTARGETCHANGE)) Target = Target.Master; //Then target the vehicle the turret is attached to.
 					Return True;

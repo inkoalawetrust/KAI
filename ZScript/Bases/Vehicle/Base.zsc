@@ -86,7 +86,7 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 		Actor Whomstve = (NearestEnemy ? NearestEnemy : Target);
 		If ((Whomstve && Distance3DSquared (Whomstve) >= (Distance*Distance)*1.2))
 		{
-			If (CheckSightFrom.CheckSight (CheckSightFrom.Target))
+			If (CheckSightFrom && CheckSightFrom.Target && CheckSightFrom.CheckSight (CheckSightFrom.Target))
 				Return True;
 		}
 		Return False;
@@ -296,6 +296,7 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 		+DontFollowPlayers;
 		+NoSpriteShadow;
 		+KAI_BaseVehicle.NoOrders;
+		+KAI_BaseVehicle.NoCrushing;
 		-AvoidHazards;
 		-AvoidMelee;
 		-CanBlast; //Turrets are attached to their vehicle.
@@ -310,6 +311,7 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 	FlagDef TransferDamage : TurretFlags, 2; //The turret will transfer damage taken to its' master (The vehicle it's on). Instead of taking any of its' own.
 	FlagDef NoCombatTraverse : TurretFlags, 3; //The stock combat traverse code will not run, can be used to give the turret its' own turn logic when firing.
 	//FlagDef AltTurnSoundLogic : TurretFlags, 4; //The turn sound loops & increases or decreases in volume based on on how much it has turned since last tick.
+	FlagDef TurnSoundNoStop : TurretFlags, 4; //The turn sound will wait for the last one to stop. Instead of playing every tick the angle diff is big enough.
 	
 	//Turret turning variables and properties.
 	Double MaxPitch, MinPitch, TurnAmount, TurnSoundRadius, CombatAngleTurnRate, CombatPitchTurnRate;
@@ -388,12 +390,13 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 		//Play the turrets' turning sound whenever it's not dead.
 		If (TurnSound && !IsDead)
 		{
+			Int Flags = (bTurnSoundNoStop ? CHANF_NOSTOP : 0);
 			//If (!bAltTurnSoundLogic)
 			//{
 				//But only play it when the angle has changed a certain amount.
 				If (AbsAngle (Angle,OldSoundAngle) >= TurnSoundRadius
 				&& !(Master && AbsAngle(Master.Angle,Angle) <= 0.25)) //Stops the turn sound from playing when the turret is snapping to the vehicles' angle.
-					A_StartSound (TurnSound,CHAN_BODY,0,0.8,0.8);
+					A_StartSound (TurnSound,CHAN_BODY,Flags,0.8,0.8);
 			//}
 			/*Else
 			{
@@ -430,6 +433,7 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 		If (Master && !(Self Is "KAI_BaseTurretProp")) //Prop turrets use TurretRotationOffset differently than living ones.
 			TurretRotationOffset = DeltaAngle (Master.Angle,Angle);
 		
+		A_StopAllSounds ();
 		Super.Die (Source, Inflictor, DmgFlags, MeansOfDeath);
 		bShootable = bNotAutoaimed = True;
 		If (bFallOnDeath) bNoSpriteShadow = False;

@@ -302,6 +302,21 @@ Mixin Class KAI_CheckFunctions
 		
 		Return MobjMin, MobjMax;
 	}
+	
+	//A ZScript copy of this function: https://github.com/ZDoom/gzdoom/blob/62f37079a7834b813f251818d1db6c80e644d209/src/playsim/actor.h#L1422
+	Double KAI_GetSpriteAngle (Actor Other, Double ViewAngle, Double TicFrac)
+	{
+		If (Other.bSpriteAngle)
+			Return Other.SpriteAngle;
+		Else
+		{
+			Double ThisAng;
+			//NOTE: PrevAngles is not exposed to ZScript, so we can't actually account for INTERPOLATEANGLES.
+			/*If (bInterpolateAngles) ThisAng = Other.PrevAngles.Yaw + Other.DeltaAngle(Other.PrevAngles.Yaw,Other.Angle) * TicFrac;
+			Else*/ ThisAng = Other.Angle;
+			Return ViewAngle - (ThisAng + Other.SpriteRotation);
+		}
+	}
 }
 
 //This is the base class for making custom LineTracer-based line of fire checks for actors.

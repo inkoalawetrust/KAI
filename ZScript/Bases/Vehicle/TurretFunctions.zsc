@@ -45,6 +45,7 @@ Extend Class KAI_BaseTurret
 	{
 		RTVF_NOTARGETCHECK	= 1 << 0, //The turret will apply its' rotation mechanics even if it has a target.
 		RTVF_RELATIVEONLY	= 1 << 1, //The turret will only rotate relative to its masters' angle + its' TurretRotationOffset, even if the turret isn't destroyed.
+		RTVF_ADDANGLE		= 1 << 2, //Should the TurretRotationOffset be added on top of the determined turret angle ?
 	}
 	
 	//Makes the turret rotate back over time to the direction that the vehicle is facing. Instead of snapping back instantly.
@@ -68,9 +69,10 @@ Extend Class KAI_BaseTurret
 			Else
 				Pitch += (Master.Pitch - Pitch) * TurnAmount;
 			
+			Double Bonus = (Flags & RTVF_ADDANGLE) ? TurretRotationOffset : 0 ;
 			If (!TurretSnapDelay)
 			{
-				Angle = Master.Angle;
+				Angle = Master.Angle + Bonus;
 			}
 			Else
 			{

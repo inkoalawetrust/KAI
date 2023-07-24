@@ -49,7 +49,7 @@ Extend Class KAI_Actor
 		
 		If (CurSector.Flags & Sector.SECF_NOATTACK) Return False;
 		
-		If (!CheckSight (Other, SF_SEEPASTBLOCKEVERYTHING)) Return False;
+		If (!Other || !CheckSight (Other, SF_SEEPASTBLOCKEVERYTHING)) Return False;
 		
 		If (bJustHit)
 		{

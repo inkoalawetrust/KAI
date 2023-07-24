@@ -132,6 +132,34 @@ Extend Class KAI_Actor
 		Return 0;
 	}
 	
+	//Gets the sprite angle relative to the specified camera position, which is usually the consoleplayers' view.
+	//This is more or less a rip of this: https://github.com/ZDoom/gzdoom/blob/62f37079a7834b813f251818d1db6c80e644d209/src/rendering/hwrenderer/scene/hw_sprites.cpp#L860-L888
+	//It returns the sprite angle that should be shown. AKA the value it returns internally. And also returns an actual 360 angle, which is more useful.
+	Int, Double GetSpriteAngleFromPos (Vector3 CamPos, Bool SixteenAngles)
+	{
+		Vector3 Coords = Level.SphericalCoords (CamPos,Pos);
+		Double Ang = Coords.X;
+		
+		Double SprAng = KAI_GetSpriteAngle (Self,Ang,System.GetTimeFrac());
+		Double Result;
+		If (!SixteenAngles)
+		{
+			//PLAYTEST: The code for SpriteAngle is untested.
+			If (bSpriteAngle)
+				Result = BAM (SpriteAngle + 45.0 / 2 * 9) >> 28;
+			Else
+				Result = BAM (SprAng - (Angle + SpriteRotation) + 45.0 / 2 * 9) >> 28;
+		}
+		Else
+		{
+			If (bSpriteAngle)
+				Result = BAM (SpriteAngle + 45.0 / 2 * 9 - 180.0 / 16) >> 28;
+			Else
+				Result = BAM (SprAng - (Angle + SpriteRotation) + 45.0 / 2 * 9 - 180.0 / 16) >> 28;
+		}
+		Return Int(Result), Result * (!SixteenAngles ? 45.0 : 22.5);
+	}
+	
 	//Finds the closest actor in an array of actors.
 	//ActorList: The array of actors to find the closest one from. Usually scrubbed from a blockmap iterator.
 	//Pos: The position from which the distance check is performed on each actor.

@@ -108,6 +108,7 @@ Extend Class KAI_BaseTurret
 	//TODO:
 	//Split the code that actually predicts a future straight line trajectory for the target in a GetFutureTrajectory() function.
 	//Add an Inaccuracy vector parameter, which specifies a bounding box to randomly offset the calculated position to.
+	
 	//Aim the turret ahead of the targets' trajectory, allowing to fire in anticipation of where they'll be. Basically, this is the turrets' fire control system.
 	//The Max_Turn, Max_Pitch, Ang_Offset, Pitch_Offset, Flags, and Z_Ofs properties are passed to A_Face(). Such as for controlling HOW fast it aims.
 	//Tics: The travel time of the turrets' attack in tics. Used to estimate where the target will be once the attack arrives. -1 is an automatic estimation based on the TurretAttackSpeed property.
@@ -328,7 +329,7 @@ Extend Class KAI_BaseTurret
 		Target.SetXYZ(OldPos);
 		
 		If (Check.GoodLOS)
-		{a_log ("middle aim");
+		{
 			Check.Destroy();
 			Return FAF_MIDDLE;
 		}

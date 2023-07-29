@@ -67,10 +67,11 @@ Default
 			if (goal)KAI_MoveTowards(goal.Pos,detourfactor:0.5);
 			KAI_Chase_HandleActiveSound(0);
 			KAI_Chase_PatrolHandling();*/
+			if (target) KAI_MoveTowards(target.Pos,detourfactor:0.5,flags:KMT_ZIGZAG);
 			
 			//KAI_Wander(32,1024,256);
 			//if (target) KAI_MoveAway(target,runrad:256,detourfactor:0.5);
-			A_Chase ("Melee",Null);
+			//A_Chase ("Melee",Null);
 		}
 		Loop;
 	//Shit out plasma balls to test VelInterceptEx().

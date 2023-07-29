@@ -249,6 +249,7 @@ Extend Class KAI_BaseVehicle
 		LVC_MAKEFRIENDSIDLE	 = 1 << 2, //Friendly vehicles will also go to their Idle state when they have no target.
 		LVC_PLAYERSASTHREATS = 1 << 3, //Consider players as threats when deciding if the vehicle should retreat from its' target. e.g to run away from players in god mode the vehicle is targeting
 		LVC_USERETREATSTATE	 = 1 << 4, //Instead of calling KAI_MoveAway to run away. The function will jump straight to the vehicles' RetreatState.
+		LVC_ZIGZAGGING		 = 1 << 5, //Enables KAI_MoveToward's KMT_ZIGZAG flag.
 	}
 	
 	//The standard land vehicle chase function.
@@ -272,6 +273,8 @@ Extend Class KAI_BaseVehicle
 			KAI_LandVehicleChase(WaitState, Flags, ChaseFlags, TurnRadius, FollowDist, Default_Params); //The optimal GZDoom solution.
 			Return;
 		}
+		
+		Int KMTFlags = KMT_CHASEGOAL|LVC_ZIGZAGGING ? KMT_ZIGZAG : 0;
 		
 		Bool MovedAlready; //If one of the KAI_MoveTowards/Away calls was made. Don't call the rest.
 		Double MajorThreatRange = (RetreatRange*4)*(RetreatRange*4);
@@ -298,7 +301,7 @@ Extend Class KAI_BaseVehicle
 					If (IsVisible (Target, True))
 					{
 						If (!(Flags & LVC_USERETREATSTATE))
-							KAI_MoveAway (Target,MoveParams.Attempts,MoveParams.RunRad,MoveParams.StepThreshold,0.5,TurnRadius,ChaseFlags,KMT_CHASEGOAL); //DetourFactor is not exposed to the struct.
+							KAI_MoveAway (Target,MoveParams.Attempts,MoveParams.RunRad,MoveParams.StepThreshold,0.5,TurnRadius,ChaseFlags,KMTFlags); //DetourFactor is not exposed to the struct.
 						Else If (Flags & LVC_USERETREATSTATE && RetreatState)
 							SetState (RetreatState);
 						MovedAlready = True;
@@ -343,7 +346,7 @@ Extend Class KAI_BaseVehicle
 				
 				//Finally, if you do have a target, DO move towards it, but with KAI_MoveTowards instead of the shitty native movement code.
 				If (Target && !MovedAlready)
-					KAI_MoveTowards (Target.Pos, MoveParams.DetourFactor, TurnRadius, ChaseFlags, KMT_CHASEGOAL);
+					KAI_MoveTowards (Target.Pos, MoveParams.DetourFactor, TurnRadius, ChaseFlags, KMTFlags);
 			}
 			
 			MovedAlready = True;
@@ -459,7 +462,7 @@ Extend Class KAI_BaseVehicle
 			If (!IsDead (Mobj)) Continue; //Actor isn't dead already.
 			If (Mobj.bDontGib) Continue; //Has already been crushed.
 			If (Mobj.Pos.Z > Mobj.FloorZ) Continue; //Corpse is off the ground. Like if it's falling.
-			If (Mobj.Default.bFloat) Continue; //Don't crush floating corpses, particularly recently killed Lost Souls, which end up producing floating gibs.
+			If (Mobj.bFloat) Continue; //Don't crush floating corpses, particularly recently killed Lost Souls, which end up producing floating gibs.
 			If (Mobj.Radius > MaxCorpseRadius || Mobj.Height > MaxCorpseHeight) Continue; //Actor is too big.
 			If (Distance3DSquared (Mobj) > ((Radius*2)*RadiusMultiplier) * ((Radius*2)*RadiusMultiplier)) Continue;
 			

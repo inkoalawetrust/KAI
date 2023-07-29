@@ -6,7 +6,6 @@ If I do implement the order system to KAI actors, it will probably be before the
 //Check how vehicle turret collision is handled, like, if a vehicle drives under a pipe and the turret is blocked, does it just clip through ?
 
 //TODO:
-//Probably remove or deprecate RotateToVehicle()'s super fast turning, or something.
 //Add a headlightsound property, that plays a sound when the vehicles' headlights turn on or off.
 
 //FIXME:
@@ -397,6 +396,11 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 				If (AbsAngle (Angle,OldSoundAngle) >= TurnSoundRadius
 				&& !(Master && AbsAngle(Master.Angle,Angle) <= 0.25)) //Stops the turn sound from playing when the turret is snapping to the vehicles' angle.
 					A_StartSound (TurnSound,CHAN_BODY,Flags,0.8,0.8);
+				Else
+				{
+					If (bTurnSoundNoStop) //If the angle difference isn't big enough and no stop is on. Then the turn sound is probably long so stop it.
+						A_StopSound (CHAN_BODY);
+				}
 			//}
 			/*Else
 			{

@@ -459,24 +459,92 @@ Class KAI_BaseProjectile : FastProjectile
 		Return Target.IsHostile (Other); //If not a KAI NPC, use the native IsHostile().
 	}
 	
+	//1 Ignore actor
+	//0 Hit actor but do no effects like giving damage, exploding, etc
+	//-1 Normal missile behavior
 	Override Int SpecialMissileHit (Actor Victim)
 	{
-		If (!Victim || Victim && Victim == DontCollide) Return 1;
+		If (!Victim || Victim == DontCollide) Return 1;
 		If (bNoFriendlyFire && !IsInanimateObject (Victim) && !IsHostileToShooter (Victim)) Return 1;
-		//MAYDO: This makes the now bad assumption that projectile is for vehicles only- actually no. I think this may be fine ?
-		//If not, maybe replace this with a dynamic array of specific actors the projectile should't collide with.
 		If (Target && Target Is "KAI_BaseTurret" && Victim && Victim == Target.Master) Return 1; //If fired from a turret, ignore the vehicle it's attached on.
 		
+		//Assume the actor will be hit and ripped. For overrides, this will need to be set manually, if some child class code says it shouldn't collide.
+		/*BUG: The RipDepth code is somewhat buggy, it doesn't necessarily rip through however many actors specified when they are tightly packed together.
+		And will sometimes do 2-3 rips on victims in despite the RipOnce flag. I've tried a few fixes, including using an array, but they made things worse.*/
+		IncrementRipDepth (False, Victim);
+		StoreLastRipped (Victim);
+		if (!bripper) a_log ("bripper is false");
 		Return -1;
 	}
 	
+	Void StoreLastRipped (Actor Victim)
+	{
+		//If (bRipper && Victim && !RippedAlready(Victim))
+		//	Ripees.Push(Victim);
+		If (bRipper && LastRipped != Victim && PreLastRipped != Victim)
+		{
+			PreLastRipped = LastRipped;
+			LastRipped = Victim;
+		}
+	}
+	
+	Void IncrementRipDepth (Bool FromOverride, Actor Victim)
+	{
+		If (!Default.RipDepth || !Victim) {a_log ("UNLIMITED POWAAAHHHH");Return;}
+		/*If (RippedAlready(Victim)) Return;
+		If (FromOverride) Ripees.Pop(); //Undo the rip from Super.SpecialMissileHit() if called from an override to that virtual.
+		If (Ripees.Size()-1 <= RipDepth+1)
+		{
+			Ripees.Clear();
+			a_log ("no more ripping");
+			bRipper = False;
+			Return;
+		}*/
+		
+		If (Victim == LastRipped || Victim == PreLastRipped) Return;
+		If (FromOverride) RipDepth++; //Undo the rip from Super.SpecialMissileHit() if called from an override to that virtual.
+		RipDepth--;
+		If (RipDepth <= 1)
+		{
+			RipDepth--; //Now the depth is 0.
+			a_log ("no more ripping");
+			bRipper = False;
+			Return;
+		}
+		
+		console.printf ("rip depth %d",ripdepth);
+	}
+	
+	/*Bool RippedAlready (Actor Who)
+	{
+		If (!Who) Return False;
+		For (Int I = Ripees.Size()-1; I >= 0; I--)
+		{
+			If (Ripees[I] == Who)
+				Return True;
+		}
+		Return False;
+	}*/
+	
+	Override Bool CanCollideWith (Actor Other, Bool Passive)
+	{
+		//Don't collide with actors you already ripped.
+		If (!Passive && bRipper && bRipOnce /*&& RippedAlready (Other)*/ && Other && (Other == LastRipped || Other == PreLastRipped))
+			Return False;
+		
+		Return Super.CanCollideWith (Other, Passive);
+	}
+	
 	Actor DontCollide; //Stores an actor that will be ignored by SpecialMissileHit, so deflected projectiles don't deflect dozens of times when bouncing off. Sorse spaghetti has nothing on Doom spaghet.
+	Actor LastRipped, PreLastRipped; //The actor that a ripper last hit. Used for the RIPONCE flag.
+	//Array <Actor> Ripees;
 	
 	Mixin KAI_UniversalFunctions;
 	Mixin KAI_CheckFunctions;
 	Private Int ProjectileFlags;
 	FlagDef NoTrailLine : ProjectileFlags, 0; //The projectile uses the normal FastProjectile trail spawning code.
 	FlagDef NoFriendlyFire : ProjectileFlags, 1; //The projectile should not collide with actors friendly to its' shooter.
+	FlagDef RipOnce : ProjectileFlags, 2; //If the projectile is a ripper, it will only rip a victim once, instead of multiple times.
 	Class <KAI_Tracer> TrailActor;
 	Property TrailActor : TrailActor;
 	
@@ -493,6 +561,9 @@ Class KAI_BaseProjectile : FastProjectile
 	Property ScaleAmountX : ScaleAmountX;
 	Property ScaleAmountY : ScaleAmountY;
 	Property FadeAmount : FadeAmount;
+	
+	Int RipDepth; //How many actors can the ripper with RipOnce rip ?
+	Property RipDepth : RipDepth;
 }
 
 //A generic tracer effect particle.

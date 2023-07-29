@@ -7,6 +7,7 @@ Extend Class KAI_Actor
 	{
 		CMR_NOHITFRIEND	= 1 << 0, //The function should not run the native shit autoaimed P_HitFriend() check. Only useful for KAI_CheckMissileRange.
 		CMR_3DDISTANCE	= 1 << 1, //The range check should use Distance3D instead of Distance2D.
+		CMR_INVERTDIST	= 1 << 2, //Invert the missile attack chance with distance. Making the NPC MORE likely to attack the further the target is.
 	}
 	
 	//Returns true if the caller is in melee range of the other actor. Basically a rip of P_CheckMeleeRange().
@@ -80,12 +81,16 @@ Extend Class KAI_Actor
 		
 		If (MeleeState && Dist < MeleeThreshold) Return False;
 		
-		If (bMissileMore) Dist *= 0.5;
-		If (bMissileEvenMore) Dist *= 0.125;
-		Dist *= AggressionMultiplier;
+		Bool Invert = (Flags & CMR_INVERTDIST);
+		If (bMissileMore) Dist *= !Invert ? 0.5 : 1.5;
+		If (bMissileEvenMore) Dist *= !Invert ? 0.125 : 2.5;
+		Dist *= AggressionMultiplier; //If CMF_INVERTDIST is on, keep in mind that the behavior of the AggressionMultiplier is also effectively inverted !
 		
 		Int MMC = Int(MinMissileChance * G_SkillPropertyFloat(SKILLP_Aggressiveness));
-		Return Random2[PR_CheckMissileRange]() >= Min(Int(Dist), MMC);
+		If (!Invert)
+			Return Random2[PR_CheckMissileRange]() >= Min(Int(Dist), MMC);
+		Else
+			Return Random2[PR_CheckMissileRange]() <= Max(Int(Dist), MMC);
 	}
 	
 	//=====|Sight and locomotion|=====\\
@@ -121,11 +126,13 @@ Extend Class KAI_Actor
 	Enum KAIMoveTowardsFlags
 	{
 		KMT_CHASEGOAL = 1 << 0, //If the caller has a goal pointer, and the bChaseGoal flag on. It will follow the goal instead of the TargetPos.
+		KMT_ZIGZAG	  = 1 << 1, //Move around with more A_Chase-esque movement (Like zigzagging), instead of only moving in a straight line.
 		//MAYDO: Use FindRandomMovePos() to add a flag that makes the caller zig-zag around like A_Chase movement does, instead of moving in a straight line.
 	}
 	
 	Double LastTurnDir;
 	Int TurnCount; //Keeps track of how many turns in a row an actor calling KAI_MoveTowards with CHF_NORANDOMTURN should make.
+	Vector3 ZigZagPos;
 	
 	//Makes the actor move towards the specified actor.
 	//IDEA: Make actors move using velocity instead of TryMove(). This will require GetFriction() for CheckMove().
@@ -143,6 +150,26 @@ Extend Class KAI_Actor
 		//Basically does what P_NewChaseDir() does to handle Thing_SetGoal's "Don't chase target" flag: https://sourcegraph.com/github.com/ZDoom/gzdoom/-/blob/src/playsim/p_enemy.cpp?L943-946
 		If (Flags & KMT_CHASEGOAL && Goal && bChaseGoal)
 			TargetPos = Goal.Pos;
+		
+		//Handle making the NPC zig zag in a manner similar to KAI_MoveAway.
+		If (Flags & KMT_ZIGZAG)
+		{
+			If (NewPosStepCount <= 64 && Level.Vec3Diff (Pos,ZigZagPos).Length() >= MeleeRange)
+			{
+				If (!KAI_Math.IsEmptyVector3 (ZigZagPos))
+					TargetPos = ZigZagPos;
+				NewPosStepCount++;
+				console.printf ("current targetpos %d %d %d at tic %d",targetpos,gametic);
+			}
+			Else
+			{
+				ZigZagPos = FindRandomMovePos (TargetPos,16,256,FRMP_CLOSEST);
+				NewPosStepCount = 0;
+				console.printf ("targetpos %d %d %d at tic %d",targetpos,gametic);
+			}
+		}
+		Else
+			ZigZagPos = (Double.NaN,Double.NaN,Double.NaN);
 		
 		//The function works with the CANTLEAVEFLOORPIC flag as well.
 		TextureID OldFloor = FloorPic;
@@ -414,6 +441,7 @@ Extend Class KAI_Actor
 					NearestPos = CurPos;
 				}
 			}
+			spawn ("kai_debugpoint",nearestpos);
 			Return NearestPos;
 		}
 		

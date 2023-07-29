@@ -127,7 +127,6 @@ Extend Class KAI_Actor
 	{
 		KMT_CHASEGOAL = 1 << 0, //If the caller has a goal pointer, and the bChaseGoal flag on. It will follow the goal instead of the TargetPos.
 		KMT_ZIGZAG	  = 1 << 1, //Move around with more A_Chase-esque movement (Like zigzagging), instead of only moving in a straight line.
-		//MAYDO: Use FindRandomMovePos() to add a flag that makes the caller zig-zag around like A_Chase movement does, instead of moving in a straight line.
 	}
 	
 	Double LastTurnDir;

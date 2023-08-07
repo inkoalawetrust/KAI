@@ -93,17 +93,14 @@ Extend Class KAI_BaseVehicle
 		If (Depth <= 0) PushedAlready.Clear();
 		
 		If (Source Is "KAI_BaseVehicle" && KAI_BaseVehicle(Source).MaxPushableMass > 0 || !(Source Is "KAI_BaseVehicle"))
-		{//a_log ("run push code");
-			
+		{
 			Vector3 OldPos = Source.Pos;
 			If (Source.CheckMove (MovePos,PCM_DROPOFF|PCM_NOACTORS)) //Can we move there anyway ?
 			{
 				Actor Mobj;
 				Double TheZ = GetZAt (MovePos.X,MovePos.Y,flags:GZF_ABSOLUTEPOS);
 				Source.SetOrigin ((MovePos,TheZ),False);
-				//Let Pushovers = BlockThingsIterator.CreateFromPos (MovePos.X,MovePos.Y,TheZ,Height,Radius,False);
 				Let Pushovers = BlockThingsIterator.Create (Source,Source.Radius);
-				//Console.printf ("BTI origin: %d %d %d, Source origin %d %d %d",MovePos.X,MovePos.Y,TheZ,pos);
 				While (Pushovers.Next())
 				{
 					Mobj = Pushovers.Thing;
@@ -175,7 +172,7 @@ Extend Class KAI_BaseVehicle
 		For (Int I = Victims.Size()-1; I >= 0; I--)
 		{
 			If (Victims[I])
-			{console.printf ("smooshing %s",victims[i].getclassname());
+			{
 				//Don't crush overly large actors.
 				If (MaxCrushRadius != 0 && MaxCrushRadius < Victims[I].Radius || MaxCrushHeight != 0 && MaxCrushHeight < Victims[I].Height) Continue;
 				Victims[I].DamageMobj (Self, Self, Damage, 'Crush');
@@ -183,13 +180,21 @@ Extend Class KAI_BaseVehicle
 		}
 	}
 	
+	Enum VehicleRetreatFlags
+	{
+		VRF_ZIGZAG = 1 << 0 //
+	}
+	
+	Int RetreatAngleOffset; //The angle offset to use when retreating, for VRF_ZIGZAG.
+	
 	//Makes the vehicle attempt to drive away from the Other actor, while trying to also avoid obstacles.
 	//Other: Actor to back off from.
 	//Distance: How far back to pick a position away from Other.
 	//CheckDistance: How far ahead to check for obstacles, to adjust the move position accordingly. 0 means no obstacle check is performed.
 	//Slices: How many angles around the caller to check. (360/Slices)
+	//Flags: How should the retreat work exactly ?
 	//The rest are KAI_MoveTowards' parameters.
-	Void KAI_VehicleRetreat (Actor Other, Double Distance, Double CheckDistance, Int Slices = 16, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0)
+	Void KAI_VehicleRetreat (Actor Other, Double Distance, Double CheckDistance, Int Slices = 16, Int Flags = 0, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0)
 	{
 		If (!Other) Return;
 		
@@ -206,7 +211,20 @@ Extend Class KAI_BaseVehicle
 			NextMovePos = (Double.NaN,Double.NaN,Double.NaN);
 			NewPosStepCount = 0;
 		}
-		Double CheckAngle = (AngleTo(Other)-180); //Try moving right away from the enemy, unless blocked.
+		
+		If (Flags & VRF_ZIGZAG)
+		{
+			NewPosStepCount++;
+			If (NewPosStepCount >= 32)
+			{
+				NewPosStepCount = 0;
+				RetreatAngleOffset = Random (4,-4)*10;
+			}
+		}
+		Else
+			RetreatAngleOffset = 0;
+		
+		Double CheckAngle = (AngleTo(Other)-180+RetreatAngleOffset); //Try moving right away from the enemy, unless blocked.
 		Vector3 CheckPos = (Vec2Angle (Radius+CheckDistance,CheckAngle),0);
 		CheckPos.Z = GetZAt (CheckPos.X,CheckPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
 		//MAYDO: Make the code somehow ignore actors the vehicle can push away ? This would require reverting to using line traces.
@@ -220,26 +238,16 @@ Extend Class KAI_BaseVehicle
 				//Int Type = PathCheck.HitType;
 				//If (Type != Trace_HitWall && Type != Trace_HitFloor && Type != Trace_HitCeiling && Type != Trace_HitActor)
 				If (IsPosReachable (CheckPos,spacing:Radius/2))
-				{
-					console.printf ("epic win after %d tries",I);
 					Break;
-				}
-				console.printf ("%d: obstacle detected",I);
 				CheckAngle += 360/Slices; //There's an obstacle in front of this path, try another angle.
 				CheckPos.XY = (Vec2Angle (Radius+CheckDistance,CheckAngle));
 				CheckPos.Z = GetZAt (CheckPos.X,CheckPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
-				//actor debug = spawn ("kai_debugpoint",CheckPos); debug.bfloatbob = true;
 			}
 			//Subtract the extra distance to check ahead off from the final move position.
 			CheckPos.XY = Vec2Angle (Distance,CheckAngle);
 			CheckPos.Z = GetZAt (CheckPos.X,CheckPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
 		}
 		NextMovePos = CheckPos;
-		console.printf ("nextmovepos, %d %d %d",CheckPos.x,CheckPos.y,CheckPos.z);
-		//NextMovePos.XY = Vec2Angle (Distance,CheckAngle);
-		//NextMovePos.Z = GetZAt (NextMovePos.X,NextMovePos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
-		//IsPosReachable (NextMovePos);
-		//NextMovePos = FindRandomMovePos (Other.Pos,Attempts,RunRad,FRMP_FURTHEST); //Pick whichever position is the furthest from Other.
 	}
 	
 	Enum KAIVehicleChaseFlags //LVC = Land Vehicle Chase
@@ -253,6 +261,7 @@ Extend Class KAI_BaseVehicle
 	}
 	
 	//The standard land vehicle chase function.
+	//FIXME: I think KMT_ZIGZAG is always on even if the flag is off.
 	//WaitState: The state the vehicle should wait in if it stopped at a delayed patrol point. No state means it just calls SetIdle.
 	//Flags: The flags to use. Look above for a list.
 	//ChaseFlags: The A_Chase flags to use. Supports the same flags' KAI_MoveTowards does.
@@ -274,7 +283,7 @@ Extend Class KAI_BaseVehicle
 			Return;
 		}
 		
-		Int KMTFlags = KMT_CHASEGOAL|LVC_ZIGZAGGING ? KMT_ZIGZAG : 0;
+		Int KMTFlags = KMT_CHASEGOAL|(Flags & LVC_ZIGZAGGING ? KMT_ZIGZAG : 0);
 		
 		Bool MovedAlready; //If one of the KAI_MoveTowards/Away calls was made. Don't call the rest.
 		Double MajorThreatRange = (RetreatRange*4)*(RetreatRange*4);
@@ -410,6 +419,7 @@ Extend Class KAI_BaseVehicle
 		RVHF_NOTARGETCHANGE 		= 1 << 0, //This function should only return if the hull should be targeted, instead of also doing the actual retargeting.
 		RVHF_NOTRANSFERDAMAGECHECK	= 1 << 1, //Don't retarget hulls larger than their bTransferDamage turret.
 		RVHF_NOWEAKHULLCHECK		= 1 << 2, //Don't retarget hulls weaker than whatever turret the caller is targeting.
+		RVHF_STRONGERHULL			= 1 << 3, //Retarget the hull if it is stronger (Healthier) than the turret.
 	}
 	
 	/*MAYDO: Move this to KAI_Actor, or add a function similar to it to KAI_Actor.
@@ -439,7 +449,13 @@ Extend Class KAI_BaseVehicle
 			//If the turret doesn't have bTransferDamage, and it's health is higher than the hulls'.
 			If (!(Flags & RVHF_NOWEAKHULLCHECK) && !KAI_BaseTurret(Target).bTransferDamage && Target.Master.Health < (Target.Health*0.8))
 			{
-				If (!(Flags & RVHF_NOTARGETCHANGE)) Target = Target.Master; //Then target the vehicle the turret is attached to.
+				If (!(Flags & RVHF_NOTARGETCHANGE)) Target = Target.Master;
+				Return True;
+			}
+			//Target the hull if it's stronger than the turret, basically targeting the strongest part of the vehicle.
+			If (Flags & RVHF_STRONGERHULL && Target.Master.Health > Target.Health)
+			{
+				If (!(Flags & RVHF_NOTARGETCHANGE)) Target = Target.Master;a_log ("targeting the stronger hull instead");
 				Return True;
 			}
 		}

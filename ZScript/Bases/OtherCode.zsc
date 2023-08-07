@@ -395,12 +395,14 @@ Class KAI_LOFRaycast : LineTracer
 	}
 	
 	//Useful for ripper projectiles, returns false if the actor hit can be ripped.
-	Bool CantRipActor (Actor Other, Int RipLevel)
+	Bool CantRipActor (Actor Other, Int RipLevel, Bool NoBossRip = False)
 	{
 		Bool NoRipMin = !Other.RipLevelMin;
 		Bool NoRipMax = !Other.RipLevelMax;
 		
-		If (!NoRipMin && Other.RipLevelMin > RipLevel || !NoRipMax && Other.RipLevelMax < RipLevel)
+		If (Other.bDontRip || NoBossRip && Other.bBoss) Return True; //Can't be ripped, period.
+		
+		If (!NoRipMin && Other.RipLevelMin > RipLevel || !NoRipMax && Other.RipLevelMax < RipLevel) //Incompatible rip levels.
 			Return True;
 		
 		Return False;
@@ -531,7 +533,7 @@ Class KAI_LOFActorFinder : KAI_LOFRaycast
 	Int BlockMode; //What kind of lines will block the actor. Uses the same flags as BlockingLineInTheWay, a value of 0 (Default) means it checks only for BLOCKEVERYTHING lines.
 	Override ETraceStatus TraceCallback()
 	{
-		AddToMobjList (Results.HitActor);
+		If (!Shooter || Shooter && Results.HitActor != Shooter) AddToMobjList (Results.HitActor);
 		
 		//Stop at blocking lines.
 		If (Results.HitLine && Results.HitLine.Flags & Line.ML_BLOCKEVERYTHING || BlockMode != 0 && BlockingLineInTheWay (Results.HitLine,BlockMode))
@@ -542,7 +544,7 @@ Class KAI_LOFActorFinder : KAI_LOFRaycast
 			Return Trace_Stop;
 		
 		//If a limit to how many actors can be found has been set and passed. Then stop.
-		If (ActorLimit > 0 && ActorLimit >= Mobjs.Size()-1)
+		If (ActorLimit > 0 && ActorLimit <= Mobjs.Size()-1)
 			Return Trace_Stop;
 		
 		Return Trace_Skip;
@@ -559,6 +561,53 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 	Int PropHealthThreshold;
 	Double SplashRadius;
 	Bool FriendlyFire; //The attack this LOF check is for can harm the shooters' friends.
+	
+	//Projectile information. Maybe this should become a struct eventually, so that other tracers can also easily use it.
+	Class <Actor> Projectile; //A class reference to the class the check is running for, used to get ripper-related information.
+	Bool IsRipper; //Is the projectile a ripper ?
+	Bool NoBossRip; //The ripper can't go through bBOSS actors.
+	Int RipLevel; //The ripper level of the projectile
+	Int RipDepth; //How many rips the projectile will do before exploding. This is decremented here like it is for rippers.
+	Bool RipOnce; //Does the projectile only rip through each victim once ?
+	
+	//Initialize and store info related to the projectile the check is for. THIS MUST BE CALLED AFTER THE PROJECTILE IS PASSED, AND BEFORE any TRACE().
+	Void InitializeProjectileInfo()
+	{
+		If (!Projectile) Return;
+		IsRipper = GetDefaultByType(Projectile).bRipper;
+		NoBossRip = GetDefaultByType(Projectile).bNoBossRip;
+		RipLevel = GetDefaultByType(Projectile).RipperLevel;
+		//KAI specific properties.
+		If (Projectile Is "KAI_BaseProjectile")
+		{
+			RipDepth = KAI_BaseProjectile(GetDefaultByType(Projectile)).RipDepth;
+			RipOnce = KAI_BaseProjectile(GetDefaultByType(Projectile)).bRipOnce;
+		}
+		//DEBUG: Print projectile data.
+		//Console.Printf ("IsRipper: %d, NoBossRip: %d, RipOnce: %d",IsRipper,NoBossRip,RipOnce);
+		//Console.Printf ("RipLevel: %d, RipDepth: %d",RipLevel,RipDepth);
+	}
+	
+	//Checks if the actor can be ripped, and also decrements the rip depth.
+	//NOTE: This function DOES NOT account for how the rip depth is affected on rippers without bRipOnce, so it just ignores it if the flag is off !
+	Bool CanRipActor (Actor Who)
+	{
+		If (!Who || Shooter && Who == Shooter) Return True; //Yes you can go through the shooter.
+		
+		If (RipOnce && KAI_BaseProjectile(GetDefaultByType(Projectile)).RipDepth != 0 && RipDepth <= 1) //No more high quality rips left.
+		{
+			RipDepth = 0;
+			Return False;
+		}
+		
+		If (!CantRipActor (Who,RipLevel,NoBossRip))
+		{
+			If (RipOnce && RipDepth)
+				RipDepth--;
+			Return True;
+		}
+		Return False;
+	}
 	
 	//Is the other actor in the blast radius ?
 	Bool CaughtInTheBlast()
@@ -579,7 +628,7 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 		
 		If (!Shooter) Return Trace_Stop;
 		
-		AddToMobjList (Mobj);
+		If (!Shooter || Shooter && Results.HitActor != Shooter) AddToMobjList (Mobj);
 		
 		If (Mobj == Shooter.Master) Return Trace_Skip;
 		
@@ -618,6 +667,13 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 			Return Trace_Stop;
 		}
 		
+		//A projectile class has been passed that is a ripper, but it can no longer rip the actor.
+		If (Projectile && IsRipper && !CanRipActor (Mobj))
+		{console.printf ("epic ripping fail");
+			BadLOF = True;
+			Return Trace_Stop;
+		}
+		
 		//The trace specifically hit a projectile blocking line. e.g a window linedef or a polyobject.
 		If (BlockingLineInTheWay (Results.HitLine,0))
 		{
@@ -646,6 +702,7 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 			Return Trace_Stop;
 		}
 		
+		Results.HitActor = Null;
 		Return Trace_Skip;
 	}
 }

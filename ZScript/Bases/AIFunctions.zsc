@@ -158,13 +158,11 @@ Extend Class KAI_Actor
 				If (!KAI_Math.IsEmptyVector3 (ZigZagPos))
 					TargetPos = ZigZagPos;
 				NewPosStepCount++;
-				console.printf ("current targetpos %d %d %d at tic %d",targetpos,gametic);
 			}
 			Else
 			{
 				ZigZagPos = FindRandomMovePos (TargetPos,16,256,FRMP_CLOSEST);
 				NewPosStepCount = 0;
-				console.printf ("targetpos %d %d %d at tic %d",targetpos,gametic);
 			}
 		}
 		Else
@@ -440,7 +438,6 @@ Extend Class KAI_Actor
 					NearestPos = CurPos;
 				}
 			}
-			spawn ("kai_debugpoint",nearestpos);
 			Return NearestPos;
 		}
 		
@@ -480,12 +477,12 @@ Extend Class KAI_Actor
 			}
 			//If one of them fails, then return false.
 			Else
-			{//a_log ("i can't head here");
+			{
 				bDontInterpolate = Interp;
 				SetOrigin (OldPos,False);
 				Return False;
 			}
-		}//a_log ("valid path");
+		}
 		bDontInterpolate = Interp;
 		SetOrigin (OldPos,False);
 		Return True; //No TryMove call returned false.

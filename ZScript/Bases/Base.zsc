@@ -15,7 +15,7 @@ Class KAI_Actor : Actor Abstract
 		Radius 16;
 		Height 56;
 		CameraHeight 48; //I think that's about eye level ?
-		Mass 100; //Generally, I (inkoalawetrust) basically measure ZDooms' mass units as 1 unit being 1 kilogram.
+		Mass 100; //Generally, I (inkoalawetrust) interpet ZDooms' mass units as 1 unit being 1 kilogram.
 		Speed 8;
 		FriendlySeeBlocks 48; //4096 map units, longer than the default of 1280 map units.
 		MaxTargetRange 8196; //Maximum range the actor can attack enemies from.
@@ -276,6 +276,7 @@ Class KAI_BaseProjectile : FastProjectile
 		
 		If (Target) Species = Target.Species; //MAYDO: Have this rely on a flag ? It's kinda here because of the MVP where it was ripped from.
 		A_FaceMovementDirection(); //Projectile faces where it's going, used by the trail line spawning code.
+		LastTracerPosition = CurrentTracerPosition = (Double.NaN,Double.NaN,Double.NaN); //These should be empty.
 	}
 	
 	Bool TrailSpawned;
@@ -288,8 +289,20 @@ Class KAI_BaseProjectile : FastProjectile
 		//bMissile is removed when a projectile explodes.
 		If (!bMissile || IsFrozen()) Return;
 		
-		If (TrailDelay)
+		//Keeps track of the current Tracers' position for the Tracer prediction code.
+		If (Tracer && Tracer.Tics != 0 && Tracer.Tics == Tracer.CurState.Tics || Tracer && !IsTeleportingMonster(Tracer))
 		{
+			If (KAI_Math.IsEmptyVector3(CurrentTracerPosition))
+				CurrentTracerPosition = Tracer.Pos;
+			
+			LastTracerPosition = CurrentTracerPosition;
+			CurrentTracerPosition = Tracer.Pos;
+		}
+		Else If (!Tracer)
+			LastTracerPosition = CurrentTracerPosition = (Double.NaN,Double.NaN,Double.NaN);
+		
+		If (TrailDelay)
+		{a_log ("waiting");
 			TrailDelay--;
 			Return;
 		}
@@ -341,7 +354,7 @@ Class KAI_BaseProjectile : FastProjectile
 	//Mostly ripped from the native FastProjectile, with some changes and additions.
 	Override Void Effect()
 	{
-		If (!bNoTrailLine) Return;
+		If (!bNoTrailLine || TrailDelay) Return;
 		Class<Actor> Trail = MissileName;
 		Actor Act;
 		If (Trail != Null)
@@ -384,10 +397,9 @@ Class KAI_BaseProjectile : FastProjectile
 		Trail.Vel = Level.Vec3Diff (OldPos,Pos);
 		Trail.A_FaceMovementDirection();
 		Trail.Vel = OldVel;
-		//Trail.Angle = Trail.Angle = Normalize180 (Angle);;
-		//Trail.Pitch = Pitch;
 	}
 	
+	//TODO: Maybe move the projectile class to its' own file at this point ?
 	//Called in SpecialMissileHit() to handle bullet-like projectiles bouncing off actors.
 	Bool DeflectProjectile (Actor Victim, Int DeflectChance, Double DamageReductionFactor, Double SlowDownFactor = 1,
 	Vector2 RandomAngle = (0,0), Vector2 RandomPitch = (0,0), Double Volume = 1, Double Attenuation = 0.9)
@@ -430,20 +442,130 @@ Class KAI_BaseProjectile : FastProjectile
 		Return True;
 	}
 	
+	Enum SeekerMissileFlags
+	{
+		//Same as A_SeekerMissile.
+		//SMF_LOOK 	= 1 << 0,
+		//SMF_PRECISE	= 1 << 1, //Does nothing. This already uses full 3D tracking.
+		//SMF_CURSPEED= 1 << 2,
+		SMF_SMART	= 1 << 3, //When enabled, the projectile will move to where the tracer will be IN the future. Similar to the vehicle turret prediction code.
+		SMF_FACE	= 1 << 4, //Make the projectile face it's movement direction.
+	}
+	
+	//An improved A_SeekerMissile.
+	//Strength: How much to adjust the angle and pitch of the projectile, a value of 1 makes the projectile instantly face the tracer.
+	//Flags: The flags that define the behavior of the function. Supports most A_SeekerMissile flags along with new ones.
+	//Inaccuracy: How inaccurate should the projectile be while tracking its' tracer, in each axis ?
+	//Distance: Used by SMF_LOOK. Specifies how many blockmap chunks (128x128 map units) to check around the projectile for a new seekable enemy.
+	//Chance: The chance that the SMF_LOOK sight check will run.
+	Bool KAI_SeekerMissile (Double Threshold, Double Strength, Int Flags = 0, Vector3 Inaccuracy = (0,0,0), Double Distance = 10, Int Chance = 50)
+	{
+		//Perform basic monster search, in blockmap blocks, instead of actual distance.
+		If (Flags & SMF_LOOK && Tracer == Null && Random (0,255) < Chance)
+			Tracer = RoughMonsterSearch (Distance,True);
+		
+		If (!Tracer || !CanSeek (Tracer)) Return False;
+		
+		If (!Tracer.bShootable)
+		{
+			Tracer = Null;
+			Return False;
+		}
+		
+		Speed = (Flags & SMF_CURSPEED) ? Vel.Length() : Speed;
+		Vector3 TrackPos;
+		If (Flags & SMF_SMART)
+			TrackPos = GetFutureTrajectory(Inaccuracy);
+		Else
+			TrackPos = Level.Vec3Offset(Tracer.Pos,(FRandom(Inaccuracy.X,-Inaccuracy.X),FRandom(Inaccuracy.Y,-Inaccuracy.Y),FRandom(Inaccuracy.Z,-Inaccuracy.Z)));
+		Vector3 Coords = Level.SphericalCoords (Pos,TrackPos,(Angle,Pitch));
+		If (AbsAngle (Angle,Coords.X) < Threshold)
+			Strength = 1; //Lock straight into the target if the angle difference is small enough.
+		A_SetAngle(Angle - (Coords.X * Strength), SPF_INTERPOLATE);
+		If (!bFloorHugger && !bCeilingHugger)
+			A_SetPitch(Pitch - (Coords.Y * Strength), SPF_INTERPOLATE);
+		
+		Vel3DFromAngle (Speed,Angle,Pitch);
+		
+		If (Flags & SMF_FACE)
+			A_FaceMovementDirection();
+		
+		Return True;
+	}
+	
+	/*FIXME: This target prediction code is totally fucking broken, VelIntercept() works, but can't be configured to KAI_SeekerMissiles' parameters,
+	does not work with monster movement (Which is the reason I wrote the target prediction code in the first place), works by directly altering the velocity
+	instead of getting a position for the actor to face and go to, and the math can't even be translated from C++ to ZScript due to using matrix math.
+	Let alone the fact that I don't UNDERSTAND the math in the first place*/
+	//Get the tracers' future trajectory, used by homing projectiles.
+	Vector3 GetFutureTrajectory (Vector3 Inaccuracy = (0,0,0))
+	{
+		If (!Tracer) Return (Double.NaN, Double.NaN, Double.NaN);
+		Int TravelTics;
+		Float FloatTics;
+		//Estimate the travel time the projectile needs.
+		If (Vel.Length() != 0)
+			TravelTics = Distance3D (Tracer)/Vel.Length();
+			//console.printf ("traveltics %.2f",traveltics);
+		TravelTics = Clamp (TravelTics,1,INT.MAX); //Needs at least 1 tic.
+		FloatTics = TravelTics; //Finer precision on multiplier the extrapolated velocity, for extra accuracy.
+		Vector3 OldPos = Tracer.Pos;
+		//BUG: When there's no LastTracerPosition, or the values are the same I guess ? The turret will instantly face the Tracer.
+		Vector3 Diff = Level.Vec3Diff (LastTracerPosition,Tracer.Pos);
+		If (IsTeleportingMonster(Tracer))
+		{
+			Vector3 TPOnly = Level.Vec3Diff (Diff,Tracer.Vel); //Get the teleport movement, sans velocity.
+			TPOnly = GetTeleportMoveDivision();
+			//console.printf ("tponly is %.3f %.3f %.3f",tponly.x,tponly.y,tponly.z);
+			Diff = Level.Vec3Offset (TPOnly,Tracer.Vel);
+		}
+		Vector3 Result = Level.Vec3Offset (Tracer.Pos.PlusZ(Tracer.Height/2),Diff/**FloatTics*/); //FIXME: Commented out to stop this: https://streamable.com/d9g6g1
+		Result = Level.Vec3Offset(Result,(FRandom(Inaccuracy.X,-Inaccuracy.X),FRandom(Inaccuracy.Y,-Inaccuracy.Y),FRandom(Inaccuracy.Z,-Inaccuracy.Z)));
+		//console.printf ("the tracers' current trajectory is %d %d %d",pos);
+		//console.printf ("the tracers' future trajectory is %d %d %d",result);
+		FSpawnParticleParams P; P.Color1 = "White"; P.Style = STYLE_None; P.Lifetime = 1; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+		KAI_LOFRaycast.VisualizeTracePath(Pos,result,distance3d(tracer),8,p);
+		Return Result;
+	}
+	
+	Vector3 GetTeleportMoveDivision()
+	{
+		If (Tracer.CurState.Tics)
+			Return Level.Vec3Diff (LastTracerPosition,CurrentTracerPosition) / Tracer.CurState.Tics;
+		Else //Fallback to prevent division by zero.
+			Return Level.Vec3Diff (LastTracerPosition,CurrentTracerPosition);
+	}
+	
 	//Has different values than UpdateTurretElevation().
-	Int UpdateProjectileElevation (Int FaceDown, Int FaceDown2, Int FaceStraight, Int FaceUp, Int FaceUp2)
+	//Mirror: Mirror the bottom sprites with +YFLIP. If you aren't showing a bottom sprite, revert the flag to default.
+	Int UpdateProjectileElevation (Int FaceDown, Int FaceDown2, Int FaceStraight, Int FaceUp, Int FaceUp2, Bool Mirror = False)
 	{
 		If (Pitch >= 70)
+		{
+			If (Mirror) bYFlip = True;
 			Return FaceDown2;
+		}
 		Else If (Pitch >= 30 && Pitch < 70)
+		{
+			If (Mirror) bYFlip = True;
 			Return FaceDown;
+		}
 		Else If (Pitch < 30 && Pitch > -30)
+		{
+			If (Mirror) bYFlip = Default.bYFlip;
 			Return FaceStraight;
+		}
 		Else If (Pitch <= -30 && Pitch > -70)
+		{
+			If (Mirror) bYFlip = Default.bYFlip;
 			Return FaceUp;
+		}
 		Else If (Pitch <= -70)
+		{
+			If (Mirror) bYFlip = Default.bYFlip;
 			Return FaceUp2;
-		
+		}
+		If (Mirror) bYFlip = Default.bYFlip;
 		Return FaceStraight;
 	}
 	
@@ -471,9 +593,8 @@ Class KAI_BaseProjectile : FastProjectile
 		//Assume the actor will be hit and ripped. For overrides, this will need to be set manually, if some child class code says it shouldn't collide.
 		/*BUG: The RipDepth code is somewhat buggy, it doesn't necessarily rip through however many actors specified when they are tightly packed together.
 		And will sometimes do 2-3 rips on victims in despite the RipOnce flag. I've tried a few fixes, including using an array, but they made things worse.*/
-		IncrementRipDepth (False, Victim);
+		IncrementRipDepth (Victim, False);
 		StoreLastRipped (Victim);
-		if (!bripper) a_log ("bripper is false");
 		Return -1;
 	}
 	
@@ -488,9 +609,9 @@ Class KAI_BaseProjectile : FastProjectile
 		}
 	}
 	
-	Void IncrementRipDepth (Bool FromOverride, Actor Victim)
+	Void IncrementRipDepth (Actor Victim, Bool FromOverride)
 	{
-		If (!Default.RipDepth || !Victim) {a_log ("UNLIMITED POWAAAHHHH");Return;}
+		If (!Default.RipDepth || !Victim || !bRipper) Return;
 		/*If (RippedAlready(Victim)) Return;
 		If (FromOverride) Ripees.Pop(); //Undo the rip from Super.SpecialMissileHit() if called from an override to that virtual.
 		If (Ripees.Size()-1 <= RipDepth+1)
@@ -507,12 +628,12 @@ Class KAI_BaseProjectile : FastProjectile
 		If (RipDepth <= 1)
 		{
 			RipDepth--; //Now the depth is 0.
-			a_log ("no more ripping");
+			//a_log ("no more ripping");
 			bRipper = False;
 			Return;
 		}
 		
-		console.printf ("rip depth %d",ripdepth);
+		//console.printf ("rip depth %d",ripdepth);
 	}
 	
 	/*Bool RippedAlready (Actor Who)
@@ -538,6 +659,8 @@ Class KAI_BaseProjectile : FastProjectile
 	Actor DontCollide; //Stores an actor that will be ignored by SpecialMissileHit, so deflected projectiles don't deflect dozens of times when bouncing off. Sorse spaghetti has nothing on Doom spaghet.
 	Actor LastRipped, PreLastRipped; //The actor that a ripper last hit. Used for the RIPONCE flag.
 	//Array <Actor> Ripees;
+	Vector3 LastTracerPosition;
+	Vector3 CurrentTracerPosition;
 	
 	Mixin KAI_UniversalFunctions;
 	Mixin KAI_CheckFunctions;

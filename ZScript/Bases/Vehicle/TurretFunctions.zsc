@@ -106,7 +106,7 @@ Extend Class KAI_BaseTurret
 	}
 	
 	//TODO:
-	//Split the code that actually predicts a future straight line trajectory for the target in a GetFutureTrajectory() function.
+	//Split the code that actually predicts a future straight line trajectory for the target in a GetFutureTrajectory() function. Make it a generic.
 	//Add an Inaccuracy vector parameter, which specifies a bounding box to randomly offset the calculated position to.
 	
 	//Aim the turret ahead of the targets' trajectory, allowing to fire in anticipation of where they'll be. Basically, this is the turrets' fire control system.
@@ -129,6 +129,7 @@ Extend Class KAI_BaseTurret
 		Tics = Clamp (Tics,1,INT.MAX); //Needs at least 1 tic.
 		FloatTics = Tics; //Finer precision on multiplier the extrapolated velocity, for extra accuracy.
 		Vector3 OldPos = Target.Pos;
+		//BUG: When there's no LastEnemyPosition, or the values are the same I guess ? The turret will instantly face the target.
 		Vector3 Diff = Level.Vec3Diff (LastEnemyPosition,Target.Pos);
 		If (IsTeleportingMonster(Target))
 		{
@@ -142,16 +143,46 @@ Extend Class KAI_BaseTurret
 		//IDEA: Add a debug CVAR that can be enabled to spawn these trails ?
 		//DEBUG: Fire a white beam at the desired turret direction.
 		FSpawnParticleParams P; P.Color1 = "White"; P.Style = STYLE_None; P.Lifetime = 1; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
-		KAI_LOFRaycast.VisualizeTracePath(Pos,Target.Pos.PlusZ(GetTurretAimPosOffset()),MaxTargetRange,8,p);
+		//KAI_LOFRaycast.VisualizeTracePath(Pos,Target.Pos.PlusZ(GetTurretAimPosOffset()),MaxTargetRange,8,p);
 		//DEBUG: And fire a yellow beam at the actual direction.
 		FSpawnParticleParams PP; PP.Color1 = "Yellow"; PP.Style = STYLE_None; PP.Lifetime = 1; PP.Size = 6; PP.StartAlpha = 1; PP.FadeStep = -1; PP.Flags = SPF_FULLBRIGHT;
 		Vector3 FacingPos = Level.Vec3Offset(Pos,KAI_Math.AngleToVector3D(Angle, -Pitch, MaxTargetRange));
-		KAI_LOFRaycast.VisualizeTracePath(Pos,FacingPos,MaxTargetRange,8,pp);
+		//KAI_LOFRaycast.VisualizeTracePath(Pos,FacingPos,MaxTargetRange,8,pp);
 		
 		//console.printf ("non-target future position is %d %d %d",faceto.pos.x,faceto.pos.y,faceto.pos.z);
 		A_Face (Target, Max_Turn, Max_Pitch, Ang_Offset, Pitch_Offset, Flags, Z_Ofs);
 		Target.SetXYZ (OldPos);
 		Return;
+	}
+	
+	//Returns true if the turret is aiming at or ahead of its' target at all. And false if it's trailing hehind.
+	Bool AimingAheadOfTarget()
+	{
+		If (!Target) Return False;
+		If (bNoTargetPrediction) Return True; //Does nothing if target prediction is disabled.
+		
+		If (DeltaAngle(Angle,OldSoundAngle) != 0)
+		{
+			Double AimDiff;
+			Bool AimDir = (AimDiff = DeltaAngle(Angle,OldSoundAngle) < 0);// a_log ("aiming left relative to caller");
+			//else a_log ("aiming right relative to caller");
+			
+			Double TargDiff;
+			Bool TargDir = (TargDiff = DeltaAngle (Angle,AngleTo(Target)) < 0);
+			
+			//If (DeltaAngle (TargDiff, AimDiff) <= (1/65536.))
+				//Return True;
+				//a_log ("target to the left");
+			//else
+				//a_log ("target to the right");
+			
+			Return (AimDir == TargDir); //The turret is aiming ahead if the aim and target directions don't match. Otherwise it's lagging behind (Skill issue)
+		}
+		//If there is no angle diff from last tick, then assume that the turret is sitting still, meaning it aiming straight to its' target.
+		Else
+			Return True;
+		
+		Return False;
 	}
 	//==============================
 	
@@ -262,6 +293,7 @@ Extend Class KAI_BaseTurret
 		TLOF_FaceOther		= 1 << 0, //Should the ray be fired at the direction of the other actor instead of the direction the turret is facing ?
 		TLOF_DoStayAround	= 1 << 1, //Should the function not mess with the turrets' bDontStayAround flag ?
 		TLOF_FriendlyFire	= 1 << 2, //The turret can hit and harm its' allies.
+		TLOF_OnlyAhead		= 1 << 3, //If the turret is lagging behind instead of aiming ahead of the target. Kinda assumes Other is the turrets' Target.
 	}
 	
 	//A generic turret LOF check, that is a wrapper for the stock projectile line of fire check.
@@ -270,13 +302,19 @@ Extend Class KAI_BaseTurret
 	//SplashRadius: For explosive attacks, if the LOF misses and hits level geometry, then still return true if the Other actor would be caught in the blast.
 	//CheckOffsets: How much to offset the checks' origin relative to the callers' position, default is offset 32 map units off the callers' Z position.
 	//Flags: What flags to pass to the check, a list of flags can be found above.
-	Bool KAI_TurretCheckLOF (Actor Other = Null, Int PropHealthThreshold = 400, Double SplashRadius = 0, Vector3 CheckOffsets = (0,0,32), Int Flags = 0)
+	//ProjCls: What's the class of the projectile this check is used for ? Used to get additional attack info, like the rip level, depth, flags, etc.
+	Bool KAI_TurretCheckLOF (Actor Other = Null, Int PropHealthThreshold = 400, Double SplashRadius = 0, Vector3 CheckOffsets = (0,0,32), Int Flags = 0, Class<Actor> ProjCls = Null)
 	{
 		Let Check = New ("KAI_ProjectileLOFCheck");
 		
 		TurretAimPos = UpdateTurretAimPos();
+		
+		//If not aiming ahead of the target
+		If (Flags & TLOF_OnlyAhead && !AimingAheadOfTarget())
+			Return False;
+		
 		Vector3 Direction;
-		If (!(Flags & TLOF_FaceOther)/* && (Other && Distance3DSquared(Other) > 2048)&& !IsInCone(Other,10)*/)
+		If (!(Flags & TLOF_FaceOther))
 			Direction = (AngleToVector(Angle, Cos(Pitch)), -Sin(Pitch));
 		Else
 		{
@@ -292,9 +330,11 @@ Extend Class KAI_BaseTurret
 		Double Distance = Other ? Distance3D (Other)+32 : MaxTargetRange;
 		Check.Shooter = Self;
 		Check.Other = Other;
+		Check.Projectile = ProjCls;
 		Check.SplashRadius = SplashRadius;
-		Check.PropHealthThreshold = ProphealthThreshold;
+		Check.PropHealthThreshold = PropHealthThreshold;
 		Check.FriendlyFire = Flags & TLOF_FriendlyFire;
+		Check.InitializeProjectileInfo();
 		Check.Trace (Level.Vec3Offset (Pos,CheckOffsets),CurSector,Direction,Distance,0);
 		
 		//KAI_LOFRaycast.VisualizeTracePath (Level.Vec3Offset (Pos,CheckOffsets),Check.Results.HitPos,Check.Results.Distance);
@@ -404,7 +444,7 @@ Extend Class KAI_BaseTurret
 			Double PitchTo = PitchTo (Other,14,Other.Height/2);
 			Direction = (AngleToVector(AngleTo(Other), Cos(PitchTo)), -Sin(PitchTo));
 		}
-		
+
 		Check.Shooter = Self;
 		Check.Other = Other;
 		Check.ActorLimit = ActorLimit;
@@ -413,7 +453,6 @@ Extend Class KAI_BaseTurret
 		If (Flags & FIL_HitscanHit && !(Flags & FIL_MissileHit)) BlockFlags |= KAI_LOFRaycast.BLITW_HitscansOnly;
 		Else If (Flags & (FIL_MissileHit|FIL_HitscanHit)) BlockFlags |= KAI_LOFRaycast.BLITW_HitscansToo;
 		Check.BlockMode = BlockFlags;
-		
 		Check.Trace (Level.Vec3Offset (Pos,CheckOffsets),CurSector,Direction,Range,0);
 		
 		//The most important bit. Transfer the actors the line tracer found to the array that was inputted 

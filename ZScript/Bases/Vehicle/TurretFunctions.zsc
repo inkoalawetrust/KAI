@@ -330,11 +330,14 @@ Extend Class KAI_BaseTurret
 		Double Distance = Other ? Distance3D (Other)+32 : MaxTargetRange;
 		Check.Shooter = Self;
 		Check.Other = Other;
-		Check.Projectile = ProjCls;
 		Check.SplashRadius = SplashRadius;
 		Check.PropHealthThreshold = PropHealthThreshold;
 		Check.FriendlyFire = Flags & TLOF_FriendlyFire;
-		Check.InitializeProjectileInfo();
+		
+		Check.ProjInfo = New ('LOFProjInfo'); //Assign struct.
+		Check.ProjInfo.Projectile = ProjCls; //Pass projectile class to struct.
+		Check.ProjInfo.InitializeProjectileInfo(); //Let it infer the rest.
+		
 		Check.Trace (Level.Vec3Offset (Pos,CheckOffsets),CurSector,Direction,Distance,0);
 		
 		//KAI_LOFRaycast.VisualizeTracePath (Level.Vec3Offset (Pos,CheckOffsets),Check.Results.HitPos,Check.Results.Distance);
@@ -342,11 +345,13 @@ Extend Class KAI_BaseTurret
 		If (Check.BadLOF)
 		{
 			If (!(Flags & TLOF_DoStayAround)) bDontStayAround = True;
+			If (Check.ProjInfo) Check.ProjInfo.Destroy();
 			Check.Destroy();
 			Return False;
 		}
 		
 		If (!(Flags & TLOF_DoStayAround)) bDontStayAround = False;
+		If (Check.ProjInfo) Check.ProjInfo.Destroy();
 		Check.Destroy();
 		Return True;
 	}

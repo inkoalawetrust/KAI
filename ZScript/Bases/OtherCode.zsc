@@ -551,17 +551,9 @@ Class KAI_LOFActorFinder : KAI_LOFRaycast
 	}
 }
 
-//Generic projectile LOF check for non-ripping projectiles, should be applicable to most projectiles.
-//PropHealthThreshold: If a destructible prop actor with this much health or less is standing in the way, then shoot at it anyway.
-//SplashRadius: If the check hit level geometry, but the target is within the specified distance from the hit spot. Then don't return BadLOF.
-//PLAYTEST: The friendly fire prevention needs testing. Should work though, it just calls the shooters' IsActorHostile()/IsHostile().
-Class KAI_LOFProjectileCheck : KAI_ProjectileLOFCheck{} //Misnamed the class on the wiki, oops. Not going to change every wiki reference to said class though.
-Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
+//A data class that infers generic projectile info, for custom line of fire traces to be able to use without adding tons of variables and parameters to them.
+Class LOFProjInfo
 {
-	Int PropHealthThreshold;
-	Double SplashRadius;
-	Bool FriendlyFire; //The attack this LOF check is for can harm the shooters' friends.
-	
 	//Projectile information. Maybe this should become a struct eventually, so that other tracers can also easily use it.
 	Class <Actor> Projectile; //A class reference to the class the check is running for, used to get ripper-related information.
 	Bool IsRipper; //Is the projectile a ripper ?
@@ -587,23 +579,36 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 		//Console.Printf ("IsRipper: %d, NoBossRip: %d, RipOnce: %d",IsRipper,NoBossRip,RipOnce);
 		//Console.Printf ("RipLevel: %d, RipDepth: %d",RipLevel,RipDepth);
 	}
+}
+
+//Generic projectile LOF check for non-ripping projectiles, should be applicable to most projectiles.
+//PropHealthThreshold: If a destructible prop actor with this much health or less is standing in the way, then shoot at it anyway.
+//SplashRadius: If the check hit level geometry, but the target is within the specified distance from the hit spot. Then don't return BadLOF.
+//PLAYTEST: The friendly fire prevention needs testing. Should work though, it just calls the shooters' IsActorHostile()/IsHostile().
+Class KAI_LOFProjectileCheck : KAI_ProjectileLOFCheck{} //Misnamed the class on the wiki, oops. Not going to change every wiki reference to said class though.
+Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
+{
+	Int PropHealthThreshold;
+	Double SplashRadius;
+	Bool FriendlyFire; //The attack this LOF check is for can harm the shooters' friends.
+	LOFProjInfo ProjInfo;
 	
 	//Checks if the actor can be ripped, and also decrements the rip depth.
 	//NOTE: This function DOES NOT account for how the rip depth is affected on rippers without bRipOnce, so it just ignores it if the flag is off !
 	Bool CanRipActor (Actor Who)
 	{
-		If (!Who || Shooter && Who == Shooter) Return True; //Yes you can go through the shooter.
+		If (!Who || !ProjInfo || Shooter && Who == Shooter) Return True; //Yes you can go through the shooter. Or there's no other actor or info struct.
 		
-		If (RipOnce && KAI_BaseProjectile(GetDefaultByType(Projectile)).RipDepth != 0 && RipDepth <= 1) //No more high quality rips left.
+		If (ProjInfo.RipOnce && ProjInfo.RipDepth != 0 && ProjInfo.RipDepth <= 1) //No more high quality rips left.
 		{
-			RipDepth = 0;
+			ProjInfo.RipDepth = 0;
 			Return False;
 		}
 		
-		If (!CantRipActor (Who,RipLevel,NoBossRip))
+		If (!CantRipActor (Who,ProjInfo.RipLevel,ProjInfo.NoBossRip))
 		{
-			If (RipOnce && RipDepth)
-				RipDepth--;
+			If (ProjInfo.RipOnce && ProjInfo.RipDepth)
+				ProjInfo.RipDepth--;
 			Return True;
 		}
 		Return False;
@@ -646,7 +651,7 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 		Bool OtherInBlast = CaughtInTheBlast(); //Caching
 		
 		//Indestructible prop in the way.
-		If (Mobj && !OtherInBlast && IsIndestructible (Mobj) && IsInanimateObject (Mobj))
+		If (Mobj && !OtherInBlast && IsCollidable (Mobj) && IsIndestructible (Mobj) && IsInanimateObject (Mobj))
 		{
 			BadLOF = True;
 			Return Trace_Stop;
@@ -668,7 +673,7 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 		}
 		
 		//A projectile class has been passed that is a ripper, but it can no longer rip the actor.
-		If (Projectile && IsRipper && !CanRipActor (Mobj))
+		If (ProjInfo && ProjInfo.Projectile && ProjInfo.IsRipper && IsCollidable (Mobj) && !CanRipActor (Mobj))
 		{console.printf ("epic ripping fail");
 			BadLOF = True;
 			Return Trace_Stop;

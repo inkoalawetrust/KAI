@@ -1,0 +1,1 @@
+Server Bool KAI_DebugTurretAim = False; //Display white (Desired) and yellow (Actual) aim lines from from turrets.

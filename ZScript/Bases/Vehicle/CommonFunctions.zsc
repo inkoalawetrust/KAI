@@ -15,8 +15,11 @@ Extend Class KAI_BaseVehicle
 			Turret.Angle = Angle;
 			Turret.Pitch = Pitch;
 			Turret.Master = Self;
-			Double HealthFactor = Double(Health) / Double(Default.Health); //HACK: There's no proper way to get the exact spawn health or spawn health multiplier defined in the map editor.
-			Turret.Health *= HealthFactor;
+			If (!Turret.bTransferDamage) //FIXME: This causes a bug where if the UDMF health is 0 or -1, it will make the turret undead. Probably happens on normal turrets too.
+			{
+				Double HealthFactor = Double(Health) / Double(Default.Health); //HACK: There's no proper way to get the exact spawn health or spawn health multiplier defined in the map editor.
+				Turret.Health *= HealthFactor;
+			}
 			Turret.TurretOffsets = TurretOffsets;
 			If (bPassThreatLevelToTurrets && Turret.ThreatLevel == THREAT_ASSESS && ThreatLevel != THREAT_ASSESS) Turret.ThreatLevel = ThreatLevel;
 		}
@@ -77,16 +80,16 @@ Extend Class KAI_BaseVehicle
 	
 	//=====|Vehicle behaviors|=====\\
 	Array <Actor> PushedAlready;
-	/*FIXME: I tried making this function be called recursively, to make it possible for vehicles to push away groups of objects. By having the obstacles
-	push each other out of the way, but for some reason I just cannot get the recursion handling to fucking work so the game always freezes when a vehicle
-	pushes objects stacked next to each other, so the recursion code has been commented out until someone else can help me get it working.*/
+	/*BUG: The code for recursively calling the function for obstacles stacked next to each other to push each other away is kinda cursed.
+	So it might not work sometimes (i.e. the vehicle might be stopped by a bunch of otherwise pushable obstacles). Might even cause the game to freeze in
+	some unfortunate circumstances, but I'm not sure if it happens any more, or was a consequence of my previous implementation.*/
 	//Vehicle push handling. For making large vehicles like tanks push objects out of the way instead of getting blocked by them.
 	//Called before TryMove to push actors out of the way for a successful move.
 	//Source: The actor to push other actors away from.
 	//MovePos: The position the Source actor will move to, if any intersecting actors are there, push them away from the position for the next move.
 	/*MaxPushRadius, MaxPushHeight: The max radius and height the blocking actors can have before the vehicle can't push them. These are normally
 	the push height and radius properties of the vehicle.*/
-	//Blockers: Returns the actors that blocked the vehicle to the array passed. Mainly used to apply crush damage to the if desired.
+	//Blockers: Returns the actors that blocked the vehicle to the array passed. Mainly used to apply crush damage to them if optionally desired.
 	Void KAI_VehiclePushActors (Actor Source, Vector2 MovePos, Double MaxPushRadius, Double MaxPushHeight, Out Array<Actor> Blockers = Null, Int Depth = 0)
 	{
 		If (!Source || Depth > 6) Return;
@@ -100,7 +103,7 @@ Extend Class KAI_BaseVehicle
 				Actor Mobj;
 				Double TheZ = GetZAt (MovePos.X,MovePos.Y,flags:GZF_ABSOLUTEPOS);
 				Source.SetOrigin ((MovePos,TheZ),False);
-				Let Pushovers = BlockThingsIterator.Create (Source,Source.Radius);
+				Let Pushovers = BlockThingsIterator.Create (Source,Source.Radius); //Wait, why am I not using CreateFromPos() instead ?
 				While (Pushovers.Next())
 				{
 					Mobj = Pushovers.Thing;
@@ -114,7 +117,7 @@ Extend Class KAI_BaseVehicle
 					//IDEA: Maybe ignore this if the actor can fly ? Will need handling to vertically move actors too for flying vehicles.
 					If (Mobj.Pos.Z >= Pos.Z+Height || Mobj.Pos.Z+Height <= Pos.Z) Continue;
 					
-					Bool IsColliding = (IsCollidable (Mobj,Source) && CheckHitboxIntersection (Source,Mobj));
+					Bool IsColliding = (IsCollidable (Mobj,Source) && CheckHitboxIntersection (Source,Mobj)); //Are you clipping into a collidable actor ?
 					
 					If (Blockers && IsColliding)
 						Blockers.Push (Mobj);
@@ -182,7 +185,7 @@ Extend Class KAI_BaseVehicle
 	
 	Enum VehicleRetreatFlags
 	{
-		VRF_ZIGZAG = 1 << 0 //
+		VRF_ZIGZAG = 1 << 0 //Should the vehicle zigzag around when retreating, instead of moving in a straight line away from the other actor ?
 	}
 	
 	Int RetreatAngleOffset; //The angle offset to use when retreating, for VRF_ZIGZAG.
@@ -199,17 +202,17 @@ Extend Class KAI_BaseVehicle
 		If (!Other) Return;
 		
 		//If there's already a prior position to move to, begin moving there instead. Until within melee range of that position.
-		If (!KAI_Math.IsEmptyVector3 (NextMovePos) && NewPosStepCount <= /*MaxSteps*/32 && Level.Vec3Diff (Pos,NextMovePos).Length() >= MeleeRange)
+		If (!KAI_Math.IsEmptyVector3 (NextMovePos) && NewPosStepCount <= 32 && Level.Vec3Diff (Pos,NextMovePos).Length() >= MeleeRange)
 		{
 			KAI_MoveTowards (NextMovePos, DetourFactor, AngleLimit, ChaseFlags, Flags);
-			NewPosStepCount++;
+			If (!(Flags & VRF_ZIGZAG)) NewPosStepCount++;
 			Return;
 		}
 		//Once the position is reached, empty the the NextMovePos vector;
 		Else
 		{
 			NextMovePos = (Double.NaN,Double.NaN,Double.NaN);
-			NewPosStepCount = 0;
+			If (!(Flags & VRF_ZIGZAG)) NewPosStepCount = 0;
 		}
 		
 		If (Flags & VRF_ZIGZAG)
@@ -225,7 +228,7 @@ Extend Class KAI_BaseVehicle
 			RetreatAngleOffset = 0;
 		
 		Double CheckAngle = (AngleTo(Other)-180+RetreatAngleOffset); //Try moving right away from the enemy, unless blocked.
-		Vector3 CheckPos = (Vec2Angle (Radius+CheckDistance,CheckAngle),0);
+		Vector3 CheckPos = (Vec2Angle (Radius+CheckDistance*4,CheckAngle),0);
 		CheckPos.Z = GetZAt (CheckPos.X,CheckPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
 		//MAYDO: Make the code somehow ignore actors the vehicle can push away ? This would require reverting to using line traces.
 		If (CheckDistance > 0 && Slices > 0)
@@ -247,6 +250,8 @@ Extend Class KAI_BaseVehicle
 			CheckPos.XY = Vec2Angle (Distance,CheckAngle);
 			CheckPos.Z = GetZAt (CheckPos.X,CheckPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
 		}
+		FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 5; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+		KAI_LOFRaycast.VisualizeTracePath(Pos,CheckPos,MaxTargetRange,8,p);
 		NextMovePos = CheckPos;
 	}
 	

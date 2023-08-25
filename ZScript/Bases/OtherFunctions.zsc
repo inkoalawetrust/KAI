@@ -137,8 +137,8 @@ Extend Class KAI_Actor
 	//It returns the sprite angle that should be shown. AKA the value it returns internally. And also returns an actual 360 angle, which is more useful.
 	Int, Double GetSpriteAngleFromPos (Vector3 CamPos, Bool SixteenAngles)
 	{
-		Vector3 Coords = Level.SphericalCoords (CamPos,Pos);
-		Double Ang = Coords.X;
+		Vector3 Coords = Level.SphericalCoords (Pos,CamPos);
+		Double Ang = -Coords.X;
 		
 		Double SprAng = KAI_GetSpriteAngle (Self,Ang,System.GetTimeFrac());
 		Double Result;

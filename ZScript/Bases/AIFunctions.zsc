@@ -134,7 +134,6 @@ Extend Class KAI_Actor
 	Vector3 ZigZagPos;
 	
 	//Makes the actor move towards the specified actor.
-	//IDEA: Make actors move using velocity instead of TryMove(). This will require GetFriction() for CheckMove().
 	//FIXME: There's some flickering between different sprite angles, try fixing it.
 	//CREDIT: Written by Custodian. Modified and expanded by me (inkoalawetrust).
 	//Other: The actor to move to.

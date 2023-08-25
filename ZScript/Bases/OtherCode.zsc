@@ -1,12 +1,25 @@
 //Code that's not directly related to KAI NPCs goes here. Largely stuff like mixins and the math container class.
 Class KAI_Math
 {
+	//Linearly interpolate between two values.
+	ClearScope Static Double LerpValue (Double V1, Double V2, Double Time)
+	{
+		Return (V1 + Time * (V2 - V1));
+	}
+	
 	//=====|Talking in tongues|=====\\
 	//What does this do ? I have no fucking idea, Agent_Ash gave it to me to fix how much the truck slows down based on the mass of the object it hit while ramming.
 	//Remap `Val` from <o_min, o_max> range to <n_min, n_max> range. Still got little idea what this means, RaveYard wrote this description not me lmao.
 	ClearScope Static Double LinearMap (Double Val, Double O_Min, Double O_Max, Double N_Min, Double N_Max) 
 	{
 		Return (Val - O_Min) * (N_Max - N_Min) / (O_Max - O_Min) + N_Min;
+	}
+	
+	//Credit: RaveYard
+	//I don't even know what this does lmfao.
+	ClearScope Static Double Distance3DLine(Vector3 A, Vector3 B, Vector3 C)
+	{
+		Return (((A - B) Cross (C - B))).Length() / (C - B).Length();
 	}
 	//==============================\\
 	
@@ -102,13 +115,19 @@ Mixin Class KAI_UniversalFunctions
 		}
 		
 		For (Int I = 0; I < TempAllyList.Size(); I++)
-			TempAllyList[I].bNoRadiusDmg = True;
+		{
+			If (TempAllyList[I])
+				TempAllyList[I].bNoRadiusDmg = True;
+		}
 	}
 	
 	Void RemoveAllyExplosionImmunity()
 	{
 		For (Int I = 0; I < TempAllyList.Size(); I++)
-			TempAllyList[I].bNoRadiusDmg = False;
+		{
+			If (TempAllyList[I])
+				TempAllyList[I].bNoRadiusDmg = False;
+		}
 		
 		TempAllyList.Clear();
 	}
@@ -274,6 +293,7 @@ Mixin Class KAI_CheckFunctions
 	}
 	
 	//Checks if two hitboxes are clipping into one another.
+	//CREDIT: https://developer.mozilla.org/en-US/docs/Games/Techniques/3D_collision_detection
 	ClearScope Bool CheckHitboxIntersection (Actor A, Actor B)
 	{
 		If (!A || !B)

@@ -322,9 +322,13 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 	Property TurnSound : TurnSound; //The sound the turret makes when it turns.
 	Property CombatAngleTurnRate : CombatAngleTurnRate; //How fast the turret changes its' angle to face its' target when in combat. In degrees per second.
 	Property CombatPitchTurnRate : CombatPitchTurnRate; //How fast the turret changes its' pitch to face its' target when in combat. In degrees per second.
+	
+	//Target prediction properties.
 	Double TurretAttackSpeed, FastTurretAttackSpeed; //The speed (And -fast speed) of the turrets' attack, in MU/tic, used by the target prediction code to estimate where the turret should aim ahead at.
+	Vector3 TurretInaccuracy; //How inaccurate is the target tracking ? This is a vector3 property, which as of 19/8/2023 is exclusive to GZDoom dev builds.
 	Property AttackSpeed : TurretAttackSpeed;
 	Property FastAttackSpeed : FastTurretAttackSpeed;
+	Property Inaccuracy : TurretInaccuracy;
 	
 	Int TurretSnapDelay; //Used for the turret rotating code, to make it so the turret snaps back to the vehicle after some time of not having a target.
 	Double TurretRotationOffset; //Can be used to offset the rotation of the turret by this exact amount. Used by turrets when they are destroyed, and by prop turrets.
@@ -345,6 +349,8 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 		KAI_Actor.PostBeginPlay ();
 		SpawnVehicleTurret();
 		TurretAimPos = FAF_MIDDLE; //Turrets aim in the middle of the targets' hitbox by default.
+		//Initialize inaccuracy.
+		NextInaccuracyOffset = (FRandom (TurretInaccuracy.X,-TurretInaccuracy.X),FRandom (TurretInaccuracy.Y,-TurretInaccuracy.Y),FRandom (TurretInaccuracy.Z,-TurretInaccuracy.Z));
 		//If (bAltTurnSoundLogic) //Start the turn sound and play it on loop, dynamically changing its volume.
 		//The sound engine doesn't play sounds with 0 volume, so set the volume at EQUAL_EPSILON instead.
 		//	A_StartSound (TurnSound,CHAN_BODY,CHANF_LOOP,(1./65536.),0.8);
@@ -380,6 +386,22 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 		If (IsFrozen()) Return;
 		
 		Bool IsDead = IsDead (Self); //Caching
+		
+		//Update inaccuracy relative to target over time.
+		If (!IsDead && !KAI_Math.IsZeroVector3(TurretInaccuracy))
+		{
+			//Blend between the current and next inaccurate position. Until the current inaccurate position is less than 2 MU away from the next wrong pos.
+			If (Level.Vec3Diff (InaccuracyOffset,NextInaccuracyOffset).Length() > 2)
+			{
+				InaccuracyOffset.X = KAI_Math.LerpValue (InaccuracyOffset.X,NextInaccuracyOffset.X,0.1);
+				InaccuracyOffset.Y = KAI_Math.LerpValue (InaccuracyOffset.Y,NextInaccuracyOffset.Y,0.1);
+				InaccuracyOffset.Z = KAI_Math.LerpValue (InaccuracyOffset.Z,NextInaccuracyOffset.Z,0.1);
+			}
+			//Change to a new desired wrong position.
+			Else
+				//The actual wrong position the turret aims at. TurretInaccuracy is just the range relative to the target this differs from.
+				NextInaccuracyOffset = (FRandom (TurretInaccuracy.X,-TurretInaccuracy.X),FRandom (TurretInaccuracy.Y,-TurretInaccuracy.Y),FRandom (TurretInaccuracy.Z,-TurretInaccuracy.Z));
+		}
 		
 		//Combat turret traverse handling.
 		If (!bNoCombatTraverse && !IsDead)

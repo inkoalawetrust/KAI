@@ -105,9 +105,8 @@ Extend Class KAI_BaseTurret
 			A_Face (Target,AngleTraverse,PitchTraverse,flags:TurretAimPos);
 	}
 	
-	//TODO:
-	//Split the code that actually predicts a future straight line trajectory for the target in a GetFutureTrajectory() function. Make it a generic.
-	//Add an Inaccuracy vector parameter, which specifies a bounding box to randomly offset the calculated position to.
+	Vector3 InaccuracyOffset; //The current inaccurate position.
+	Vector3 NextInaccuracyOffset; //The future offset that InaccuracyOffset interpolates towards.
 	
 	//Aim the turret ahead of the targets' trajectory, allowing to fire in anticipation of where they'll be. Basically, this is the turrets' fire control system.
 	//The Max_Turn, Max_Pitch, Ang_Offset, Pitch_Offset, Flags, and Z_Ofs properties are passed to A_Face(). Such as for controlling HOW fast it aims.
@@ -138,16 +137,21 @@ Extend Class KAI_BaseTurret
 			//console.printf ("tponly is %.3f %.3f %.3f",tponly.x,tponly.y,tponly.z);
 			Diff = Level.Vec3Offset (TPOnly,Target.Vel);
 		}
+		Diff *= FloatTics; //Factor in travel time.
+		Diff = Level.Vec3Offset (Diff,InaccuracyOffset); //Add inaccuracy after the travel time.
+		
 		//console.printf ("velocity is %.3f %.3f %.3f",target.vel.x,target.vel.y,target.vel.z);
-		Target.SetXYZ (Level.Vec3Offset (Target.Pos,Diff*FloatTics));
-		//IDEA: Add a debug CVAR that can be enabled to spawn these trails ?
-		//DEBUG: Fire a white beam at the desired turret direction.
-		FSpawnParticleParams P; P.Color1 = "White"; P.Style = STYLE_None; P.Lifetime = 1; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
-		//KAI_LOFRaycast.VisualizeTracePath(Pos,Target.Pos.PlusZ(GetTurretAimPosOffset()),MaxTargetRange,8,p);
-		//DEBUG: And fire a yellow beam at the actual direction.
-		FSpawnParticleParams PP; PP.Color1 = "Yellow"; PP.Style = STYLE_None; PP.Lifetime = 1; PP.Size = 6; PP.StartAlpha = 1; PP.FadeStep = -1; PP.Flags = SPF_FULLBRIGHT;
-		Vector3 FacingPos = Level.Vec3Offset(Pos,KAI_Math.AngleToVector3D(Angle, -Pitch, MaxTargetRange));
-		//KAI_LOFRaycast.VisualizeTracePath(Pos,FacingPos,MaxTargetRange,8,pp);
+		Target.SetXYZ (Level.Vec3Offset (Target.Pos,Diff));
+		If (KAI_DebugTurretAim)
+		{
+			//DEBUG: Fire a white beam at the desired turret direction.
+			FSpawnParticleParams P; P.Color1 = "White"; P.Style = STYLE_None; P.Lifetime = 1; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+			KAI_LOFRaycast.VisualizeTracePath(Pos,Target.Pos.PlusZ(GetTurretAimPosOffset()),MaxTargetRange,8,p);
+			//DEBUG: And fire a yellow beam at the actual direction.
+			FSpawnParticleParams PP; PP.Color1 = "Yellow"; PP.Style = STYLE_None; PP.Lifetime = 1; PP.Size = 6; PP.StartAlpha = 1; PP.FadeStep = -1; PP.Flags = SPF_FULLBRIGHT;
+			Vector3 FacingPos = Level.Vec3Offset(Pos,KAI_Math.AngleToVector3D(Angle, -Pitch, MaxTargetRange));
+			KAI_LOFRaycast.VisualizeTracePath(Pos,FacingPos,MaxTargetRange,8,pp);
+		}
 		
 		//console.printf ("non-target future position is %d %d %d",faceto.pos.x,faceto.pos.y,faceto.pos.z);
 		A_Face (Target, Max_Turn, Max_Pitch, Ang_Offset, Pitch_Offset, Flags, Z_Ofs);
@@ -334,8 +338,8 @@ Extend Class KAI_BaseTurret
 		Check.PropHealthThreshold = PropHealthThreshold;
 		Check.FriendlyFire = Flags & TLOF_FriendlyFire;
 		
-		Check.ProjInfo = New ('LOFProjInfo'); //Assign struct.
-		Check.ProjInfo.Projectile = ProjCls; //Pass projectile class to struct.
+		Check.ProjInfo = New ('LOFProjInfo'); //Assign data class.
+		Check.ProjInfo.Projectile = ProjCls; //Pass projectile class to class.
 		Check.ProjInfo.InitializeProjectileInfo(); //Let it infer the rest.
 		
 		Check.Trace (Level.Vec3Offset (Pos,CheckOffsets),CurSector,Direction,Distance,0);
@@ -386,7 +390,7 @@ Extend Class KAI_BaseTurret
 		Target.SetXYZ(OldPos);
 		
 		If (Check.GoodLOS)
-		{a_log ("top aim");
+		{
 			Check.Destroy();
 			Return FAF_TOP;
 		}
@@ -398,13 +402,12 @@ Extend Class KAI_BaseTurret
 		Target.SetXYZ(OldPos);
 		
 		If (Check.GoodLOS)
-		{a_log ("bottom aim");
+		{
 			Check.Destroy();
 			Return FAF_BOTTOM;
 		}
 		
 		//All else failed, aim to the middle again and return false;
-		a_log ("fallback aim");
 		Return FAF_MIDDLE;
 	}
 	

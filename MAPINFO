@@ -1,0 +1,4 @@
+GameInfo
+{
+	AddEventHandlers = "KAI_EventHandler"
+}

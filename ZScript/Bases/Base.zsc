@@ -503,7 +503,6 @@ Class KAI_BaseProjectile : FastProjectile
 		//Estimate the travel time the projectile needs.
 		If (Vel.Length() != 0)
 			TravelTics = Distance3D (Tracer)/Vel.Length();
-			//console.printf ("traveltics %.2f",traveltics);
 		TravelTics = Clamp (TravelTics,1,INT.MAX); //Needs at least 1 tic.
 		FloatTics = TravelTics; //Finer precision on multiplier the extrapolated velocity, for extra accuracy.
 		Vector3 OldPos = Tracer.Pos;
@@ -520,8 +519,8 @@ Class KAI_BaseProjectile : FastProjectile
 		Result = Level.Vec3Offset(Result,(FRandom(Inaccuracy.X,-Inaccuracy.X),FRandom(Inaccuracy.Y,-Inaccuracy.Y),FRandom(Inaccuracy.Z,-Inaccuracy.Z)));
 		//console.printf ("the tracers' current trajectory is %d %d %d",pos);
 		//console.printf ("the tracers' future trajectory is %d %d %d",result);
-		FSpawnParticleParams P; P.Color1 = "White"; P.Style = STYLE_None; P.Lifetime = 1; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
-		KAI_LOFRaycast.VisualizeTracePath(Pos,result,distance3d(tracer),8,p);
+		//FSpawnParticleParams P; P.Color1 = "White"; P.Style = STYLE_None; P.Lifetime = 1; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+		//KAI_LOFRaycast.VisualizeTracePath(Pos,result,distance3d(tracer),8,p);
 		Return Result;
 	}
 	

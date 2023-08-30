@@ -168,17 +168,10 @@ Extend Class KAI_BaseTurret
 		If (DeltaAngle(Angle,OldSoundAngle) != 0)
 		{
 			Double AimDiff;
-			Bool AimDir = (AimDiff = DeltaAngle(Angle,OldSoundAngle) < 0);// a_log ("aiming left relative to caller");
-			//else a_log ("aiming right relative to caller");
+			Bool AimDir = (AimDiff = DeltaAngle(Angle,OldSoundAngle) < 0);
 			
 			Double TargDiff;
 			Bool TargDir = (TargDiff = DeltaAngle (Angle,AngleTo(Target)) < 0);
-			
-			//If (DeltaAngle (TargDiff, AimDiff) <= (1/65536.))
-				//Return True;
-				//a_log ("target to the left");
-			//else
-				//a_log ("target to the right");
 			
 			Return (AimDir == TargDir); //The turret is aiming ahead if the aim and target directions don't match. Otherwise it's lagging behind (Skill issue)
 		}

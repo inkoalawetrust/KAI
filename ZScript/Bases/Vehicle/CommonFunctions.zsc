@@ -2,6 +2,35 @@
 //Vehicle functions
 Extend Class KAI_BaseVehicle
 {
+	//=====|Check functions|=====\\
+	//Checks if the vehicle itself or any of its' turrets would collide at the specified position. Returns false if one of the turrets is colliding.
+	//PLAYTEST: This function is still untested, chances are, it freezes the game, probably even with the depth set to like 5.
+	Bool CheckTurretCollision (Vector3 NewPosition, Int TurretDepth = INT.MAX)
+	{
+		Vector3 TurPos, OldPos;
+		KAI_BaseVehicle Veh = Self;
+		While (Veh.Turret)
+		{
+			If (TurretDepth <= 0)
+				Break;
+			
+			TurPos = Level.Vec3Diff (NewPosition,Veh.Pos); //Subtract the new absolute pos from the current pos to get the relative pos.
+			
+			OldPos = Veh.Turret.Pos;
+			Veh.Turret.SetOrigin (Vec3Offset(TurPos.X,TurPos.Y,TurPos.Z),False); //Check where the turret will be in the future.
+			If (!Veh.Turret.TestMobjLocation()) //One of the turrets will bonk something.
+			{
+				Veh.Turret.SetOrigin (OldPos,False);
+				Return False;
+			}
+			Veh.Turret.SetOrigin (OldPos,False);
+			OldPos = (Double.NaN,Double.NaN,Double.NaN);
+			Veh = Veh.Turret; //Now check the turrets' turret, recursively.
+			TurretDepth--;
+		}
+		Return True;
+	}
+	
 	//=====|Spawn functions|=====\\
 	//The barebones code for spawning a vehicle turret. Useful for SpawnVehicleTurret virtuals with custom logic.
 	Void SpawnTurret (Class <KAI_BaseTurret> TurretClass)
@@ -119,6 +148,9 @@ Extend Class KAI_BaseVehicle
 					
 					Bool IsColliding = (IsCollidable (Mobj,Source) && CheckHitboxIntersection (Source,Mobj)); //Are you clipping into a collidable actor ?
 					
+					//The pusher can't collide with the pushee, so ignore it.
+					If (!Source.CanCollideWith (Mobj, False) || !Mobj.CanCollideWith(Source, True)) Continue;
+					
 					If (Blockers && IsColliding)
 						Blockers.Push (Mobj);
 					
@@ -129,7 +161,7 @@ Extend Class KAI_BaseVehicle
 					If (MaxPushRadius != 0 && MaxPushRadius < Mobj.Radius || MaxPushHeight != 0 && MaxPushHeight < Mobj.Height) Continue;
 					
 					If (IsColliding)
-					{
+					{//console.printf ("%s is pushing %s",source.getclassname(),mobj.getclassname());
 						//Double PushDist = ((Source.Radius + Mobj.Radius - Source.Distance2D (Mobj))*1.1); //Push it enough for the corner of the pushover to JUST be away from the vehicle.
 						Double PushDist = (/*Source.*/Distance2D (Mobj)-/*Source.*/Radius);
 						Vector3 PushPos = Mobj.Vec3Angle (-PushDist,Mobj.AngleTo (/*Source*/Self));
@@ -250,8 +282,6 @@ Extend Class KAI_BaseVehicle
 			CheckPos.XY = Vec2Angle (Distance,CheckAngle);
 			CheckPos.Z = GetZAt (CheckPos.X,CheckPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
 		}
-		FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 5; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
-		KAI_LOFRaycast.VisualizeTracePath(Pos,CheckPos,MaxTargetRange,8,p);
 		NextMovePos = CheckPos;
 	}
 	
@@ -344,7 +374,7 @@ Extend Class KAI_BaseVehicle
 			}
 			//If your turrets' target is too high up for it to reach.
 			Else If (Turret && Turret.Target && Turret.ElevationState == Turret.ELEVATION_TOOHIGH)
-			{a_log ("moving back so my turret can fire");
+			{
 				If (!(Flags & LVC_USERETREATSTATE))
 					KAI_MoveAway (Turret.Target,MoveParams.Attempts,MoveParams.RunRad,MoveParams.StepThreshold,0.5,TurnRadius,ChaseFlags); //Back off to allow your turret to shoot.
 				Else If (Flags & LVC_USERETREATSTATE && RetreatState)
@@ -460,7 +490,7 @@ Extend Class KAI_BaseVehicle
 			//Target the hull if it's stronger than the turret, basically targeting the strongest part of the vehicle.
 			If (Flags & RVHF_STRONGERHULL && Target.Master.Health > Target.Health)
 			{
-				If (!(Flags & RVHF_NOTARGETCHANGE)) Target = Target.Master;a_log ("targeting the stronger hull instead");
+				If (!(Flags & RVHF_NOTARGETCHANGE)) Target = Target.Master;
 				Return True;
 			}
 		}

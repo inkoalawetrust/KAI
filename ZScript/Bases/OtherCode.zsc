@@ -625,7 +625,9 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 			Return False;
 		}
 		
-		If (!CantRipActor (Who,ProjInfo.RipLevel,ProjInfo.NoBossRip))
+		//Decrement the rip depth for the ripper LOF check. Unless the actor to be ripped is an enemy. That we can shoot anyway.
+		//MAYDO: Add a flag in LOFProjInfo that ignores the enemy check ?
+		If ((!IsHostile (Shooter,Who) || IsInanimateObject(Who)) && !CantRipActor (Who,ProjInfo.RipLevel,ProjInfo.NoBossRip))
 		{
 			If (ProjInfo.RipOnce && ProjInfo.RipDepth)
 				ProjInfo.RipDepth--;
@@ -657,13 +659,13 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 		
 		If (Mobj == Shooter.Master) Return Trace_Skip;
 		
-		//The target is in the line of fire. Shoot them anyway.
-		If (Other && Mobj == Other)
+		//The target is in the line of fire. Or the Mobj is an enemy. Shoot them anyway.
+		If (Other && Mobj == Other || !IsInanimateObject(Mobj) && IsHostile(Shooter,Mobj))
 			Return Trace_Stop;
 		
 		//If friendly fire prevention is on, return false if an ally is in the way.
 		If (FriendlyFire && Mobj && !IsDead(Mobj) && IsCollidable (Mobj) && !IsInanimateObject(Mobj) && !IsHostile(Shooter,Mobj))
-		{
+		{//console.printf ("blue on blue !");
 			BadLOF = True;
 			Return Trace_Stop;
 		}
@@ -672,14 +674,14 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 		
 		//Indestructible prop in the way.
 		If (Mobj && !OtherInBlast && IsCollidable (Mobj) && IsIndestructible (Mobj) && IsInanimateObject (Mobj))
-		{
+		{//console.printf ("invincible object in the way");
 			BadLOF = True;
 			Return Trace_Stop;
 		}
 		
 		//Destructible prop, but far too strong to shoot through in a timely manner.
 		If (Mobj && !OtherInBlast && IsCollidable (Mobj) && !IsIndestructible(Mobj) && IsInanimateObject (Mobj) && !CanShootAtProp(Mobj,PropHealthThreshold))
-		{
+		{//console.printf("vincible object in the way, but too durable");
 			BadLOF = True;
 			Return Trace_Stop;
 		}
@@ -687,28 +689,28 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 		//Solid corpse in the way, attack can't go through.
 		Bool StopAtCorpse = !FriendlyFire ? IsHostile(Shooter,Mobj) : True;
 		If (Mobj && !OtherInBlast && IsSolidCorpse(Mobj) && StopAtCorpse)
-		{
+		{//console.printf ("dead actor in the way");
 			BadLOF = True;
 			Return Trace_Stop;
 		}
 		
 		//A projectile class has been passed that is a ripper, but it can no longer rip the actor.
 		If (ProjInfo && ProjInfo.Projectile && ProjInfo.IsRipper && IsCollidable (Mobj) && !CanRipActor (Mobj))
-		{console.printf ("epic ripping fail");
+		{//console.printf ("epic ripping fail");
 			BadLOF = True;
 			Return Trace_Stop;
 		}
 		
 		//The trace specifically hit a projectile blocking line. e.g a window linedef or a polyobject.
 		If (BlockingLineInTheWay (Results.HitLine,0))
-		{
+		{//console.printf ("blocking line in the way");
 			BadLOF = True;
 			Return Trace_Stop;
 		}
 		
 		//Level geometry is in the way.
 		If (HitLevelGeometry (Results))
-		{
+		{//console.printf ("level geometry in the way");
 			//Don't return BadLOF if the target would be caught in the blast radius anyway. Unless they are immune to splash damage of course.
 			Double Distance;
 			If (SplashRadius > 0 && Other && !Other.bNoRadiusDmg && Distance <= SplashRadius)

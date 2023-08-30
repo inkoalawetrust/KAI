@@ -28,9 +28,9 @@ Extend Class KAI_Actor
 			Vector3 Diff = Level.Vec3Diff (LastEnemyPosition,Target.Pos);
 			Vector3 TPOnly = Level.Vec3Diff (Diff,Target.Vel); //Get the teleport movement, sans velocity.
 			TPOnly = GetTeleportMoveDivision();
-			console.printf ("tponly is %.3f %.3f %.3f",tponly.x,tponly.y,tponly.z);
+			//console.printf ("tponly is %.3f %.3f %.3f",tponly.x,tponly.y,tponly.z);
 			Vector3 FakeVel = Level.Vec3Offset (TPOnly,Target.Vel);
-			console.printf ("fakevel is %.3f %.3f %.3f",fakevel.xy,fakevel.z);
+			//console.printf ("fakevel is %.3f %.3f %.3f",fakevel.xy,fakevel.z);
 			Target.Vel = FakeVel;
 			Projectile.VelIntercept (Target);
 			AddProjectileSpread (Projectile,SpreadHorz,SpreadVert);

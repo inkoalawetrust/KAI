@@ -134,7 +134,7 @@ Extend Class KAI_Actor
 	Vector3 ZigZagPos;
 	
 	//Makes the actor move towards the specified actor.
-	//FIXME: There's some flickering between different sprite angles, try fixing it.
+	//TODO: Add a check for if a vehicles' turret would collide with the next move. And probably find a way to call it recursively for turrets on turrets.
 	//CREDIT: Written by Custodian. Modified and expanded by me (inkoalawetrust).
 	//Other: The actor to move to.
 	//DetourFactor: How long the actor is allowed to move in a direction after hitting an obstacle, before heading straight for the target again.

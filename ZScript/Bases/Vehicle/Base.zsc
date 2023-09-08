@@ -325,14 +325,11 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 	
 	//Target prediction properties.
 	Double TurretAttackSpeed, FastTurretAttackSpeed; //The speed (And -fast speed) of the turrets' attack, in MU/tic, used by the target prediction code to estimate where the turret should aim ahead at.
-	Vector3 TurretInaccuracy; //How inaccurate is the target tracking ? This is a vector3 property, which as of 19/8/2023 is exclusive to GZDoom dev builds.
 	Property AttackSpeed : TurretAttackSpeed;
 	Property FastAttackSpeed : FastTurretAttackSpeed;
-	Property Inaccuracy : TurretInaccuracy;
 	
 	Int TurretSnapDelay; //Used for the turret rotating code, to make it so the turret snaps back to the vehicle after some time of not having a target.
 	Double TurretRotationOffset; //Can be used to offset the rotation of the turret by this exact amount. Used by turrets when they are destroyed, and by prop turrets.
-	Double OldSoundAngle; //The turrets' angle in the last tick. Used for the turret turning sound.
 	
 	Enum ElevationStates
 	{
@@ -349,8 +346,6 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 		KAI_Actor.PostBeginPlay ();
 		SpawnVehicleTurret();
 		TurretAimPos = FAF_MIDDLE; //Turrets aim in the middle of the targets' hitbox by default.
-		//Initialize inaccuracy.
-		NextInaccuracyOffset = (FRandom (TurretInaccuracy.X,-TurretInaccuracy.X),FRandom (TurretInaccuracy.Y,-TurretInaccuracy.Y),FRandom (TurretInaccuracy.Z,-TurretInaccuracy.Z));
 		//If (bAltTurnSoundLogic) //Start the turn sound and play it on loop, dynamically changing its volume.
 		//The sound engine doesn't play sounds with 0 volume, so set the volume at EQUAL_EPSILON instead.
 		//	A_StartSound (TurnSound,CHAN_BODY,CHANF_LOOP,(1./65536.),0.8);
@@ -380,28 +375,11 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 	
 	Override Void Tick()
 	{
-		OldSoundAngle = Angle; //Store last ticks' angle for the turning sound.
 		Super.Tick();
 		
 		If (IsFrozen()) Return;
 		
 		Bool IsDead = IsDead (Self); //Caching
-		
-		//Update inaccuracy relative to target over time.
-		If (!IsDead && !KAI_Math.IsZeroVector3(TurretInaccuracy))
-		{
-			//Blend between the current and next inaccurate position. Until the current inaccurate position is less than 2 MU away from the next wrong pos.
-			If (Level.Vec3Diff (InaccuracyOffset,NextInaccuracyOffset).Length() > 2)
-			{
-				InaccuracyOffset.X = KAI_Math.LerpValue (InaccuracyOffset.X,NextInaccuracyOffset.X,0.1);
-				InaccuracyOffset.Y = KAI_Math.LerpValue (InaccuracyOffset.Y,NextInaccuracyOffset.Y,0.1);
-				InaccuracyOffset.Z = KAI_Math.LerpValue (InaccuracyOffset.Z,NextInaccuracyOffset.Z,0.1);
-			}
-			//Change to a new desired wrong position.
-			Else
-				//The actual wrong position the turret aims at. TurretInaccuracy is just the range relative to the target this differs from.
-				NextInaccuracyOffset = (FRandom (TurretInaccuracy.X,-TurretInaccuracy.X),FRandom (TurretInaccuracy.Y,-TurretInaccuracy.Y),FRandom (TurretInaccuracy.Z,-TurretInaccuracy.Z));
-		}
 		
 		//Combat turret traverse handling.
 		If (!bNoCombatTraverse && !IsDead)
@@ -415,7 +393,7 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 			//If (!bAltTurnSoundLogic)
 			//{
 				//But only play it when the angle has changed a certain amount.
-				If (AbsAngle (Angle,OldSoundAngle) >= TurnSoundRadius
+				If (AbsAngle (Angle,OldAngle) >= TurnSoundRadius
 				&& !(Master && AbsAngle(Master.Angle,Angle) <= 0.25)) //Stops the turn sound from playing when the turret is snapping to the vehicles' angle.
 					A_StartSound (TurnSound,CHAN_BODY,Flags,0.8,0.8);
 				Else

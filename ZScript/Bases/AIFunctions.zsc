@@ -106,7 +106,7 @@ Extend Class KAI_Actor
 	Void KAI_Look (Int Flags = 0, Double MinSeeDist = 0, Double MaxSeeDist = 0, Double MaxHearDist = 0, Double FOV = 0, StateLabel Label = Null, Int ExtraFlags = 0)
 	{
 		//HACK: This shit is probably a super hacky way to just get actors that are already targeting an actor in their Spawn state to actually attack it.
-		If (ExtraFlags & KAIL_CHASETARGET && Target)
+		If (!(Flags & LOF_NOJUMP) && ExtraFlags & KAIL_CHASETARGET && Target)
 		{
 			If (Label)
 				SetStateLabel (Label); //Go to specified state.
@@ -136,7 +136,7 @@ Extend Class KAI_Actor
 	//Makes the actor move towards the specified actor.
 	//TODO: Add a check for if a vehicles' turret would collide with the next move. And probably find a way to call it recursively for turrets on turrets.
 	//CREDIT: Written by Custodian. Modified and expanded by me (inkoalawetrust).
-	//Other: The actor to move to.
+	//TargetPos: The position to move to.
 	//DetourFactor: How long the actor is allowed to move in a direction after hitting an obstacle, before heading straight for the target again.
 	//AngleLimit: How much the actor can turn per detour. Used to not have it snap back 180 or anything like that.
 	//ChaseFlags: What flags from A_Chase should the function use ? Supports CHF_DONTMOVE, CHF_NODIRECTIONTURN, CHF_NORANDOMTURN, and CHF_STOPIFBLOCKED.
@@ -510,6 +510,57 @@ Extend Class KAI_Actor
 		Return GetClosestActor (NearbyEnemies,Self.Pos,Range);
 	}
 	
+	//Find a height position (From the three FAF_ positions) at which the NPC can aim at the specified actor with a clear line of sight.
+	//Useful for making NPCs aim at a different part of an actor when attacking.
+	Int GetFAFAimPos (Actor Other, Vector3 Offset = (0,0,0))
+	{
+		If (!Other) Return FAF_MIDDLE; //No need to update anything.
+		Vector3 OldPos = Other.Pos;
+		Vector3 AimDir;
+		Vector3 Start = Level.Vec3Offset (Pos,Offset);
+		
+		//Let's see if the middle of the other actor is hittable first.
+		Let Check = New ("KAI_BasicSightCheck"); //Should be cheaper than CheckSight(), probably...
+		Other.SetXYZ (Other.Pos.PlusZ(Other.Height/2));
+		AimDir = Vec3To (Other);
+		Check.Shooter = Self;
+		Check.SightTarget = Other;
+		Check.Trace (Start,CurSector,AimDir,MaxTargetRange,0);
+		Other.SetXYZ(OldPos);
+		
+		If (Check.GoodLOS)
+		{
+			Check.Destroy();
+			Return FAF_MIDDLE;
+		}
+		
+		//If we are this far that should mean the middle isn't visible, aim for the top.
+		Other.SetXYZ (Other.Pos.PlusZ(Other.Height));
+		AimDir = Vec3To (Other);
+		Check.Trace (Start,CurSector,AimDir,MaxTargetRange,0);
+		Other.SetXYZ(OldPos);
+		
+		If (Check.GoodLOS)
+		{
+			Check.Destroy();
+			Return FAF_TOP;
+		}
+		
+		//If that too failed, aim for the bottom.
+		Other.SetXYZ (Other.Pos.PlusZ(Other.Height));
+		AimDir = Vec3To (Other);
+		Check.Trace (Start,CurSector,AimDir,MaxTargetRange,0);
+		Other.SetXYZ(OldPos);
+		
+		If (Check.GoodLOS)
+		{
+			Check.Destroy();
+			Return FAF_BOTTOM;
+		}
+		
+		//All else failed, aim to the middle again and return false;
+		Return FAF_MIDDLE;
+	}
 	//=====|Miscelleneous AI functions|=====\\
 	
 	Int KAI_GetFriendPlayer()
@@ -530,6 +581,7 @@ Extend Class KAI_Actor
 	{
 		State FoundState = State (Null);
 		
+		//BUG: The state variable checks seem to not work ?
 		If (InStateSequence (CurState,MissileState) || InStateSequence (CurState,MeleeState)) Return CurState;
 		
 		//Loop through available states.

@@ -136,7 +136,7 @@ Mixin Class KAI_UniversalFunctions
 //Generic status checks.
 Mixin Class KAI_CheckFunctions
 {
-	ClearScope Bool CheckActorExists (String ActorClass)
+	ClearScope Bool CheckActorExists (Name ActorClass)
 	{
 		Class<Actor> Act = ActorClass;
 		Return !!Act;
@@ -657,11 +657,11 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 		
 		If (!Shooter || Shooter && Results.HitActor != Shooter) AddToMobjList (Mobj);
 		
-		If (Mobj == Shooter.Master) Return Trace_Skip;
+		If (Shooter.Master && Mobj == Shooter.Master) Return Trace_Skip;
 		
 		//The target is in the line of fire. Or the Mobj is an enemy. Shoot them anyway.
 		If (Other && Mobj == Other || !IsInanimateObject(Mobj) && IsHostile(Shooter,Mobj))
-			Return Trace_Stop;
+			/*{console.printf("this is an enemy");*/Return Trace_Stop;//}
 		
 		//If friendly fire prevention is on, return false if an ally is in the way.
 		If (FriendlyFire && Mobj && !IsDead(Mobj) && IsCollidable (Mobj) && !IsInanimateObject(Mobj) && !IsHostile(Shooter,Mobj))
@@ -710,22 +710,23 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 		
 		//Level geometry is in the way.
 		If (HitLevelGeometry (Results))
-		{//console.printf ("level geometry in the way");
+		{
 			//Don't return BadLOF if the target would be caught in the blast radius anyway. Unless they are immune to splash damage of course.
 			Double Distance;
 			If (SplashRadius > 0 && Other && !Other.bNoRadiusDmg && Distance <= SplashRadius)
 			{
 				Distance = Level.Vec3Diff (Other.Pos,Results.HitPos).Length();
 				If (CheckSightTo (Shooter,Other,Distance))
-					Return Trace_Stop;
+					/*{console.printf ("splash damage check passed");*/Return Trace_Stop;//}
 				Else
-				{
+				{//console.printf ("splash damage check failed");
 					BadLOF = True;
 					Return Trace_Stop;
 				}
 			}
 			Else
 				BadLOF = True;
+			//console.printf ("level geometry in the way");
 			Return Trace_Stop;
 		}
 		

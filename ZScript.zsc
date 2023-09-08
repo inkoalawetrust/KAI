@@ -1,4 +1,4 @@
-Version "4.10.0"
+Version "4.11.0"
 
 //CUSTOM CODE TAGS: (Temporary list !)
 //DOCUMENT: This bit of code needs documentation.
@@ -15,7 +15,6 @@ Version "4.10.0"
 //Implement a warning zone system similar to the MVPs. But that works for all actors, not just the Smart Marines. Also maybe keep using inventory tokens for it, for non-KAI mod support.
 
 //IDEA:
-//Add a projectile array that is updated every time a projectile appears and vanishes from the world. Will probably do this for the active protection system for the MVPs' tank.
 /*Today (1/7/2023) I made a suggestion to PBs' developers on how to implement the hitbox system to monsters. Move the hitbox handling to a HandleLocalDamage
 virtual, change the hitbox factors (e.g if an attack hit 0.8 of the monsters' height or above ,it hit the head) into properties instead of hardcoded values etc.
 Maybe I should add locational damage to the library as well based on this suggestion ? Might be out of scope though, since this is an AI library.

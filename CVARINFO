@@ -1,1 +1,1 @@
-Server Bool KAI_DebugTurretAim = False; //Display white (Desired) and yellow (Actual) aim lines from from turrets.
+Server Bool KAI_DebugPredictiveAim = False; //Display white (Desired) and yellow (Actual) aim lines from NPCs with predictive aiming.

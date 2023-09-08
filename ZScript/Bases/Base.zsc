@@ -21,6 +21,7 @@ Class KAI_Actor : Actor Abstract
 		MaxTargetRange 8196; //Maximum range the actor can attack enemies from.
 		Obituary "%o managed to be killed by an abstract class, congratulations %o, we are all very proud of you. Or maybe a modder forgot to define a custom obituary.";
 		KAI_Actor.AggressionMultiplier 1.0;
+		KAI_Actor.InaccuracyFrequency 0.1;
 		
 		//Flags
 		Monster; //Of course.
@@ -39,6 +40,8 @@ Class KAI_Actor : Actor Abstract
 		UserVariableDefaults(); //User variables cannot be handled in BeginPlay().
 		KAIHandler = KAI_EventHandler(EventHandler.Find("KAI_EventHandler")); //Store permanent pointer to the mods' event handler.
 		NextMovePos = LastEnemyPosition = CurrentEnemyPosition = (Double.NaN,Double.NaN,Double.NaN); //These should be empty.
+		//Initialize inaccuracy.
+		NextInaccuracyOffset = (FRandom (Inaccuracy.X,-Inaccuracy.X),FRandom (Inaccuracy.Y,-Inaccuracy.Y),FRandom (Inaccuracy.Z,-Inaccuracy.Z));
 	}
 	Override Void OnDestroy()
 	{
@@ -48,8 +51,25 @@ Class KAI_Actor : Actor Abstract
 	
 	Override Void Tick()
 	{
+		OldAngle = Angle;
 		Super.Tick();
 		If (IsFrozen()) Return;
+		
+		//Update inaccuracy relative to target over time.
+		If (!IsDead(Self) && !KAI_Math.IsZeroVector3(Inaccuracy))
+		{
+			//Blend between the current and next inaccurate position. Until the current inaccurate position is less than a tenth of the inaccuracy range away from the next wrong pos.
+			If (Level.Vec3Diff (InaccuracyOffset,NextInaccuracyOffset).Length() > Inaccuracy.Length()/10)
+			{
+				InaccuracyOffset.X = KAI_Math.LerpValue (InaccuracyOffset.X,NextInaccuracyOffset.X,InaccuracyFrequency);
+				InaccuracyOffset.Y = KAI_Math.LerpValue (InaccuracyOffset.Y,NextInaccuracyOffset.Y,InaccuracyFrequency);
+				InaccuracyOffset.Z = KAI_Math.LerpValue (InaccuracyOffset.Z,NextInaccuracyOffset.Z,InaccuracyFrequency);
+			}
+			//Change to a new desired wrong position.
+			Else
+				//The actual wrong position the actor aims at. Inaccuracy is just the range relative to the target this differs from.
+				NextInaccuracyOffset = (FRandom (Inaccuracy.X,-Inaccuracy.X),FRandom (Inaccuracy.Y,-Inaccuracy.Y),FRandom (Inaccuracy.Z,-Inaccuracy.Z));
+		}
 		
 		//Keeps track of the current targets' position for the target prediction code.
 		If (Target && Target.Tics != 0 && Target.Tics == Target.CurState.Tics || Target && !IsTeleportingMonster(Target))
@@ -217,6 +237,11 @@ Class KAI_Actor : Actor Abstract
 	Property AggressionMultiplier : AggressionMultiplier;
 	Property ThreatLevelThreshold : ThreatLevelThreshold;
 	Property ThreatLevel : ThreatLevel;
+	Vector3 Inaccuracy; //How inaccurate is the target tracking ? This is a vector3 property, which as of 19/8/2023 is exclusive to GZDoom dev builds.
+	Property Inaccuracy : Inaccuracy; //TODO: Make this be affected by SHADOW and SHADOWBLOCK actors, and the Shadow penalty factors.
+	Double InaccuracyFrequency; //How fast does the inaccuracy property shift ?
+	Property InaccuracyFrequency : InaccuracyFrequency;
+	
 	Private Int NPCFlags;
 	FlagDef NoTargetPrediction : NPCFlags, 0; //The NPC will not calculate its' targets' movement and lead its' shots.
 	FlagDef MovesWithVelocity : NPCFlags, 1; //Specifies that the NPC moves using real momentum, like players. For the target prediction code, does nothing else on its' own.
@@ -228,6 +253,7 @@ Class KAI_Actor : Actor Abstract
 	Vector3 NextMovePos; //The next position the NPC should move to. Used by KAI_MoveAway() and KAI_Wander().
 	Int NewPosStepCount; //How many steps the actor has taken before NextMovePos is reset, so the actor will get a new point to move to. Like if it gets stuck.
 	KAI_EventHandler KAIHandler; //A permanent pointer to the libraries' event handler, for regular accesses to info like the projectile list.
+	Double OldAngle; //The angle the NPC was at last tick.
 	
 	//Keep in mind that the threat level descriptions are mostly based on the stock AssessThreatLevel() code.
 	Enum ThreatLevels
@@ -332,7 +358,6 @@ Class KAI_BaseProjectile : FastProjectile
 				Let Trail = Spawn(TrailActor,SpawnPos);
 				If (Trail)
 				{
-					TrailSpawn (Trail); //Return spawned trail.
 					If (Trail Is "KAI_Tracer") KAI_Tracer(Trail).WarpOffsets = (-(Path*I).Length(),0,0);
 					//If it's time to begin scaling and fading the trail.
 					If (I >= TrailFadeAndScaleStart)
@@ -344,6 +369,7 @@ Class KAI_BaseProjectile : FastProjectile
 						CurScaleY += ScaleAmountY;
 						CurAlpha += FadeAmount;
 					}
+					TrailSpawn (Trail); //Return spawned trail.
 				}
 			}
 			
@@ -720,25 +746,27 @@ Class KAI_DebugPoint : Actor
 
 Class KAI_EventHandler : EventHandler
 {
-	//Much faster alternative to just using a ThinkerIterator.
-	Array <Actor> ProjectileList;
+	Array <Actor> ProjectileList; //Much faster alternative to just using a ThinkerIterator.
+	Array <KAI_BaseVehicle> AllVehicles; //Stores references to the usually few vehicles found in maps.
 	
 	Override Void WorldThingSpawned(WorldEvent E)
 	{
 		//Add every spawned projectile to a big list. Except ones that do no damage.
 		AddToProjectileList (E.Thing);
+		If (E.Thing Is "KAI_BaseVehicle")
+			AllVehicles.Push (KAI_BaseVehicle(E.Thing));
 	}
 	
 	Override Void WorldThingDied (WorldEvent E)
 	{
-		//Delete any destroyed projectiles from the list.
-		RemoveFromProjectileList (E.Thing);
+		RemoveFromProjectileList (E.Thing); //Delete any destroyed projectiles from the list.
+		RemoveFromVehicleList (KAI_BaseVehicle(E.Thing));
 	}
 	
 	Override Void WorldThingDestroyed (WorldEvent E)
 	{
-		//Delete any removed projectiles from the list.
-		RemoveFromProjectileList (E.Thing);
+		RemoveFromProjectileList (E.Thing); //Delete any removed projectiles from the list.
+		RemoveFromVehicleList (KAI_BaseVehicle(E.Thing));
 	}
 	
 	Void AddToProjectileList (Actor What)
@@ -749,9 +777,18 @@ Class KAI_EventHandler : EventHandler
 	
 	Void RemoveFromProjectileList (Actor What)
 	{
+		If (!What.bMissile) Return;
 		Let Proj = ProjectileList.Find(What);
 		If (Proj < ProjectileList.Size())
 			ProjectileList.Delete(Proj);
+	}
+	
+	Void RemoveFromVehicleList (KAI_BaseVehicle Who)
+	{
+		//If (!(E.Thing Is "KAI_BaseVehicle")) Return;
+		Let Veh = AllVehicles.Find(Who);
+		If (Veh < AllVehicles.Size())
+			AllVehicles.Delete(Veh);
 	}
 }
 

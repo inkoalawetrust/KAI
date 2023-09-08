@@ -5,7 +5,7 @@ emplacement. This will be a more flexible version of the MG turret the Smart Mar
 Maybe I should instead make a creature base, from which BaseHumanoid stems from. So only BaseHumanoid
 will have access to the emplacement system.*/
 
-Class KAI_BaseHumanoid : KAI_Creature Abstract
+Class KAI_Humanoid : KAI_Creature Abstract
 {
 	
 }

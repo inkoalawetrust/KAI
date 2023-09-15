@@ -30,7 +30,7 @@ allowing for projectiles to do special effects like double damage on headshots.
 Maybe also add an OnBodyPartHit callback for projectiles to use. Such as to make the victim itself react to a headshot. Or the back of the tank being hit.
 */
 //DEBUG DEBUG DEBUG
-class TestPinky : KAI_Actor //Replaces Demon
+class TestPinky : KAI_Actor Replaces Demon
 {
 Default
 	{
@@ -66,10 +66,10 @@ Default
 			if (goal)KAI_MoveTowards(goal.Pos,detourfactor:0.5);
 			KAI_Chase_HandleActiveSound(0);
 			KAI_Chase_PatrolHandling();*/
-			if (target) KAI_MoveTowards(target.Pos,detourfactor:0.5,flags:KMT_ZIGZAG);
+			//if (target) KAI_MoveTowards(target.Pos,detourfactor:0.5,flags:KMT_ZIGZAG);
 			
 			//KAI_Wander(32,1024,256);
-			//if (target) KAI_MoveAway(target,runrad:256,detourfactor:0.5);
+			if (target) KAI_MoveAway(target,runrad:256,detourfactor:0.5,KMAFlags:KMA_USECORNERS|KMA_STRAIGHT);
 			//A_Chase ("Melee",Null);
 		}
 		Loop;

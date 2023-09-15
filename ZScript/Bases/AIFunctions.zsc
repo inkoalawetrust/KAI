@@ -11,7 +11,6 @@ Extend Class KAI_Actor
 	}
 	
 	//Returns true if the caller is in melee range of the other actor. Basically a rip of P_CheckMeleeRange().
-	//PLAYTEST: Technically this isn't tested yet, however it's a direct rip of the native code. So it should already work.
 	Bool KAI_CheckMeleeRange (Actor Other, Double Range = -1, Int Flags = 0)
 	{
 		Double Dist;
@@ -127,6 +126,7 @@ Extend Class KAI_Actor
 	{
 		KMT_CHASEGOAL = 1 << 0, //If the caller has a goal pointer, and the bChaseGoal flag on. It will follow the goal instead of the TargetPos.
 		KMT_ZIGZAG	  = 1 << 1, //Move around with more A_Chase-esque movement (Like zigzagging), instead of only moving in a straight line.
+		KMT_NOLINEUSE = 1 << 2, //Disable the function being able to make the monster use crossed over lines at all, in case you want your own code for that.
 	}
 	
 	Double LastTurnDir;
@@ -199,6 +199,7 @@ Extend Class KAI_Actor
 			KAI_BaseVehicle(Self).KAI_VehicleCrushObstacles (Pushovers,Vehicle.VehicleCrushDamage);
 		}
 		
+		//If (!(Flags & KMT_NOLINEUSE)) {a_log ("lemme try opening this door");CheckMonsterUseSpecials ();}
 		FCheckPosition Move;
 		Move.FromPMove = True; //Move anyways if there's an actor within your hitbox already.
 		bool moved = TryMove(NextPos, 0, false, Move);
@@ -206,6 +207,7 @@ Extend Class KAI_Actor
 		//if I hit an obstacle while avoiding another, try moving straight towards Other
 		if (!moved && MoveCount || bCantLeaveFloorPic && FloorPic != OldFloor)
 		{
+			If (!(Flags & KMT_NOLINEUSE)) KAI_NPCUseLines();
 			MoveCount = Int(random(16,32)*DetourFactor);
 			NextAngle = GetAngleToPos(TargetPos,AngleLimit);
 			NextPos = Vec2Angle(speed, NextAngle, True);
@@ -317,7 +319,8 @@ Extend Class KAI_Actor
 	
 	Enum MoveAwayFlags
 	{
-		//KMA_NONEWPOS = 1 << 0, //Do not search for a new NextMovePos to go to after reaching the current one.
+		KMA_STRAIGHT	= 1 << 0, //Move in a straight line away from the Other actor, like A_Chase, instead of using the further random position around you.
+		KMA_USECORNERS	= 1 << 1, //When running away, trying walking to places on your sides, where the Other actor has no line of sight to you.
 	}
 	
 	//Moves the caller AWAY from another actor.
@@ -326,7 +329,8 @@ Extend Class KAI_Actor
 	//RunRad: The radius around which to find a viable position to run away to.
 	//MaxSteps: How many steps the actor is allowed to take before having to find a new position to move away to.
 	//The rest are KAI_MoveTowards' parameters.
-	Void KAI_MoveAway (Actor Other, Int Attempts = 32, Double RunRad = 128, Int MaxSteps = 32, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0)
+	//KMAFlags: The flags unique to KAI_MoveAway.
+	Void KAI_MoveAway (Actor Other, Int Attempts = 32, Double RunRad = 128, Int MaxSteps = 32, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0, Int KMAFlags = 0)
 	{
 		If (!Other) Return;
 		
@@ -351,7 +355,42 @@ Extend Class KAI_Actor
 			NewPosStepCount = 0;
 		}
 		
-		NextMovePos = FindRandomMovePos (Other.Pos,Attempts,RunRad,FRMP_FURTHEST); //Pick whichever position is the furthest from Other.
+		//Try to run behind corners.
+		If (KMAFlags & KMA_USECORNERS && CheckSight(Other,SF_IGNOREWATERBOUNDARY))
+		{
+			Vector3 RealPos = Pos;
+			Double CheckLength = (Radius*2)*8; //Check 8 diameters to your right or left for a corner.
+			
+			//Check your left.
+			Vector3 LeftPos = Vec3Angle (CheckLength,Angle-90);
+			SetOrigin (LeftPos,False);
+			//I think CheckSight() is literally cheaper than IsPosReachable() so run these checks first.
+			Bool LeftSight = Other.CheckSight (Self,SF_IGNOREWATERBOUNDARY);
+			SetOrigin (RealPos, False);
+			If (!LeftSight && IsPosReachable (LeftPos,ignoreactors:True))
+			{
+				NextMovePos = LeftPos; //Move to the left.
+				Return;
+			}
+			
+			//Check your right.
+			Vector3 RightPos = Vec3Angle (CheckLength,Angle+90);
+			SetOrigin (RightPos,False);
+			Bool RightSight = Other.CheckSight (Self,SF_IGNOREWATERBOUNDARY);
+			SetOrigin (RealPos, False);
+			If (!RightSight && IsPosReachable (RightPos,ignoreactors:True))
+			{
+				NextMovePos = RightPos; //Move to the right.
+				Return;
+			}
+		}
+		If (!(KMAFlags & KMA_STRAIGHT))
+			NextMovePos = FindRandomMovePos (Other.Pos,Attempts,RunRad,FRMP_FURTHEST); //Pick whichever position is the furthest from Other.
+		Else
+		{
+			NextMovePos.XY = Vec2Angle (RunRad,AngleTo(Other)-180);
+			NextMovePos.Z = GetZAt (NextMovePos.X,NextMovePos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
+		}
 	}
 	
 	Enum FindMovePosFilters
@@ -451,18 +490,21 @@ Extend Class KAI_Actor
 	/*DistCutoff: The amount of map units to trim off the distance between the callers' pos and TargetPos. Useful for subtracting the radius of another actor,
 	so that if you are checking if a position to another actor can be reached, the check doesn't return false because the actor itself is in the way !*/
 	//Spacing: The spacing of the move checks. Default is 0, which means that the spacing is the diameter of the callers' hitbox.
-	Bool IsPosReachable (Vector3 TargetPos, Double DistCutoff = 0, Double Spacing = 0)
+	//IgnoreActors: Makes' the check ignore blocking actors entirely.
+	Bool IsPosReachable (Vector3 TargetPos, Double DistCutoff = 0, Double Spacing = 0, Bool IgnoreActors = False)
 	{
 		Vector3 OldPos = Pos;
 		Bool Interp = bDontInterpolate;
+		Bool ThruActs = bThruActors;
 		Vector2 Path = Level.Vec2Diff( Pos.XY, TargetPos.XY );
 		Double Distance = Path.Length()-DistCutoff;
 		If (Spacing == 0)
 			Spacing = Radius*2;
-		If (Distance <= 1) Return False;
+		If (Distance <= 1) {console.printf ("epic distance fail !?, distance %f, path lengt %f",distance,path.length());Return False;}
 		Path /= Distance;
 		
 		bDontInterpolate = True; //No movement interpolation during the test.
+		If (IgnoreActors) bThruActors = True;
 		For (Int I = 0; I < Distance; I += Spacing)
 		{
 			If (Level.Vec2Diff (Pos.XY, OldPos.XY).Length() >= Distance) Break; //The check went further than the distance to the target position. Success
@@ -478,11 +520,13 @@ Extend Class KAI_Actor
 			Else
 			{
 				bDontInterpolate = Interp;
+				bThruActors = ThruActs;
 				SetOrigin (OldPos,False);
 				Return False;
 			}
 		}
 		bDontInterpolate = Interp;
+		bThruActors = ThruActs;
 		SetOrigin (OldPos,False);
 		Return True; //No TryMove call returned false.
 	}
@@ -562,6 +606,27 @@ Extend Class KAI_Actor
 		Return FAF_MIDDLE;
 	}
 	//=====|Miscelleneous AI functions|=====\\
+	//A crude replica of the clusterfuck that makes monsters natively able to use push and use lines.
+	Bool KAI_NPCUseLines()
+	{
+		If (bNoTrigger || !BlockingLine) Return False;
+        a_log ("KAI_NPCUseLines() running");
+        If (BlockingLine.Special)
+        {
+            If (bCanUseWalls)
+            {
+                BlockingLine.Activate (Self,0,SPAC_Use);
+                Return True;
+            }
+            Else If (bCanPushWalls)
+            {
+                BlockingLine.Activate (Self,0,SPAC_Push);
+                Return True;
+            }
+        }
+        
+        Return False;
+	}
 	
 	Int KAI_GetFriendPlayer()
 	{
@@ -581,7 +646,6 @@ Extend Class KAI_Actor
 	{
 		State FoundState = State (Null);
 		
-		//BUG: The state variable checks seem to not work ?
 		If (InStateSequence (CurState,MissileState) || InStateSequence (CurState,MeleeState)) Return CurState;
 		
 		//Loop through available states.

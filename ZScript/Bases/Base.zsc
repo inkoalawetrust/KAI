@@ -760,7 +760,7 @@ Class KAI_EventHandler : EventHandler
 	Override Void WorldThingDied (WorldEvent E)
 	{
 		RemoveFromProjectileList (E.Thing); //Delete any destroyed projectiles from the list.
-		RemoveFromVehicleList (KAI_BaseVehicle(E.Thing));
+		//RemoveFromVehicleList (KAI_BaseVehicle(E.Thing));
 	}
 	
 	Override Void WorldThingDestroyed (WorldEvent E)

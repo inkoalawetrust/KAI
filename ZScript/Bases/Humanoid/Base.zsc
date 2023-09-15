@@ -7,5 +7,5 @@ will have access to the emplacement system.*/
 
 Class KAI_Humanoid : KAI_Creature Abstract
 {
-	
+	Mixin HumanoidAndVehicleCode; //Code shared between humanoids and vehicles. Usually stuff for smarter NPCs than KAI_Creature.
 }

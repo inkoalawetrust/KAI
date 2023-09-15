@@ -197,6 +197,8 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 		//ORDER_GOTOPOINT ? Perhaps, but maybe not, since I'm not sure how I could code the vehicles to head to a specified point.
 	};
 	
+	Mixin HumanoidAndVehicleCode; //Code shared between humanoids and vehicles. Usually stuff for smarter NPCs than KAI_Creature.
+	
 	Const MARINE_RECURSIONS = 32; //How many times marine dropping vehicles can try dropping in an invalid spot before giving up.
 	Const DEFAULT_HEARDISTANCE = 4096; //Exactly what it says, the default hear distance the vehicles' and turrets' A_LookEx calls use.
 	Const DEFAULT_SEEDISTANCE = 8192; //The default sight distance.

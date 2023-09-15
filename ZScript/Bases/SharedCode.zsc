@@ -1,0 +1,99 @@
+Mixin Class HumanoidAndVehicleCode
+{
+	Enum HitChanceFlags
+	{
+		DHC_HOSTILES	= 1 << 0, //Count any enemies of the actor hit by the smart check as successful hits as well. Smart check only.
+		DHC_THRUHOSTILES= 1 << 1, //Implies DHC_HOSTILES too, makes the smart check go through any hostiles that have already been hit.
+	}
+	
+	//Determines the chance of the NPC hitting the other actor with their attack.
+	//Other: The actor to check, obviously.
+	/*Smart: If this is on, usually when a CVAR is false or something. The NPC will fire a series of hitscans at Other and return how many hit,
+	instead of using a purely distance-based check.*/
+	/*Distance: The distance to the Other actor, used for caching for the basic hit chance algorithm, if it's kept to Double.NaN and Smart is false,
+	it calculates the distance itself instead.*/
+	//DumbSpread: The perfect conical spread of the attack, only used by the dumb hit chance algorithm.
+	//Shots: How many hypothetical shots is the NPC firing ? Use by both check types.
+	//Offset: Offset the origin of the smart check by these coordinates relative to the NPC.
+	//Spread: A Vector4 that stores: X = Minimum horizontal spread Y = Maximum horizontal spread Z = Minimum vertical spread W = Maximum vertical spread.
+	//Range: The maximum range of the attack.
+	//TargZOfs: What height should the Smart check traces be aimed at ? e.g so they can be aimed at the top or middle of the Other actor.
+	//Flags: The flags passed to the check.
+	Int DetermineHitChance (Actor Other, Bool Smart, Double Distance = Double.NaN, Double DumbSpread = 1,
+	Int Shots = 1, Vector3 Offsets = (0,0,0), Vector4 Spread = (0,0,0,0), Double Range = 4096, Double TargZOfs = 0, Int Flags = DHC_HOSTILES)
+	{
+		If (!Other) Return 0;
+		If (!Smart) //CREDIT: TonynUBarnes for the tangent code.
+		{
+			If (Distance != Distance) //No cached distance passed, calculate it ourselves.
+				Distance = Distance3D(Other);
+			
+			Console.Printf ("DetermineHitChance(): Distance to other is %.2f",Distance);
+			Double MathFunnel = Distance * Tan (DumbSpread);
+			Double Chance = (Other.Radius / MathFunnel)+FRandom(0,0.05);
+			Console.Printf ("Hit ratio %.3f",Chance);
+			
+			Int Hits;
+			
+			//Credit: RNG code written by RaveYard.
+			For (Int I = 0; I < Shots; I++)
+			{
+				If (FRandom (0,1.0) <= Chance)
+					Hits++;
+			}
+			
+			Console.Printf ("DetermineHitChance(): I will land %d shots with the dumb algorithm.",Hits);
+			console.printf ("funnel is %.2f",MathFunnel);
+			Return Hits;
+		}
+		Else
+		{
+			Console.Printf ("DetermineHitChance(): Angle %.2f, Pitch %.2f",Angle,Pitch);
+			Let Check = New ("KAI_HitChanceTracer");
+			Int Hits;
+			Vector3 Start = Level.Vec3Offset (Pos,Offsets);
+			Vector3 AimDir;
+			Double HSpread, VSpread;
+			
+			If (Flags & DHC_THRUHOSTILES) //Turn DHC_HOSTILES too if DHC_THRUHOSTILES is true.
+				Flags |= (DHC_HOSTILES|DHC_THRUHOSTILES);
+			
+			Check.Shooter = Self;
+			Check.Other = Other;
+			Check.HostilesToo = Flags & DHC_HOSTILES;
+			Check.ThruHostiles= Flags & DHC_THRUHOSTILES;
+			
+			While (--Shots >= 0)
+			{
+				Console.Printf ("Firing imaginary bullet.");
+				//Add spread and all that good stuff.
+				HSpread = AngleTo(Other)+FRandom (Spread.X,Spread.Y);
+				VSpread = PitchTo(Other,Offsets.Z,TargZOfs)+FRandom (Spread.Z,Spread.W);
+				AimDir = (AngleToVector(HSpread, Cos(VSpread)), -Sin(VSpread));
+				
+				Check.Trace (Start,CurSector,AimDir,Range,0);
+				
+				Console.Printf ("Trace fired at %d %d %d, Ended at %d %d %d",Start,Check.Results.HitPos);
+				Spawn ("KAI_DebugPoint",Check.Results.HitPos);
+				If (Check.Success)
+				{
+					FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 35; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+					KAI_LOFRaycast.VisualizeTracePath(Start,Check.Results.HitPos,Check.Results.Distance,8,p);
+					Hits++; //Another happy landing.
+					console.printf ("successful hitscan went %.2f MU",check.results.distance);
+				}
+				Else
+				{
+					FSpawnParticleParams P; P.Color1 = "Red"; P.Style = STYLE_None; P.Lifetime = 35; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+					KAI_LOFRaycast.VisualizeTracePath(Start,Check.Results.HitPos,Check.Results.Distance,8,p);
+					console.printf ("failed hitscan went %.2f MU",check.results.distance);
+				}
+				Check.Success = False; //Try again.
+			}
+			Console.Printf ("DetermineHitChance(): I will land %d shots with the smart algorithm.",Hits);
+			Check.Destroy();
+			Return Hits;
+		}
+		Return 0;
+	}
+}

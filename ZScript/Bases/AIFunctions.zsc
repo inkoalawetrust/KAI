@@ -500,7 +500,7 @@ Extend Class KAI_Actor
 		Double Distance = Path.Length()-DistCutoff;
 		If (Spacing == 0)
 			Spacing = Radius*2;
-		If (Distance <= 1) {console.printf ("epic distance fail !?, distance %f, path lengt %f",distance,path.length());Return False;}
+		If (Distance <= 1) Return False;
 		Path /= Distance;
 		
 		bDontInterpolate = True; //No movement interpolation during the test.

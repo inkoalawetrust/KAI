@@ -734,3 +734,37 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 		Return Trace_Skip;
 	}
 }
+
+Class KAI_HitChanceTracer : KAI_LOFRaycast
+{
+	Bool Success; //The hypotherical trace hit the Other actor or any other enemy of the shooter.
+	Bool HostilesToo; //Count hypothetical projectiles/hitscans stopped by enemies of the shooter as successes too.
+	Bool ThruHostiles; //Used with HostilesToo. Makes the tracer ignore hostiles it has already hit.
+	Override ETraceStatus TraceCallback()
+	{
+		Actor Mobj = Results.HitActor;
+		//We hit the target or another enemy.
+		If (Other && Mobj == Other || HostilesToo && IsHostile(Shooter,Mobj)
+		//Ignore enemies we've hit already.
+		&& !(ThruHostiles && Mobjs.Find(Mobj)))
+		{
+			Success = True; //This was a triumph.
+			If (ThruHostiles) AddToMobjList(Mobj); //Add already hit hostiles to the list.
+			Return Trace_Stop;
+		}
+		
+		If (Mobj && Mobj != Shooter && IsCollidable(Mobj)) //Hit an actor that isn't an enemy.
+			Return Trace_Stop;
+		
+		//The trace specifically hit a projectile blocking line. e.g a window linedef or a polyobject.
+		If (BlockingLineInTheWay (Results.HitLine,0))
+			Return Trace_Stop;
+		
+		//Level geometry is in the way.
+		If (HitLevelGeometry (Results))
+			Return Trace_Stop;
+		
+		Results.HitActor = Null;
+		Return Trace_Skip;
+	}
+}

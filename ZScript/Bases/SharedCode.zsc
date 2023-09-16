@@ -78,10 +78,7 @@ Mixin Class HumanoidAndVehicleCode
 				Check.Trace (Start,CurSector,AimDir,Range,0);
 				
 				If (KAI_DebugHitChance)
-				{
 					Console.Printf ("Trace fired at %d %d %d, Ended at %d %d %d",Start,Check.Results.HitPos);
-					Spawn ("KAI_DebugPoint",Check.Results.HitPos);
-				}
 				
 				If (Check.Success)
 				{

@@ -748,6 +748,7 @@ Class KAI_EventHandler : EventHandler
 {
 	Array <Actor> ProjectileList; //Much faster alternative to just using a ThinkerIterator.
 	Array <KAI_BaseVehicle> AllVehicles; //Stores references to the usually few vehicles found in maps.
+	Array <NPCVoicePack> VoicePacks;
 	
 	Override Void WorldThingSpawned(WorldEvent E)
 	{
@@ -790,6 +791,84 @@ Class KAI_EventHandler : EventHandler
 		If (Veh < AllVehicles.Size())
 			AllVehicles.Delete(Veh);
 	}
+	
+	//CREDIT: Lewisk3, a lot of this code is ripped from Halo Doom.
+	//https://github.com/Lewisk3/HaloDoom_GZDoomVersion/blob/e1c16e0cb1389064b76849f16c7485b35c658115/ZScript/events.zsc#L72
+	Protected Void ParseVoicePacks()
+	{
+		String Voice_Token = "NPCVoice";
+		console.printf ("begining KAI_VOICES parsing");
+		NPCVoicePack CurPack;
+		//Ready every KAI_VOICES file. (?????????????????)
+		for(int lump = -1; (lump = Wads.FindLump("KAI_VOICES", lump+1)) != -1;)
+		{
+			string data = Wads.ReadLump(lump);
+			console.printf ("parsing KAI_VOICES lump %d",lump);
+			// Filter spaces, tabs, etc.
+			data.Replace(" ", "");
+			data.Replace("\t", "");
+			//data.Replace("\"", "");
+			
+			// Filter comments
+			Array<String> lines;
+			data.Split(lines, "\n");
+			data = "";
+			for(int i = 0; i < lines.Size(); i++)
+			{
+				string ln = lines[i];
+				int comPos = ln.IndexOf("#");
+				if(comPos >= 0) ln.Remove(comPos, ln.Length()-comPos);
+				data.AppendFormat("%s", ln);
+			}
+			console.printf ("cleared comments");
+			//Uh, I think this separates every NPCVoice definition so that it can be parsed and packed into a struct ??????
+			Array <String> Definition;
+			Data.Split (Definition,"}");
+			for(int i = 0; i < Definition.Size(); i++)
+			{
+				CurPack = New ("NPCVoicePack");
+				console.printf ("parsing NPCVoice definition, maybe ? I don't fucking know");
+				string defs = Definition[i];
+				
+				//URGENT: For the time being, let me just see if I can find the See sound definition and store in in NPCVoicePack's See Sound variable.
+				Int SeeKeyPos = Defs.IndexOf ("See"); //Find the keyword see.
+				If (SeeKeyPos >= 0)
+				{
+					Int SeeSoundPos = Defs.IndexOf ("\""); //If "See" is followed by a quote, that must be a sound, you know, if I knew what I was doing.
+					
+					
+				}
+			}
+		}
+	}
+}
+
+Class NPCVoicePack
+{
+    Name PackName;
+    
+	//Self sounds
+    Sound See; //Saw enemy.
+	Sound Idle; //Chilling around.
+	Sound Talking; //Maybe others could use it to code implementations of NPCS' talking to each other ?
+    Sound Fear; //Scared, retreating, whatever.
+	Sound Pain; //Flinched.
+	Sound Wounded; //You are wounded, likely useful for say, voicelines played under a certain health 
+	Sound Death; //You died.
+	
+	//Event sounds
+	/*Note: Not sure how these will work exactly or how bad the performance will be.
+	
+	Enemy kill sounds could be handled in WorldThingDied(), maybe by calling a PlayVoiceLine() virtual ?
+	Ally death ones are a doozy though, how will NPCs around be alerted ? A whole ThinkerIterator ? Goodbye performance.
+	Maybe a blockmap iterator with a CVAR specified range. Alerting NPC friends of the dead NPC with AllyDeath lines of the event ?
+	Actually, for that, I wonder if I can reuse BTIs like you can with LineTracers ? To squeeze some extra performance out, like bleeding a rock dry.*/
+    Sound AllyDeath; //Friend of yours died.
+	Sound EnemyKill; //Killed enemy.
+	Sound AllyPlayerDeath; //Friendly player died.
+	Sound PlayerKill; //Killed enemy player.
+	Sound AllyVehicleDeath; //Friendly vehicle died !
+	Sound EnemyVehicleDeath; //Enemy vehicle died.
 }
 
 //DOCUMENT: Write instructions on using this to add support for KAI NPCs without making the library needed for the non-KAI mod to run.

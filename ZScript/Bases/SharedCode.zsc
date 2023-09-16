@@ -13,25 +13,26 @@ Mixin Class HumanoidAndVehicleCode
 	/*Distance: The distance to the Other actor, used for caching for the basic hit chance algorithm, if it's kept to Double.NaN and Smart is false,
 	it calculates the distance itself instead.*/
 	//DumbSpread: The perfect conical spread of the attack, only used by the dumb hit chance algorithm.
-	//Shots: How many hypothetical shots is the NPC firing ? Use by both check types.
+	//Shots: How many hypothetical shots is the NPC firing ? Used by both check types.
 	//Offset: Offset the origin of the smart check by these coordinates relative to the NPC.
-	//Spread: A Vector4 that stores: X = Minimum horizontal spread Y = Maximum horizontal spread Z = Minimum vertical spread W = Maximum vertical spread.
+	//Spread: A Vector4 that stores: X = Minimum horizontal spread Y = Maximum horizontal spread Z = Minimum vertical spread W = Maximum vertical spread
 	//Range: The maximum range of the attack.
 	//TargZOfs: What height should the Smart check traces be aimed at ? e.g so they can be aimed at the top or middle of the Other actor.
 	//Flags: The flags passed to the check.
 	Int DetermineHitChance (Actor Other, Bool Smart, Double Distance = Double.NaN, Double DumbSpread = 1,
 	Int Shots = 1, Vector3 Offsets = (0,0,0), Vector4 Spread = (0,0,0,0), Double Range = 4096, Double TargZOfs = 0, Int Flags = DHC_HOSTILES)
 	{
-		If (!Other) Return 0;
+		If (KAI_DebugHitChance) Console.Printf ("Calling DetermineHitChance() from %s, pointer address %p",GetClassName(),Self);
+		If (!Other || Shots <= 0) Return 0;
 		If (!Smart) //CREDIT: TonynUBarnes for the tangent code.
 		{
 			If (Distance != Distance) //No cached distance passed, calculate it ourselves.
 				Distance = Distance3D(Other);
 			
-			Console.Printf ("DetermineHitChance(): Distance to other is %.2f",Distance);
+			If (KAI_DebugHitChance) Console.Printf ("DetermineHitChance(): Distance to other is %.2f",GetClassName(), Distance);
 			Double MathFunnel = Distance * Tan (DumbSpread);
 			Double Chance = (Other.Radius / MathFunnel)+FRandom(0,0.05);
-			Console.Printf ("Hit ratio %.3f",Chance);
+			If (KAI_DebugHitChance) Console.Printf ("Hit ratio %.3f",Chance);
 			
 			Int Hits;
 			
@@ -42,13 +43,17 @@ Mixin Class HumanoidAndVehicleCode
 					Hits++;
 			}
 			
-			Console.Printf ("DetermineHitChance(): I will land %d shots with the dumb algorithm.",Hits);
-			console.printf ("funnel is %.2f",MathFunnel);
+			If (KAI_DebugHitChance)
+			{
+				Console.Printf ("DetermineHitChance(): I will land %d shots with the dumb algorithm.",Hits);
+				Console.Printf ("funnel is %.2f",MathFunnel);
+				Console.Printf ("========================================================");
+			}
 			Return Hits;
 		}
 		Else
 		{
-			Console.Printf ("DetermineHitChance(): Angle %.2f, Pitch %.2f",Angle,Pitch);
+			If (KAI_DebugHitChance) Console.Printf ("DetermineHitChance(): Angle %.2f, Pitch %.2f",Angle,Pitch);
 			Let Check = New ("KAI_HitChanceTracer");
 			Int Hits;
 			Vector3 Start = Level.Vec3Offset (Pos,Offsets);
@@ -65,7 +70,6 @@ Mixin Class HumanoidAndVehicleCode
 			
 			While (--Shots >= 0)
 			{
-				Console.Printf ("Firing imaginary bullet.");
 				//Add spread and all that good stuff.
 				HSpread = AngleTo(Other)+FRandom (Spread.X,Spread.Y);
 				VSpread = PitchTo(Other,Offsets.Z,TargZOfs)+FRandom (Spread.Z,Spread.W);
@@ -73,24 +77,33 @@ Mixin Class HumanoidAndVehicleCode
 				
 				Check.Trace (Start,CurSector,AimDir,Range,0);
 				
-				Console.Printf ("Trace fired at %d %d %d, Ended at %d %d %d",Start,Check.Results.HitPos);
-				Spawn ("KAI_DebugPoint",Check.Results.HitPos);
+				If (KAI_DebugHitChance)
+				{
+					Console.Printf ("Trace fired at %d %d %d, Ended at %d %d %d",Start,Check.Results.HitPos);
+					Spawn ("KAI_DebugPoint",Check.Results.HitPos);
+				}
+				
 				If (Check.Success)
 				{
-					FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 35; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
-					KAI_LOFRaycast.VisualizeTracePath(Start,Check.Results.HitPos,Check.Results.Distance,8,p);
+					If (KAI_DebugHitChance)
+					{
+						FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 35; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+						KAI_LOFRaycast.VisualizeTracePath(Start,Check.Results.HitPos,Check.Results.Distance,8,p);
+					}
 					Hits++; //Another happy landing.
-					console.printf ("successful hitscan went %.2f MU",check.results.distance);
 				}
-				Else
+				Else If (!Check.Success && KAI_DebugHitChance)
 				{
 					FSpawnParticleParams P; P.Color1 = "Red"; P.Style = STYLE_None; P.Lifetime = 35; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
 					KAI_LOFRaycast.VisualizeTracePath(Start,Check.Results.HitPos,Check.Results.Distance,8,p);
-					console.printf ("failed hitscan went %.2f MU",check.results.distance);
 				}
 				Check.Success = False; //Try again.
 			}
-			Console.Printf ("DetermineHitChance(): I will land %d shots with the smart algorithm.",Hits);
+			If (KAI_DebugHitChance)
+			{
+				Console.Printf ("DetermineHitChance(): I will land %d shots with the smart algorithm.",Hits);
+				Console.Printf ("========================================================");
+			}
 			Check.Destroy();
 			Return Hits;
 		}

@@ -29,7 +29,7 @@ Mixin Class HumanoidAndVehicleCode
 			If (Distance != Distance) //No cached distance passed, calculate it ourselves.
 				Distance = Distance3D(Other);
 			
-			If (KAI_DebugHitChance) Console.Printf ("DetermineHitChance(): Distance to other is %.2f",GetClassName(), Distance);
+			If (KAI_DebugHitChance) Console.Printf ("DetermineHitChance(): Distance to other is %.2f", Distance);
 			Double MathFunnel = Distance * Tan (DumbSpread);
 			Double Chance = (Other.Radius / MathFunnel)+FRandom(0,0.05);
 			If (KAI_DebugHitChance) Console.Printf ("Hit ratio %.3f",Chance);
@@ -46,7 +46,7 @@ Mixin Class HumanoidAndVehicleCode
 			If (KAI_DebugHitChance)
 			{
 				Console.Printf ("DetermineHitChance(): I will land %d shots with the dumb algorithm.",Hits);
-				Console.Printf ("funnel is %.2f",MathFunnel);
+				Console.Printf ("Funnel is %.2f",MathFunnel);
 				Console.Printf ("========================================================");
 			}
 			Return Hits;
@@ -78,10 +78,7 @@ Mixin Class HumanoidAndVehicleCode
 				Check.Trace (Start,CurSector,AimDir,Range,0);
 				
 				If (KAI_DebugHitChance)
-				{
 					Console.Printf ("Trace fired at %d %d %d, Ended at %d %d %d",Start,Check.Results.HitPos);
-					Spawn ("KAI_DebugPoint",Check.Results.HitPos);
-				}
 				
 				If (Check.Success)
 				{

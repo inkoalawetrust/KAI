@@ -324,7 +324,7 @@ Mixin Class KAI_CheckFunctions
 	}
 	
 	//A ZScript copy of this function: https://github.com/ZDoom/gzdoom/blob/62f37079a7834b813f251818d1db6c80e644d209/src/playsim/actor.h#L1422
-	Double KAI_GetSpriteAngle (Actor Other, Double ViewAngle, Double TicFrac)
+	ClearScope Double KAI_GetSpriteAngle (Actor Other, Double ViewAngle, Double TicFrac)
 	{
 		If (Other.bSpriteAngle)
 			Return Other.SpriteAngle;
@@ -336,6 +336,26 @@ Mixin Class KAI_CheckFunctions
 			Else*/ ThisAng = Other.Angle;
 			Return ViewAngle - (ThisAng + Other.SpriteRotation);
 		}
+	}
+	
+	//CREDIT: Written by Boondorl.
+	//What 3D floor is the actor currently in, if any ?
+	ClearScope F3DFloor GetSwimmable3DFloor (Actor Other)
+	{
+		if (!other || other.waterLevel <= 0)
+			return null;
+
+		for (int i = 0; i < other.curSector.Get3DFloorCount(); i++)
+		{
+			F3DFloor ff = other.curSector.Get3DFloor(i);
+			if (!(ff.flags & F3DFloor.FF_EXISTS) || (ff.flags & F3DFloor.FF_SOLID) || !(ff.flags & F3DFloor.FF_SWIMMABLE))
+				continue;
+
+			if (other.pos.z+other.height > ff.bottom.ZAtPoint(other.pos.xy) && other.pos.z < ff.top.ZAtPoint(other.pos.xy))
+				return ff;
+		}
+
+		return null;
 	}
 }
 

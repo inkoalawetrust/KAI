@@ -1,0 +1,650 @@
+//IDEA: Make the deflection chance increase the more a shoot grazes the other actor, target wise.
+//NOTE: This code is kinda mostly made for bullets and other such projectiles, hence the bullet tracer-like code and deflection system. But can be used for fireballs and the likes just fine !
+//The base projectile for KAI actors, it's not necessary to really use this. But it does have some advantages:
+//It's based on FastProjectile, so it can properly move both with fast and slow velocities.
+//Normal projectiles like bouncing and gravity are reimplemented in it, unlike stock FastProjectiles.
+/*It's got a toggleable custom trail system. The default trail spawn code for FastProjectile works for actors faster than normal projectiles.
+But begins Breaking up with truly fast projectiles, this custom trail code doesn't. You can reenable the stock FastProjectile trails.*/
+//It has a deflection function, which makes the projectile deflect like a bullet.
+//It has code that allows you to change the visual pitch of the projectile based on its' actual pitch. Similar to what KAI_BaseTurret allows for on the vehicle base.
+//Has a virtual that is called for each trail spawned, with a pointer to the trail.
+Class KAI_BaseProjectile : FastProjectile
+{
+	Default
+	{
+		MissileHeight 8;
+		KAI_BaseProjectile.TrailLineSpacing 2;
+		Projectile;
+	}
+	
+	Override Void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		
+		If (Target) Species = Target.Species; //MAYDO: Have this rely on a flag ? It's kinda here because of the MVP where it was ripped from.
+		A_FaceMovementDirection(); //Projectile faces where it's going, used by the trail line spawning code.
+		LastTracerPosition = CurrentTracerPosition = (Double.NaN,Double.NaN,Double.NaN); //These should be empty.
+	}
+	
+	Bool TrailSpawned;
+	Vector3 OldPos;
+	
+	//HACK: The stock FastProjectile code. We have to basically reimplement the whole think to make it support bouncing projectiles again.
+	Void FastProjectileTick()
+	{
+		ClearInterpolation();
+		double oldz = pos.Z;
+
+		if (isFrozen())
+			return;
+
+		// [RH] Ripping is a little different than it was in Hexen
+		FCheckPosition tm;
+		tm.DoRipping = bRipper;
+
+		int count = 8;
+		if (radius > 0)
+		{
+			while (abs(Vel.X) >= radius * count || abs(Vel.Y) >= radius * count)
+			{
+				// we need to take smaller steps.
+				count += count;
+			}
+		}
+
+		if (height > 0)
+		{
+			while (abs(Vel.Z) >= height * count)
+			{
+				count += count;
+			}
+		}
+
+		// Handle movement
+		bool ismoved = Vel != (0, 0, 0)
+			// Check Z position set during previous tick.
+			// It should be strictly equal to the argument of SetZ() function.
+			|| (   (pos.Z != floorz           ) /* Did it hit the floor?   */
+				&& (pos.Z != ceilingz - Height) /* Did it hit the ceiling? */ );
+
+		if (ismoved)
+		{
+			// force some lateral movement so that collision detection works as intended.
+			if (bMissile && Vel.X == 0 && Vel.Y == 0 && !IsZeroDamage())
+			{
+				VelFromAngle(MinVel);
+			}
+
+			Vector3 frac = Vel / count;
+			int changexy = frac.X != 0 || frac.Y != 0;
+			int ripcount = count / 8;
+			for (int i = 0; i < count; i++)
+			{
+				if (changexy)
+				{
+					if (--ripcount <= 0)
+					{
+						tm.ClearLastRipped();	// [RH] Do rip damage each step, like Hexen
+					}
+					
+					if (!TryMove (Pos.XY + frac.XY, true, false, tm))
+					{ // Blocked move
+						if (!bSkyExplode)
+						{
+							let l = tm.ceilingline;
+							if (l &&
+								l.backsector &&
+								l.backsector.GetTexture(sector.ceiling) == skyflatnum)
+							{
+								let posr = PosRelative(l.backsector);
+								if (pos.Z >= l.backsector.ceilingplane.ZatPoint(posr.XY))
+								{
+									// Hack to prevent missiles exploding against the sky.
+									// Does not handle sky floors.
+									Destroy ();
+									return;
+								}
+							}
+							// [RH] Don't explode on horizon lines.
+							if (BlockingLine != NULL && BlockingLine.special == Line_Horizon)
+							{
+								Destroy ();
+								return;
+							}
+							
+							// [inkoalawetrust] Bounce off of blocking lines and actors.
+							// https://sourcegraph.com/github.com/ZDoom/gzdoom/-/blob/src/playsim/p_mobj.cpp?L2105-2132
+							If (BlockingMobj) //Hit actor.
+							{
+								If (bBounceOnActors)
+								{
+									If (!BounceActor (BlockingMobj,False))
+										ExplodeMissile (Null, BlockingMobj);
+									Return;
+								}
+							}
+							Else //Hit wall.
+							{
+								If (BounceWall())
+								{
+									PlayBounceSound (False);
+									Return;
+								}
+							}
+							
+							If (BlockingMobj && ReflectOffActor(BlockingMobj)) //Handle reflection too.
+								Return;
+						}
+
+						ExplodeMissile (BlockingLine, BlockingMobj);
+						return;
+					}
+				}
+				AddZ(frac.Z);
+				UpdateWaterLevel ();
+				oldz = pos.Z;
+				if (oldz <= floorz)
+				{ // Hit the floor
+
+					if (floorpic == skyflatnum && !bSkyExplode)
+					{
+						// [RH] Just remove the missile without exploding it
+						//		if this is a sky floor.
+						Destroy ();
+						return;
+					}
+					
+					SetZ(floorz);
+					
+					// [inkoalawetrust] Floor plane bounce handling.
+					// https://sourcegraph.com/github.com/ZDoom/gzdoom@cfe30c1d477e5cc8339226ebbb37f37b5bd2f019/-/blob/src/playsim/p_mobj.cpp?L2442-2463
+					CheckFor3DFloorHit(FloorZ,True);
+					
+					If (bBounceOnFloors)
+					{
+						BouncePlane (FloorSector.FloorPlane);
+						Return;
+					}
+					
+					HitFloor ();
+                    Destructible.ProjectileHitPlane(self, SECPART_Floor);
+					ExplodeMissile (NULL, NULL);
+					return;
+				}
+				if (pos.Z + height > ceilingz)
+				{ // Hit the ceiling
+
+					if (ceilingpic == skyflatnum && !bSkyExplode)
+					{
+						Destroy ();
+						return;
+					}
+					
+					SetZ(ceilingz - Height);
+					
+					// [inkoalawetrust] Ceiling plane bounce handling.
+					// https://sourcegraph.com/github.com/ZDoom/gzdoom@cfe30c1d477e5cc8339226ebbb37f37b5bd2f019/-/blob/src/playsim/p_mobj.cpp?L2553-2572
+					CheckFor3DCeilingHit(CeilingZ,True);
+					
+					If (bBounceOnCeilings)
+					{
+						BouncePlane (CeilingSector.CeilingPlane);
+						Return;
+					}
+					
+                    Destructible.ProjectileHitPlane(self, SECPART_Ceiling);
+					ExplodeMissile (NULL, NULL);
+					return;
+				}
+				CheckPortalTransition();
+				if (changexy && ripcount <= 0) 
+				{
+					ripcount = count >> 3;
+
+					// call the 'Effect' method.
+					Effect();
+				}
+			}
+		}
+		if (!CheckNoDelay())
+			return;		// freed itself
+		// Advance the state
+		if (tics != -1)
+		{
+			if (tics > 0) tics--;
+			while (!tics)
+			{
+				if (!SetState (CurState.NextState))
+				{ // mobj was removed
+					return;
+				}
+			}
+		}
+	}
+	
+	Override Void Tick ()
+	{
+		OldPos = Pos;
+		Double OldZ = Pos.Z;
+		//Super.Tick();
+		FastProjectileTick(); //Seperate from the Tick() override to not present too big a clusterfuck.
+		//bMissile is removed when a projectile explodes.
+		If (!bMissile || IsFrozen()) Return;
+		
+		FallAndSink(GetGravity(),OldZ);
+		
+		//Keeps track of the current Tracers' position for the Tracer prediction code.
+		If (Tracer && Tracer.Tics != 0 && Tracer.Tics == Tracer.CurState.Tics || Tracer && !IsTeleportingMonster(Tracer))
+		{
+			If (KAI_Math.IsEmptyVector3(CurrentTracerPosition))
+				CurrentTracerPosition = Tracer.Pos;
+			
+			LastTracerPosition = CurrentTracerPosition;
+			CurrentTracerPosition = Tracer.Pos;
+		}
+		Else If (!Tracer)
+			LastTracerPosition = CurrentTracerPosition = (Double.NaN,Double.NaN,Double.NaN);
+		
+		If (TrailDelay)
+		{
+			TrailDelay--;
+			Return;
+		}
+		
+		If (bNoTrailLine) //Use stock FastProjectile trail. Simple as.
+		{
+			Effect();
+			Return;
+		}
+		
+		//CREDIT: Boondorl wrote the original code that draws a line of tracers between the current and previous position.
+		If (TrailActor && !TrailSpawned)
+		{
+			Vector3 Path = Level.Vec3Diff( Pos, OldPos );
+			Double Distance = Path.Length();
+			If (Distance <= 1) Return;
+			Path /= Distance;
+			
+			Double CurScaleX = ScaleAmountX;
+			Double CurScaleY = ScaleAmountY;
+			Double CurAlpha = FadeAmount;
+			
+			For( Double I = InitialTrailsSkipped; I < Distance; I += TrailLineSpacing )
+			{
+				If (MaxTrails != 0 && MaxTrails <= I) Break; //Too many trail actors.
+				Vector3 SpawnPos = level.Vec3Offset(pos, Path*i);
+				Let Trail = Spawn(TrailActor,SpawnPos);
+				If (Trail)
+				{
+					If (Trail Is "KAI_Tracer") KAI_Tracer(Trail).WarpOffsets = (-(Path*I).Length(),0,0);
+					//If it's time to begin scaling and fading the trail.
+					If (I >= TrailFadeAndScaleStart)
+					{
+						Trail.Scale.X += CurScaleX;
+						Trail.Scale.Y += CurScaleY;
+						Trail.Alpha += CurAlpha;
+						CurScaleX += ScaleAmountX;
+						CurScaleY += ScaleAmountY;
+						CurAlpha += FadeAmount;
+					}
+					TrailSpawn (Trail); //Return spawned trail.
+				}
+			}
+			
+			TrailSpawned = True;
+		}
+	}
+	
+	//Mostly ripped from the native FastProjectile, with some changes and additions.
+	Override Void Effect()
+	{
+		If (!bNoTrailLine || TrailDelay) Return;
+		Class<Actor> Trail = MissileName;
+		Actor Act;
+		If (Trail != Null)
+		{
+			Double HitZ = Pos.Z - 8;
+
+			If (HitZ < FloorZ)
+			{
+				HitZ = FloorZ;
+			}
+			// Do not clip this offset to the floor.
+			HitZ += MissileHeight;
+			
+			Act = Spawn (Trail, (Pos.XY, HitZ), ALLOW_REPLACE);
+			If (Act != Null)
+			{
+				TrailSpawn (Act);
+				//These are handled by TrailSpawn().
+				/*If (bGetOwner && Target != Null)
+					Act.Target = Target;
+				Else
+					Act.Target = Self;
+				
+				Act.Angle = Angle;
+				Act.Pitch = Pitch;*/
+			}
+		}
+	}
+	
+	//Returns each trail actor spawned, allowing you to perform per-trail modifications.
+	Virtual Void TrailSpawn (Actor Trail)
+	{
+		If (!Trail) Return;
+		
+		If (bGetOwner && Target != Null)
+			Trail.Target = Target;
+		Else
+			Trail.Target = Self;
+		Vector3 OldVel = Trail.Vel;
+		Trail.Vel = Level.Vec3Diff (OldPos,Pos);
+		Trail.A_FaceMovementDirection();
+		Trail.Vel = OldVel;
+	}
+	
+	//Called in SpecialMissileHit() to handle bullet-like projectiles bouncing off actors.
+	Bool DeflectProjectile (Actor Victim, Int DeflectChance, Double DamageReductionFactor, Double SlowDownFactor = 1,
+	Vector2 RandomAngle = (0,0), Vector2 RandomPitch = (0,0), Double Volume = 1, Double Attenuation = 0.9)
+	{
+		If (Random (0,255) < DeflectChance) Return False; //Fission mailed.
+		
+		Int Damage = GetMissileDamage(7,1); //Get your damage, be it a static number or a damage function.
+		Victim.DamageMobj (Self,Target,Int(Damage*DamageReductionFactor),DamageType); //Harm the caller even when deflected.
+		Angle -= 180; //Turn around.
+		Vel *= -1; //Opposite day today
+		Speed *= SlowDownFactor; //Slow down by a set amount. Can just be randomized in the parameters instead.
+		//Randomize the direction you'll fly to.
+		Angle += FRandom (RandomAngle.X,RandomAngle.Y);
+		Pitch += FRandom (RandomPitch.X,RandomPitch.Y);
+		Vel3DFromAngle (Speed,Angle,Pitch);
+		
+		//Spark effect.
+		//MAYDO: Make the spark effect customizable ? Potentially by handling it in an OnDeflection() virtual.
+		TextureID NullTex;
+		For (Int I = 0; I < 24; I++)
+		{
+			A_SpawnParticleEx (
+			"yellow",
+			NullTex,
+			STYLE_Add,
+			lifetime:23,
+			size:3,
+			xoff:FRandom (6,-6),
+			yoff:FRandom (6,-6),
+			zoff:FRandom (6,-6),
+			velx:FRandom (1,-1),
+			vely:FRandom (1,-1),
+			velz:FRandom (1,3),
+			accelz: FRandom (-0.1,-0.25)
+			);
+		}
+		Victim.A_StartSound (BounceSound,flags:CHANF_OVERLAP,Volume,Attenuation); //Ricochet sound, uses the BounceSound property, naturally.
+		DontCollide = Victim; //You should no longer collide with the actor you just deflected, to avoid getting stuck inside it.
+		
+		Return True;
+	}
+	
+	Enum SeekerMissileFlags
+	{
+		//Same as A_SeekerMissile.
+		//SMF_LOOK 	= 1 << 0,
+		//SMF_PRECISE	= 1 << 1, //Does nothing. This already uses full 3D tracking.
+		//SMF_CURSPEED= 1 << 2,
+		SMF_SMART	= 1 << 3, //When enabled, the projectile will move to where the tracer will be IN the future. Similar to the vehicle turret prediction code.
+	}
+	
+	//An improved A_SeekerMissile.
+	//Threshold: The angle within which the strength is set to 1, like A_SeekerMissile.
+	//Strength: How much to adjust the angle and pitch of the projectile, a value of 1 makes the projectile instantly face the tracer.
+	//Flags: The flags that define the behavior of the function. Supports most A_SeekerMissile flags along with new ones.
+	//Inaccuracy: How inaccurate should the projectile be while tracking its' tracer, in each axis ?
+	//Distance: Used by SMF_LOOK. Specifies how many blockmap chunks (128x128 map units) to check around the projectile for a new seekable enemy.
+	//Chance: The chance that the SMF_LOOK sight check will run.
+	Bool KAI_SeekerMissile (Double Threshold, Double Strength, Int Flags = 0, Vector3 Inaccuracy = (0,0,0), Double Distance = 10, Int Chance = 50)
+	{
+		//Perform basic monster search, in blockmap blocks, instead of actual distance.
+		If (Flags & SMF_LOOK && Tracer == Null && Random (0,255) < Chance)
+			Tracer = RoughMonsterSearch (Distance,True);
+		
+		If (!Tracer || !CanSeek (Tracer)) Return False;
+		
+		If (!Tracer.bShootable)
+		{
+			Tracer = Null;
+			Return False;
+		}
+		
+		Speed = (Flags & SMF_CURSPEED) ? Vel.Length() : Speed;
+		Vector3 TrackPos;
+		If (Flags & SMF_SMART)
+			TrackPos = GetFutureTrajectory(Inaccuracy);
+		Else
+			TrackPos = Level.Vec3Offset(Tracer.Pos,(FRandom(Inaccuracy.X,-Inaccuracy.X),FRandom(Inaccuracy.Y,-Inaccuracy.Y),FRandom(Inaccuracy.Z,-Inaccuracy.Z)));
+		Vector3 Coords = Level.SphericalCoords (Pos,TrackPos,(Angle,Pitch));
+		If (AbsAngle (Angle,Coords.X) < Threshold)
+			Strength = 1; //Lock straight into the target if the angle difference is small enough.
+		A_SetAngle(Angle - (Coords.X * Strength), SPF_INTERPOLATE);
+		If (!bFloorHugger && !bCeilingHugger)
+			A_SetPitch(Pitch - (Coords.Y * Strength), SPF_INTERPOLATE);
+		
+		Vel3DFromAngle (Speed,Angle,Pitch);
+		
+		Return True;
+	}
+	
+	/*FIXME: This target prediction code is totally fucking broken, VelIntercept() works, but can't be configured to KAI_SeekerMissiles' parameters,
+	does not work with monster movement (Which is the reason I wrote the target prediction code in the first place), works by directly altering the velocity
+	instead of getting a position for the actor to face and go to, and the math can't even be translated from C++ to ZScript due to using matrix math.
+	Let alone the fact that I don't UNDERSTAND the math in the first place*/
+	//Get the tracers' future trajectory, used by homing projectiles.
+	Vector3 GetFutureTrajectory (Vector3 Inaccuracy = (0,0,0))
+	{
+		If (!Tracer) Return (Double.NaN, Double.NaN, Double.NaN);
+		Int TravelTics;
+		Float FloatTics;
+		//Estimate the travel time the projectile needs.
+		If (Vel.Length() != 0)
+			TravelTics = Distance3D (Tracer)/Vel.Length();
+		TravelTics = Clamp (TravelTics,1,INT.MAX); //Needs at least 1 tic.
+		FloatTics = TravelTics; //Finer precision on multiplier the extrapolated velocity, for extra accuracy.
+		Vector3 OldPos = Tracer.Pos;
+		//BUG: When there's no LastTracerPosition, or the values are the same I guess ? The turret will instantly face the Tracer.
+		Vector3 Diff = Level.Vec3Diff (LastTracerPosition,Tracer.Pos);
+		If (IsTeleportingMonster(Tracer))
+		{
+			Vector3 TPOnly = Level.Vec3Diff (Diff,Tracer.Vel); //Get the teleport movement, sans velocity.
+			TPOnly = GetTeleportMoveDivision();
+			//console.printf ("tponly is %.3f %.3f %.3f",tponly.x,tponly.y,tponly.z);
+			Diff = Level.Vec3Offset (TPOnly,Tracer.Vel);
+		}
+		Vector3 Result = Level.Vec3Offset (Tracer.Pos.PlusZ(Tracer.Height/2),Diff/**FloatTics*/); //FIXME: Commented out to stop this: https://streamable.com/d9g6g1
+		Result = Level.Vec3Offset(Result,(FRandom(Inaccuracy.X,-Inaccuracy.X),FRandom(Inaccuracy.Y,-Inaccuracy.Y),FRandom(Inaccuracy.Z,-Inaccuracy.Z)));
+		//console.printf ("the tracers' current trajectory is %d %d %d",pos);
+		//console.printf ("the tracers' future trajectory is %d %d %d",result);
+		//FSpawnParticleParams P; P.Color1 = "White"; P.Style = STYLE_None; P.Lifetime = 1; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+		//KAI_LOFRaycast.VisualizeTracePath(Pos,result,distance3d(tracer),8,p);
+		Return Result;
+	}
+	
+	Vector3 GetTeleportMoveDivision()
+	{
+		If (Tracer.CurState.Tics)
+			Return Level.Vec3Diff (LastTracerPosition,CurrentTracerPosition) / Tracer.CurState.Tics;
+		Else //Fallback to prevent division by zero.
+			Return Level.Vec3Diff (LastTracerPosition,CurrentTracerPosition);
+	}
+	
+	//Has different values than UpdateTurretElevation().
+	//Mirror: Mirror the bottom sprites with +YFLIP. If you aren't showing a bottom sprite, revert the flag to default.
+	Int UpdateProjectileElevation (Int FaceDown, Int FaceDown2, Int FaceStraight, Int FaceUp, Int FaceUp2, Bool Mirror = False)
+	{
+		If (Pitch >= 70)
+		{
+			If (Mirror) bYFlip = True;
+			Return FaceDown2;
+		}
+		Else If (Pitch >= 30 && Pitch < 70)
+		{
+			If (Mirror) bYFlip = True;
+			Return FaceDown;
+		}
+		Else If (Pitch < 30 && Pitch > -30)
+		{
+			If (Mirror) bYFlip = Default.bYFlip;
+			Return FaceStraight;
+		}
+		Else If (Pitch <= -30 && Pitch > -70)
+		{
+			If (Mirror) bYFlip = Default.bYFlip;
+			Return FaceUp;
+		}
+		Else If (Pitch <= -70)
+		{
+			If (Mirror) bYFlip = Default.bYFlip;
+			Return FaceUp2;
+		}
+		If (Mirror) bYFlip = Default.bYFlip;
+		Return FaceStraight;
+	}
+	
+	//Is the other actor hostile to the projectiles' shooter ? Useful for SpecialMissileHit checks.
+	Bool IsHostileToShooter(Actor Other)
+	{
+		If (!Target || !Other) Return False;
+		
+		//KAI NPCs have a custom virtual to check for hostility.
+		If (Target Is "KAI_Actor")
+			Return KAI_Actor(Target).IsActorHostile (Other);
+		
+		Return Target.IsHostile (Other); //If not a KAI NPC, use the native IsHostile().
+	}
+	
+	//1 Ignore actor
+	//0 Hit actor but do no effects like giving damage, exploding, etc
+	//-1 Normal missile behavior
+	Override Int SpecialMissileHit (Actor Victim)
+	{
+		If (!Victim || Victim == DontCollide) Return 1;
+		If (bNoFriendlyFire && !IsInanimateObject (Victim) && !IsHostileToShooter (Victim)) Return 1;
+		If (Target && Target Is "KAI_BaseTurret" && Victim && Victim == Target.Master) Return 1; //If fired from a turret, ignore the vehicle it's attached on.
+		
+		//Assume the actor will be hit and ripped. For overrides, this will need to be set manually, if some child class code says it shouldn't collide.
+		/*BUG: The RipDepth code is somewhat buggy, it doesn't necessarily rip through however many actors specified when they are tightly packed together.
+		And will sometimes do 2-3 rips on victims in despite the RipOnce flag. I've tried a few fixes, including using an array, but they made things worse.*/
+		IncrementRipDepth (Victim, False);
+		StoreLastRipped (Victim);
+		Return -1;
+	}
+	
+	Void StoreLastRipped (Actor Victim)
+	{
+		//If (bRipper && Victim && !RippedAlready(Victim))
+		//	Ripees.Push(Victim);
+		If (bRipper && LastRipped != Victim && PreLastRipped != Victim)
+		{
+			PreLastRipped = LastRipped;
+			LastRipped = Victim;
+		}
+	}
+	
+	Void IncrementRipDepth (Actor Victim, Bool FromOverride)
+	{
+		If (!Default.RipDepth || !Victim || !bRipper) Return;
+		/*If (RippedAlready(Victim)) Return;
+		If (FromOverride) Ripees.Pop(); //Undo the rip from Super.SpecialMissileHit() if called from an override to that virtual.
+		If (Ripees.Size()-1 <= RipDepth+1)
+		{
+			Ripees.Clear();
+			a_log ("no more ripping");
+			bRipper = False;
+			Return;
+		}*/
+		
+		If (Victim == LastRipped || Victim == PreLastRipped) Return;
+		If (FromOverride) RipDepth++; //Undo the rip from Super.SpecialMissileHit() if called from an override to that virtual.
+		RipDepth--;
+		If (RipDepth <= 1)
+		{
+			RipDepth--; //Now the depth is 0.
+			//a_log ("no more ripping");
+			bRipper = False;
+			Return;
+		}
+		
+		//console.printf ("rip depth %d",ripdepth);
+	}
+	
+	/*Bool RippedAlready (Actor Who)
+	{
+		If (!Who) Return False;
+		For (Int I = Ripees.Size()-1; I >= 0; I--)
+		{
+			If (Ripees[I] == Who)
+				Return True;
+		}
+		Return False;
+	}*/
+	
+	Override Bool CanCollideWith (Actor Other, Bool Passive)
+	{
+		//Don't collide with actors you already ripped.
+		If (!Passive && bRipper && bRipOnce /*&& RippedAlready (Other)*/ && Other && (Other == LastRipped || Other == PreLastRipped))
+			Return False;
+		
+		Return Super.CanCollideWith (Other, Passive);
+	}
+	
+	Actor DontCollide; //Stores an actor that will be ignored by SpecialMissileHit, so deflected projectiles don't deflect dozens of times when bouncing off. Sorse spaghetti has nothing on Doom spaghet.
+	Actor LastRipped, PreLastRipped; //The actor that a ripper last hit. Used for the RIPONCE flag.
+	//Array <Actor> Ripees;
+	Vector3 LastTracerPosition;
+	Vector3 CurrentTracerPosition;
+	
+	Mixin KAI_UniversalFunctions;
+	Mixin KAI_CheckFunctions;
+	Private Int ProjectileFlags;
+	FlagDef NoTrailLine : ProjectileFlags, 0; //The projectile uses the normal FastProjectile trail spawning code.
+	FlagDef NoFriendlyFire : ProjectileFlags, 1; //The projectile should not collide with actors friendly to its' shooter.
+	FlagDef RipOnce : ProjectileFlags, 2; //If the projectile is a ripper, it will only rip a victim once, instead of multiple times.
+	Class <KAI_Tracer> TrailActor;
+	Property TrailActor : TrailActor;
+	
+	Int TrailDelay, MaxTrails, InitialTrailsSkipped, TrailFadeAndScaleStart;
+	Property TrailDelay : TrailDelay;
+	Property MaxTrails : MaxTrails;
+	Property InitialTrailsSkipped : InitialTrailsSkipped;
+	Property TrailFadeAndScaleStart : TrailFadeAndScaleStart;
+	
+	Double TrailLineSpacing;
+	Property TrailLineSpacing : TrailLineSpacing;
+	
+	Double ScaleAmountX, ScaleAmountY, FadeAmount;
+	Property ScaleAmountX : ScaleAmountX;
+	Property ScaleAmountY : ScaleAmountY;
+	Property FadeAmount : FadeAmount;
+	
+	Int RipDepth; //How many actors can the ripper with RipOnce rip ?
+	Property RipDepth : RipDepth;
+}
+
+//A generic tracer effect particle.
+//ReactionTime: The tracer code uses this as a timer for how long the trail should last before vanishing.
+//bNeverRespawn: Turning on this flag causes the trail to automatically vanish if it has no master or its' master is dead.
+//bStandStill: The trail will not warp relative to its' target.
+Class KAI_Tracer : Actor
+{
+	Default {RenderStyle "Add"; Scale 0.5; ReactionTime INT.MAX; +NoBlockmap; +NoInteraction;}
+	
+	Override Void Tick()
+	{
+		If (IsFrozen()) Return;
+		//Super.Tick(); //Not needed.
+		If (GetAge() >= ReactionTime || bNeverRespawn && (!Target || Target.Default.bMissile && !Target.bMissile))
+			Destroy();
+		
+		If (Target && !bStandStill) SetOrigin (KAI_Math.Vec3OffsetRelative (Target,WarpOffsets),True);
+	}
+	
+	Vector3 WarpOffsets;
+}

@@ -1,5 +1,6 @@
 //TODO:
-//This is a BIG TIME placeholder. This will be kept as is until I begin remaking the Smart Marines.
+//Once I take a long enough break from writing movement code. Add the ability for NPCs to swim, as in, be able to walk on land but also jump in water to swim.
+//Start moving the functions to their own files eventually.
 /*Add an emplacement system, with properties like what threat level to set to the NPC when it's sitting on the
 emplacement. This will be a more flexible version of the MG turret the Smart Marines used hopefully.
 Maybe I should instead make a creature base, from which BaseHumanoid stems from. So only BaseHumanoid
@@ -8,4 +9,284 @@ will have access to the emplacement system.*/
 Class KAI_Humanoid : KAI_Creature Abstract
 {
 	Mixin HumanoidAndVehicleCode; //Code shared between humanoids and vehicles. Usually stuff for smarter NPCs than KAI_Creature.
+	
+	//Handle the marine crouching when his move is potentially obstructed by level geometry and/or actor obstacles.
+	//Returns true if the marine will crouch, false if he will not.
+	Bool KAI_HandleCrouching (Double UncrouchedHeight, Double CrouchHeight, Bool ChangeHeight = True)
+	{
+		Vector2 CheckPos = Vec2Angle(Speed,Angle);
+		FCheckPosition Tm;
+		//Tm.FromPMove = True;
+		
+		Double CurHeight = Height;
+		Height = UncrouchedHeight; //Check our uncrouched height.
+		
+		If (!CheckPosition (CheckPos,tm:Tm))
+		{
+			Double SecHeight = Tm.CeilingZ;
+			F3DFloor FFloor;
+			If (FFloor = KAI_FindClimbable3DFloor (Level.Vec2Diff(Pos.XY,CheckPos).Length()*3))
+				SecHeight = FFloor.Bottom.ZAtPoint(CheckPos);
+			
+			If (BlockingMobj && (BlockingMobj.Pos.Z < Pos.Z+Height && BlockingMobj.Pos.Z >= Pos.Z+CrouchHeight) ||
+			(SecHeight < Pos.Z+Height && SecHeight >= Pos.Z+CrouchHeight))
+			{
+				If (ChangeHeight) Height = CrouchHeight;
+				Return True;
+			}
+		}
+		
+		Height = CurHeight;
+		If (ChangeHeight) Height = UncrouchedHeight;
+		Return False;
+	}
+	
+	//Exactly what it says, handles detecting ledges and making the actors climb them by returning a position to climb to, and a climb state to go.
+	//JumpToPos: A reference to a vector3, can be used to pass a position vector to set a value to, presumably to pass to KAI_JumpTo(). Pass null if this isn't needed.
+	//ClimbToPos: Similar to JumpToPos but for the climbing position.
+	//ClimbState: The state the actor will enter if he decides to climb.
+	//JumpState: The state the NPC should enter for ledges that are just a tad too tall to reach, presumably, so you make them jump up and THEN grab.
+	//ClimbMul: If the ledge is within the NPCs' height * ClimbMul, go to ClimbState.
+	//JumpClimbMul: Ditto, but for the alternate jump climb state.
+	//TODO: I need to wait for my PR exposing P_GetMidTexturePosition() to ZScript for 3D midtex handling (Scaling fences and railings).
+	Bool KAI_HandleClimbing (Out Vector3 ClimbToPos, Out Vector3 JumpToPos, StateLabel ClimbState = "Climb", StateLabel JumpState = Null, Double ClimbMul = 1.1, Double JumpClimbMul = 1.75)
+	{
+		FCheckPosition Tm;
+		Tm.FromPMove = True;
+		Vector2 CheckPos = Vec2Angle(Speed,Angle);
+		Vector3 ClimbPos;
+		//Handle climbing up ledges above the callers' height.
+		//BUG: The code causes the marine to climb over invisible ledges if it crosses from normal geometric ground to bridge things.
+		If (!CheckMove (CheckPos,0,Tm) && !KAI_LineBlocksClimb (BlockingLine)
+		//NPCs can climb over actors, but shouldn't do it on LIVING ones, since it looks stupid, especially if they start climbing over the player.
+		//MAYDO: Make a flag to disable the living actor check ?
+		&& (!BlockingMobj || IsInanimateObject (BlockingMobj)))
+		{
+			//KLUDGE: I'm pretty sure Tm.FloorZ should handle actors itself, but it doesn't.
+			Double ClimbZ = Tm.FloorZ;
+			
+			F3DFloor FFloor;
+			//Check for 3D floors the actor can climb over separetely with a trace, since CheckPosition() won't cut it.
+			If (FFloor = KAI_FindClimbable3DFloor (Level.Vec2Diff(Pos.XY,CheckPos).Length()*3)) //There's actually a 3D floor in front of the actor.
+				ClimbZ = FFloor.Top.ZAtPoint(CheckPos); //Set the climbZ to the top of that 3D floor !
+			
+			If (BlockingMobj)
+				ClimbZ = BlockingMobj.Pos.Z + BlockingMobj.Height;
+			
+			//Ledge is just at around the actors' height.
+			If (ClimbZ < Pos.Z+(Height*ClimbMul) && !(FloorZ - Tm.DropoffZ > MaxDropOffHeight))
+			{
+				ClimbPos = (CheckPos,ClimbZ);
+				If (ClimbPos == ClimbPos)
+					ClimbToPos = ClimbPos;	
+				If (ClimbState) SetStateLabel (ClimbState);
+				Return True;
+			}
+			//Ledge is just a bit too tall for the caller, but could be still reached by jumping and grabbing it.
+			Else If (JumpState && ClimbZ < Pos.Z+(Height*JumpClimbMul) && !(FloorZ - Tm.DropoffZ > MaxDropOffHeight))
+			{
+				//TODO: This magic number of 56 concerns me, hopefully I won't have to add yet another parameter until I turn this into A_SpawnItemEx(0.
+				JumpToPos = (CheckPos,ClimbZ-56); //Jump to the position we need to climb.
+				If (ClimbPos == ClimbPos)
+					ClimbToPos = ClimbPos;				
+				SetStateLabel (JumpState);
+				Return True;
+			}
+		}
+		
+		Return True;
+	}
+	
+	//Check if the calling actor can climb over this linedef.
+	//TODO: For now this ignores all two sided blocking lines, in the future, it should work with 3D middle textures.
+	//Mostly copied from the native P_IsBlockedByLine(), maybe I should expose that to ZScript too, seems useful.
+	Bool KAI_LineBlocksClimb (Line Which)
+	{
+		If (!Which)
+			Return False;
+		
+		Int Flags = Which.Flags;
+		Int Flags2 = Which.Flags2;
+		
+		If (Flags & Line.ML_BLOCKEVERYTHING || Flags & Line.ML_BLOCKING)
+			Return True;
+		
+		If (!(bNoBlockMonst || (Level.CompatFlags & COMPATF_NOBLOCKFRIENDS && bFriendly) ))
+		{
+			If (Flags & Line.ML_BLOCKMONSTERS)
+				Return True;
+			
+			If (Flags2 & Line.ML2_BLOCKLANDMONSTERS && !(Level.CompatFlags2 & COMPATF2_NOMBF21) && !bFloat)
+				Return True;
+		}
+		
+		//TODO: Use P_GetMidTexPosition() once my PR is merged !
+		If (Flags & Line.ML_3DMIDTEX)
+			Return True;
+		
+		Return False;
+	}
+	
+	F3DFloor KAI_FindClimbable3DFloor (Double Dist, Int Iterations = 4)
+	{
+		F3DFloor FFloor;
+		Let FFloorCheck = New ("KAI_Find3DFloorToClimb");
+		
+		//Iterate the trace this many times across the actors' height, more iterations allow for higher detail in the 3D floor detection when he collides, but have more overhead.
+		Double Spacing = Height/Iterations;
+		Double HeightOffset = Height;
+		For (Int I = Iterations; I > 0; I--)
+		{
+			//Console.Printf ("Ran a 3D floor check at %.2f, the spacing is %.2f",HeightOffset, Spacing);
+			FFloorCheck.Trace (Pos.PlusZ(HeightOffset),CurSector, (AngleToVector(Angle, Cos(0)), -Sin(0)) ,Dist,0);
+			
+			If (FFloor = FFloorCheck.Results.FFloor)
+			{//a_log ("3d floor check passed");
+				FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 35; P.Size = 2; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+				KAI_LOFRaycast.VisualizeTracePath(Pos.PlusZ(HeightOffset),FFloorCheck.Results.HitPos,FFloorCheck.Results.Distance,0.5,p);
+				FFloorCheck.Destroy();
+				Return FFloor;
+			}
+			FSpawnParticleParams P; P.Color1 = "Red"; P.Style = STYLE_None; P.Lifetime = 35; P.Size = 2; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+			KAI_LOFRaycast.VisualizeTracePath(Pos.PlusZ(HeightOffset),FFloorCheck.Results.HitPos,FFloorCheck.Results.Distance,0.5,p);
+			HeightOffset -= Spacing;
+		}
+		
+		FFloorCheck.Destroy();
+		Return FFloor;
+	}
+	
+	//Get a position for the actor to jump to, if it doesn't have to jump, the gap is too wide, or there's something in the way, this returns a null vector.
+	//CheckDistance: How far ahead relative to the caller to check for a gap.
+	//CheckAngle: What angle to project the check from.
+	Vector2 KAI_GetJumpPosition (Double CheckDistance, Double CheckAngle)
+	{
+		Vector2 PosOffset = Vec2Angle (Radius*2.01,CheckAngle);
+		
+		vector3 oldpos = pos;
+		Vector2 Path = Level.Vec2Diff( PosOffset, Vec2Angle (CheckDistance,CheckAngle));
+		Double Distance = Path.Length();
+		Double Spacing = Radius*2.01;
+		If (Distance <= 1) Return (Double.NaN,Double.NaN);
+		Path /= Distance;
+		Double RealDropHeight = MaxDropoffHeight;
+		
+		Vector2 MovePos;
+		FLineTraceData Jump;
+		Double RealHeight;
+		
+		//Get the ACTUAL collision height, actors included.
+		Double REALFloorZ = FloorZ;
+		Bool Useless; //Why fucking return if the caller is on another actor ? Just return the fucking POINTER !
+		Actor Bottom;
+		SetOrigin (Pos.PlusZ(-1),False);
+		[Useless,Bottom] = TestMobjZ ();
+		SetOrigin (Pos.PlusZ(1),False);
+		If (Bottom)
+			REALFloorZ = Bottom.Pos.Z+Bottom.Height;
+			
+		For (Int I = Spacing; I < Distance+(Spacing*2); I += Spacing)
+		{
+			MovePos = Level.Vec2Offset(Pos.XY, Path*I);
+			
+			LineTrace (0,8192,90,TRF_THRUHITSCAN|TRF_SOLIDACTORS|TRF_ABSPOSITION,0,MovePos.X,MovePos.Y,data:Jump);
+			FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 2; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+			KAI_LOFRaycast.VisualizeTracePath((MovePos,Pos.Z),Jump.HitLocation,Jump.Distance,8,p);
+			
+			//Get the real height, used by GetZAt to handle ledges.
+			RealHeight = CurSector.NextLowestFloorAt (Pos.X,Pos.Y,Pos.Z,FFCF_3DRESTRICT,MaxStepHeight);
+			//This position has a dropoff larger than the actors' dropoff height.
+			Sector SecAt = Level.PointInSector (MovePos);
+			If (SecAt && Jump.HitLocation.Z >= SecAt.FloorPlane.ZAtPoint(MovePos) && (REALFloorZ - Jump.HitLocation.Z) > RealDropHeight/2)// && (RealHeight - Jump.HitLocation.Z) > RealDropHeight/2)
+			{}
+			//Or it doesn't, so stop the check, this is where we should jump at. If it's not short enough for the actor to just walk over of course.
+			Else
+			{
+				//Make the jump pos null if the distance to the jump position is shorter than the actors' radius. Like if there is no hole to jump over at all.
+				If (Level.Vec2Diff (Pos.XY,MovePos).Length() < Spacing)
+					MovePos = (Double.NaN,Double.NaN);
+				Break;
+			}
+		}
+		
+		//The path was clear and all that, but the final position is RIGHT INTO THE MOAT WE'RE WANT TO JUMP OVER.
+		If ((REALFloorZ - Jump.HitLocation.Z) > RealDropHeight/2)// && (RealHeight - Jump.HitLocation.Z) > RealDropHeight/2)
+			MovePos = (Double.NaN,Double.NaN);
+		
+		If (MovePos == MovePos) //Only run this if MovePos isn't null.
+		{
+			FLineTraceData JumpClear;
+			LineTrace (CheckAngle,distance,0,TRF_SOLIDACTORS|TRF_THRUHITSCAN,Height/2,Radius*2,data:JumpClear);
+			
+			If (JumpClear.HitType != TRACE_HitNone)
+				Return (Double.NaN,Double.NaN);
+		}
+		Return MovePos;
+	}
+	
+	//CREDIT: Lewisk3 for the actual tossing code.
+	//Make the actor jump to the specified position, this uses a custom version of Lewisk3's grenade throwing function.
+	Void KAI_JumpTo (Vector3 Where, Double JumpSpeed = -17.2, Double MaxLength = 288)
+	{
+		//FireGrenade() properties turned into hardcoded variables.
+		Double AimDist = 0;
+		Double MaxPitch = 45;//90;
+		Double AimSens = 1.1;
+		
+		// Source and Destination
+		vector3 fromPos = (
+			pos.xy,
+			pos.z + (height/2)
+		);
+		vector3 toPos = Where;
+		
+		vector3 diff = level.vec3diff(fromPos, toPos);
+		
+		// Modify toPos Z component based on how many units the NPC will fall by the time it reaches the destination.
+		double dist = diff.xy.Length();
+		if(dist >= aimDist)
+		{
+			double grav = 1.0 + ceil(self.GetGravity() * (level.gravity * 0.010769));
+			double ticsDist = diff.Length() / double(max(self.Speed,1.0));        
+			double fallDist = ticsDist * grav;
+			toPos.z += fallDist * aimSens;
+		}
+		
+		// Recalculate differences.
+		diff = level.vec3diff(fromPos, toPos);
+		double aimPitch = VectorAngle( sqrt(diff.y*diff.y + diff.x*diff.x), diff.z );
+		aimPitch = min(aimPitch, maxPitch);
+		// Modify NPC velocity
+		double a = GetAngleToPos(Where,0);
+		double p = -aimPitch;
+		
+		//If the jump speed is negative, pick a jump speed that will be JUST enough to throw the marine at the desired position, as long as the calculated
+		//velocity is below the negative speed. Essentially making the negative velocity act like a speed limit instead of a hardcoded value.
+		If (JumpSpeed < 0)
+		{
+			JumpSpeed = Abs (JumpSpeed);
+			Double Original = JumpSpeed;
+			JumpSpeed = KAI_Math.LinearMap (Diff.Length(),0,MaxLength,0,JumpSpeed);
+			JumpSpeed = Abs (JumpSpeed);
+			JumpSpeed = Clamp (JumpSpeed,0,Original);
+		}
+		
+		self.vel = (
+			cos(a) * cos(p),
+			sin(a) * cos(p),
+			-sin(p)
+		) * JumpSpeed;
+	}
+}
+
+//Find and return the first 3DFloor you hit.
+Class KAI_Find3DFloorToClimb : KAI_LOFRaycast
+{
+	Override ETraceStatus TraceCallback ()
+	{
+		If (HitLevelGeometry (Results))
+			Return Trace_Stop;
+		
+		Return Trace_Skip;
+	}
 }

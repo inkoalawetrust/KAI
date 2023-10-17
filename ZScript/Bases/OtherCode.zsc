@@ -478,7 +478,7 @@ Class KAI_LOFRaycast : LineTracer
 	
 	//Check if the trace hit any level geometry. This is very useful for all LOF checks, except if the projectile can literally go through level geometry.
 	//BUG: This check fails on 3D floors with FF_THINFLOOR. This however seems to be a GZDoom bug. And I'm not knowledgeable enough to PR a fix lol.
-	//: Check for collision with non-shoot through 3D middle textures. The only method for doing this is not exposed to ZScript, so I need to PR it at some point.
+	//TODO: Check for collision with non-shoot through 3D middle textures. The only method for doing this is not exposed to ZScript, so I need to PR it at some point.
 	Bool HitLevelGeometry (TraceResults Result)
 	{
 		//Hit a floor or ceiling.

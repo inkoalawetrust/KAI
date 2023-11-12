@@ -1,0 +1,137 @@
+//IDEA: Add some way to allow non-KAI actors to get hazard warnings and store them ?
+
+//Has to be a class because ZScript is shit and can't handle struct arrays.
+Class HazardInfo
+{
+	Mixin KAI_CheckFunctions;
+	
+    Vector3 Position; //The origin of the hazard, e.g for a sector hazard actor this could be either a custom position IN the sector, or the sectors' CenterSpot.
+    Actor Origin; //The actor that is the origin of the hazard, e.g if the actor itself is a danger, or the actor the HAZARD_ATTACK comes from.
+    Double Range; //The maximum range of the hazard.
+	HazardTypes Type; //What is the hazard exactly ?
+    HazardLevels Level; //How serious is it ?
+	HazardFlags Flags; //Specific attributes of the hazard. e.g to mark that NPCs are free to detect it even when its' out of sight (Skip CheckSight())
+	//Name CustomType; //MAYDO: Add this as a DamageType-like system for custom hazard types and identifiers ?
+	//Array <String> CustomTags; //Probably a better system for custom hazard types than a single string/name type. So that you can give multiple tags.
+	
+	Enum HazardTypes
+	{
+		HAZARD_NONE,  //No discernible type.
+		HAZARD_OTHER, //Misc hazards.
+		HAZARD_WORLD, //Enviromental hazard, e.g ACS SectorDamage() sectors that affect NPCs, crushers, etc
+		HAZARD_ACTOR, //Another actor is a hazard, e.g something that crushes other NPCs like a vehicle, an actor emitting damage etc
+		HAZARD_ATTACK,//The hazard is an attack of some kind, e.g a Cyberdemon aiming would emit this, causing KAI NPCs at the point of impact to run away
+	}
+	
+	Enum HazardLevels
+	{
+		HAZARD_HARMLESS, //No hazard ????????
+		HAZARD_VERYLOW,
+		HAZARD_LOW,
+		HAZARD_MEDIUM,
+		HAZARD_LARGE,
+		HAZARD_HUGE,
+		HAZARD_APOLLYON, //Avoid at all costs.
+	}
+	
+	Enum HazardFlags
+	{
+		HAZ_NOSIGHT = 1 << 0, //NPCs should be aware of the hazard even if it's not visible.
+	}
+	
+	//Emit a hazard alert around a source actor.
+	Static Play Void EmitHazard (Actor Source, Double Range, Int Type = HazardInfo.HAZARD_NONE, Int HazLevel = HazardInfo.HAZARD_LOW, Int Flags = 0)
+	{
+		If (!Source || Range <= 0)
+			Return;
+		
+		HazardInfo Hazard = New ("HazardInfo"); //Create hazard information.
+		If (Hazard)
+		{
+			Hazard.Position = (Double.NaN, Double.NaN, Double.NaN);
+			Hazard.Origin = Source;
+			Hazard.Range = Range;
+			Hazard.Type = Type;
+			Hazard.Level = HazLevel;
+			Hazard.Flags = Flags;
+		}
+		Else
+			Return;
+		
+		Let Finder = BlockThingsIterator.Create (Source,Range);
+		
+		While (Finder.Next())
+		{
+			Actor Mobj = Finder.Thing;
+			
+			If (!Mobj || !(Mobj Is "KAI_Actor") || IsDead (Mobj))
+				Continue;
+			
+			If (Level.Vec3Diff (Source.Pos,Mobj.Pos).Length() > Range || !(Flags & HAZ_NOSIGHT) && !Mobj.CheckSight (Source,SF_IGNOREWATERBOUNDARY))
+				Continue;
+			
+			Bool Skip;
+			//Don't give duplicate hazard entries if the NPC already got this one.
+			ForEach (CurHaz : KAI_Actor(Mobj).Hazards)
+			{
+				If (AreHazardsIdentical (Hazard, CurHaz))
+					{console.printf ("prevented passing identical hazard to %s",mobj.getclassname());Skip = True;}
+			}
+			
+			If (Skip)
+				Continue;
+			
+			KAI_Actor(Mobj).Hazards.Push(Hazard);
+			console.printf ("alerted %s, now they have %d hazards stored",mobj.getclassname(),KAI_Actor(Mobj).Hazards.size());
+		}
+	}
+	
+	//Are Haz1 and Haz2 identical ? Used to prevent hazard emitters from spamming giving entries.
+	Static Bool AreHazardsIdentical (HazardInfo Haz1, HazardInfo Haz2)
+	{
+		If (!Haz1 || !Haz2)
+			Return False;
+		
+		If (
+		//NOTE: The position vector needs special handling because if no position is passed (Default), then it's NaN, which is literally by doing vec != vec.
+		( (KAI_Math.IsEmptyVector3 (Haz1.Position) && KAI_Math.IsEmptyVector3 (Haz2.Position)) || Haz1.Position == Haz2.Position) &&
+		Haz1.Origin == Haz2.Origin &&
+		Haz1.Range == Haz2.Range &&
+		Haz1.Type == Haz2.Type &&
+		Haz1.Level == Haz2.Level &&
+		Haz1.Flags == Haz2.Flags)
+			Return True;
+		
+		Return False;
+	}
+}
+
+//Hazard-specific NPC code.
+Extend Class KAI_Actor
+{
+	//Check if the NPC is in range of the specified hazard. Either the origin actor or position.
+	Bool InHazardRange (HazardInfo Hazard)
+	{
+		If (!Hazard || Hazard.Range <= 0 || !Hazard.Origin && Hazard.Position != Hazard.Position) //No range or hazard.
+			Return False;
+		
+		If (Hazard.Origin && Distance3DSquared (Hazard.Origin) < Hazard.Range*Hazard.Range || Level.Vec3Diff (Hazard.Position,Pos).Length() < Hazard.Range) //In range.
+			Return True;
+		
+		Return False;
+	}
+}
+
+Class TestEmitter : Unknown Replaces MBFHelperDog
+{
+	Override Void Tick()
+	{
+		Super.Tick();
+		
+		If (!IsFrozen() && GetAge() % 4 == 0)
+		{
+			console.printf ("running debug warning zone");
+			HazardInfo.EmitHazard (Self,256,HazardInfo.HAZARD_ACTOR,HazardInfo.HAZARD_MEDIUM);
+		}
+	}
+}

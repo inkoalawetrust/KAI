@@ -10,6 +10,10 @@ Class KAI_Humanoid : KAI_Creature Abstract
 {
 	Mixin HumanoidAndVehicleCode; //Code shared between humanoids and vehicles. Usually stuff for smarter NPCs than KAI_Creature.
 	
+	/*NOTE: I'm not sure if the movement functions like crouching should be here, or moved down the inheritence chain to the Creature class.
+	Since these are technically pretty simple movements like crouching and jumping, but I'll eventually be adding features like dodging and taking
+	cover to my Smart Marine NPCs, and if that code is ported to the library, it's definitely staying exclusive to this class.*/
+	
 	//Handle the marine crouching when his move is potentially obstructed by level geometry and/or actor obstacles.
 	//Returns true if the marine will crouch, false if he will not.
 	Bool KAI_HandleCrouching (Double UncrouchedHeight, Double CrouchHeight, Bool ChangeHeight = True)
@@ -62,6 +66,10 @@ Class KAI_Humanoid : KAI_Creature Abstract
 		//MAYDO: Make a flag to disable the living actor check ?
 		&& (!BlockingMobj || IsInanimateObject (BlockingMobj)))
 		{
+			//KLUDGE: Why does CheckPosition() have a flag to only check actors but not one only for level geo ? So that I have to do this stupid hack.
+			Bool MobjBlock = bThruActors;
+			bThruActors = True;
+			
 			//KLUDGE: I'm pretty sure Tm.FloorZ should handle actors itself, but it doesn't.
 			Double ClimbZ = Tm.FloorZ;
 			
@@ -74,8 +82,9 @@ Class KAI_Humanoid : KAI_Creature Abstract
 				ClimbZ = BlockingMobj.Pos.Z + BlockingMobj.Height;
 			
 			//Ledge is just at around the actors' height.
-			If (ClimbZ < Pos.Z+(Height*ClimbMul) && !(FloorZ - Tm.DropoffZ > MaxDropOffHeight))
+			If (ClimbZ < Pos.Z+(Height*ClimbMul) && !(FloorZ - Tm.DropoffZ > MaxDropOffHeight) && CheckPosition (CheckPos))
 			{
+				bThruActors = MobjBlock;
 				ClimbPos = (CheckPos,ClimbZ);
 				If (ClimbPos == ClimbPos)
 					ClimbToPos = ClimbPos;	
@@ -83,8 +92,9 @@ Class KAI_Humanoid : KAI_Creature Abstract
 				Return True;
 			}
 			//Ledge is just a bit too tall for the caller, but could be still reached by jumping and grabbing it.
-			Else If (JumpState && ClimbZ < Pos.Z+(Height*JumpClimbMul) && !(FloorZ - Tm.DropoffZ > MaxDropOffHeight))
+			Else If (JumpState && ClimbZ < Pos.Z+(Height*JumpClimbMul) && !(FloorZ - Tm.DropoffZ > MaxDropOffHeight) && CheckPosition (CheckPos))
 			{
+				bThruActors = MobjBlock;
 				//TODO: This magic number of 56 concerns me, hopefully I won't have to add yet another parameter until I turn this into A_SpawnItemEx(0.
 				JumpToPos = (CheckPos,ClimbZ-56); //Jump to the position we need to climb.
 				If (ClimbPos == ClimbPos)
@@ -92,9 +102,10 @@ Class KAI_Humanoid : KAI_Creature Abstract
 				SetStateLabel (JumpState);
 				Return True;
 			}
+			bThruActors = MobjBlock;
 		}
 		
-		Return True;
+		Return False;
 	}
 	
 	//Check if the calling actor can climb over this linedef.

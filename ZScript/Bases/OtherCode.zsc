@@ -136,43 +136,43 @@ Mixin Class KAI_UniversalFunctions
 //Generic status checks.
 Mixin Class KAI_CheckFunctions
 {
-	ClearScope Bool CheckActorExists (Name ActorClass)
+	Static ClearScope Bool CheckActorExists (Name ActorClass)
 	{
 		Class<Actor> Act = ActorClass;
 		Return !!Act;
 	}
 	
-	ClearScope Bool IsDead (Actor Other)
+	Static ClearScope Bool IsDead (Actor Other)
 	{
 		If (!Other) Return False;
 		Return (Other.Player ? Other.Player.PlayerState == PST_DEAD : Other.Health <= 0);
 	}
 	
-	ClearScope Bool IsIndestructible (Actor Other)
+	Static ClearScope Bool IsIndestructible (Actor Other)
 	{
 		If (!Other) Return False;
 		Return (Other.bInvulnerable || Other.bNoDamage || !Other.bShootable);
 	}
 	
-	ClearScope Bool HasBuddha (Actor Other, Bool NoPlayerCheck = False)
+	Static ClearScope Bool HasBuddha (Actor Other, Bool NoPlayerCheck = False)
 	{
 		If (!Other || Other.Player && NoPlayerCheck) Return False;
 		Return (Other.bBuddha || Other.Player && Other.Player.Cheats & (CF_BUDDHA | CF_BUDDHA2));
 	}
 	
-	ClearScope Bool HasGodMode (Actor Other, Bool NoPlayerCheck = False)
+	Static ClearScope Bool HasGodMode (Actor Other, Bool NoPlayerCheck = False)
 	{
 		If (!Other || NoPlayerCheck) Return False;
 		Return (Other.Player && Other.Player.Cheats & (CF_GODMODE | CF_GODMODE2));
 	}
 	
-	ClearScope Bool IsInanimateObject (Actor Other)
+	Static ClearScope Bool IsInanimateObject (Actor Other)
 	{
 		If (!Other) Return False;
 		Return (!Other.bIsMonster && !Other.Player);
 	}
 	
-	ClearScope Bool IsCollidable (Actor Other, Actor Caller = Null)
+	Static ClearScope Bool IsCollidable (Actor Other, Actor Caller = Null)
 	{
 		If (!Other) Return False;
 		Return ((Other.bSolid && !Other.bNoBlockmap)
@@ -180,19 +180,19 @@ Mixin Class KAI_CheckFunctions
 		&& !(Caller && Caller.bAllowThruBits && Other.bAllowThruBits && Caller.ThruBits & Other.ThruBits));
 	}
 	
-	ClearScope Bool IsPatrolling (Actor Other)
+	Static ClearScope Bool IsPatrolling (Actor Other)
 	{
 		If (!Other) Return False;
 		Return (Other.Goal || Other.Target Is "PatrolPoint");
 	}
 	
-	ClearScope Bool IsFrightening (Actor Other)
+	Static ClearScope Bool IsFrightening (Actor Other)
 	{
 		If (!Other) Return False;
 		Return (Other.bFrightening || Other.Player && Other.Player.Cheats & CF_FRIGHTENING);
 	}
 	
-	ClearScope Bool IsFlying (Actor Other)
+	Static ClearScope Bool IsFlying (Actor Other)
 	{
 		If (!Other) Return False;
 		
@@ -207,14 +207,14 @@ Mixin Class KAI_CheckFunctions
 		Return False;
 	}
 	
-	ClearScope Bool IsInState (Actor Other, StateLabel CheckFor = "Spawn")
+	Static ClearScope Bool IsInState (Actor Other, StateLabel CheckFor = "Spawn")
 	{
 		If (!Other) Return False; 
 		Return (Other.InStateSequence(Other.CurState,Other.FindState (CheckFor)));
 	}
 	
 	//Can the other actor be targeted ? If the other actor has NOTARGET, but is already being targeted by the caller, then it returns true.
-	ClearScope Bool CanBeTargeted (Actor Caller, Actor Other)
+	Static ClearScope Bool CanBeTargeted (Actor Caller, Actor Other)
 	{
 		If (!Other) Return False;
 		If (Other.bNeverTarget) Return False;
@@ -223,7 +223,7 @@ Mixin Class KAI_CheckFunctions
 	
 	//Returns if the calling actor is fast.
 	//https://github.com/ZDoom/gzdoom/blob/master/src/playsim/p_mobj.cpp?L4892#L4892-L4897
-	ClearScope Bool IsFast (Actor Other)
+	Static ClearScope Bool IsFast (Actor Other)
 	{
 		If (Other.bAlwaysFast) Return True;
 		If (Other.bNeverFast) Return False;
@@ -231,14 +231,14 @@ Mixin Class KAI_CheckFunctions
 	}
 	
 	//Returns true if the specified actor can resurrect corpses like an Archvile does.
-	ClearScope Bool IsNecromancer (Actor Other)
+	Static ClearScope Bool IsNecromancer (Actor Other)
 	{
 		If (!Other) Return False;
 		Return (Other.FindState ("Heal"));//I checked several mods with Archvile-type monsters. And all of them have a Heal state. Making this the only universal way to check for them.
 	}
 	
 	//Returns true if the actor moves using TryMove() (Normal monster movement), or false if it moves using real momentum like players.
-	ClearScope Bool IsTeleportingMonster (Actor Other)
+	Static ClearScope Bool IsTeleportingMonster (Actor Other)
 	{
 		If (!Other) Return False;
 		
@@ -255,7 +255,7 @@ Mixin Class KAI_CheckFunctions
 	/*IDEA: I may add a generic group system for KAI_Actors in the future, similar to the squad system in the old Smart Marines.
 	If I do that, then this function should be able to return true if an actor in the callers' group is attacked, even for hostile monsters !*/
 	//Is the other actor targeting an ally of the caller ?
-	ClearScope Bool IsTargetingAllies (Actor Caller, Actor Other)
+	Static ClearScope Bool IsTargetingAllies (Actor Caller, Actor Other)
 	{
 		If (!Caller || !Other || !Other.Target) Return False;
 		
@@ -294,7 +294,7 @@ Mixin Class KAI_CheckFunctions
 	
 	//Checks if two hitboxes are clipping into one another.
 	//CREDIT: https://developer.mozilla.org/en-US/docs/Games/Techniques/3D_collision_detection
-	ClearScope Bool CheckHitboxIntersection (Actor A, Actor B)
+	Static ClearScope Bool CheckHitboxIntersection (Actor A, Actor B)
 	{
 		If (!A || !B)
 			Return False;
@@ -315,7 +315,7 @@ Mixin Class KAI_CheckFunctions
 	}
 	
 	//Returns the minimum and maximum (Respectively) XYZ boundaries of a hitbox in 2 Vector3s.
-	ClearScope Vector3, Vector3 GetHitboxBoundaries (Actor Mo)
+	Static ClearScope Vector3, Vector3 GetHitboxBoundaries (Actor Mo)
 	{
 		Vector3 MobjMin = (Mo.Pos.X-Mo.Radius,Mo.Pos.Y-Mo.Radius,Mo.Pos.Z);
 		Vector3 MobjMax = (Mo.Pos.X+Mo.Radius,Mo.Pos.Y+Mo.Radius,Mo.Pos.Z+Mo.Height);
@@ -324,7 +324,7 @@ Mixin Class KAI_CheckFunctions
 	}
 	
 	//A ZScript copy of this function: https://github.com/ZDoom/gzdoom/blob/62f37079a7834b813f251818d1db6c80e644d209/src/playsim/actor.h#L1422
-	ClearScope Double KAI_GetSpriteAngle (Actor Other, Double ViewAngle, Double TicFrac)
+	Static ClearScope Double KAI_GetSpriteAngle (Actor Other, Double ViewAngle, Double TicFrac)
 	{
 		If (Other.bSpriteAngle)
 			Return Other.SpriteAngle;
@@ -340,7 +340,7 @@ Mixin Class KAI_CheckFunctions
 	
 	//CREDIT: Written by Boondorl.
 	//What 3D floor is the actor currently in, if any ?
-	ClearScope F3DFloor GetSwimmable3DFloor (Actor Other)
+	Static ClearScope F3DFloor GetSwimmable3DFloor (Actor Other)
 	{
 		if (!other || other.waterLevel <= 0)
 			return null;

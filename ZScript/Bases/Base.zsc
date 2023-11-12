@@ -82,6 +82,23 @@ Class KAI_Actor : Actor Abstract
 		}
 		Else If (!Target)
 			LastEnemyPosition = CurrentEnemyPosition = (Double.NaN,Double.NaN,Double.NaN);
+		
+		//Update hazard list, removing entries that are by now out of range.
+		If (!IsDead(Self) && GetAge() % (GameTicRate/2) == 0)
+		{
+			For (Int I = Hazards.Size()-1; I >= 0; I--)
+			{
+				HazardInfo CurHaz = Hazards[I];
+				
+				//Remove hazards that are out of range, or that are actor-type hazards but have no actual source actor.
+				If (!InHazardRange(CurHaz) || CurHaz.Type == HazardInfo.HAZARD_ACTOR && !CurHaz.Origin)
+				{
+					if (!InHazardRange(CurHaz))
+						console.printf ("removed out of range danger");
+					Hazards.Delete(I);
+				}
+			}
+		}
 	}
 	
 	/*Allows actors to define the defaults for their own user variables. This is better than the //$UserDefaultValue editor key,
@@ -254,6 +271,7 @@ Class KAI_Actor : Actor Abstract
 	Int NewPosStepCount; //How many steps the actor has taken before NextMovePos is reset, so the actor will get a new point to move to. Like if it gets stuck.
 	KAI_EventHandler KAIHandler; //A permanent pointer to the libraries' event handler, for regular accesses to info like the projectile list.
 	Double OldAngle; //The angle the NPC was at last tick.
+	Array <HazardInfo> Hazards; //The hazards the NPC is currently keeping track of.
 	
 	//Keep in mind that the threat level descriptions are mostly based on the stock AssessThreatLevel() code.
 	Enum ThreatLevels

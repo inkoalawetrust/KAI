@@ -99,6 +99,7 @@ So, the code that is meant to be shared by all NPCs also goes here.*/
 #Include "ZScript/Bases/AIFunctions.zsc"
 #Include "ZScript/Bases/OtherFunctions.zsc"
 #Include "ZScript/Bases/OtherCode.zsc"
+#Include "ZScript/Bases/Hazard.zsc" //Universal code for hazards, hazard zones, etc
 #Include "ZScript/Bases/SharedCode.zsc" //Mixins and shit.
 	
 	//The base *land* vehicle class. As of 8/4/2023, this basically a direct rip from a dev build of MVP 0.5.0.

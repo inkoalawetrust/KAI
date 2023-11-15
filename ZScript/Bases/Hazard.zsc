@@ -54,7 +54,7 @@ Class HazardInfo
 			Hazard.Type = Type;
 			Hazard.Level = HazLevel;
 			Hazard.Flags = Flags;
-			Hazard.CustomTags.Move (Tags);
+			Hazard.CustomTags.Copy (Tags);
 		}
 		Else
 			Return;
@@ -88,6 +88,7 @@ Class HazardInfo
 	}
 	
 	//Are Haz1 and Haz2 identical ? Used to prevent hazard emitters from spamming giving entries.
+	//BUG: Currently this does not check for identical custom tags. Since I'm not sure how to check if two arrays have identical string elements.
 	Static Bool AreHazardsIdentical (HazardInfo Haz1, HazardInfo Haz2)
 	{
 		If (!Haz1 || !Haz2)
@@ -123,7 +124,7 @@ Class HazardInfo
 			TagList.AppendFormat ("%s%s", ", ",CurStr);
 		}
 		TagList.StripLeft (", "); //Clean up the first coma split.
-		Console.Printf ("Custom tags: %s",TagList);
+		Console.Printf ("Custom tags: %s Amount: %d",TagList,CustomTags.Size());
 	}
 }
 
@@ -205,7 +206,10 @@ Class KAI_HazardZone : Actor
 		
 		//We have a set of tags, split the coma and space and keep individual tags as strings in the string array.
 		If (User_Tags != "" && User_Tags != " ")
-			User_Tags.Split (Tags, ", ");
+		{
+			User_Tags.Replace (" ","");
+			User_Tags.Split (Tags, ",");
+		}
 		
 		Args[Flags] &= ~(HazardInfo.HAZ_SECTOR); //This is NOT a sector hazard emitter.
 		
@@ -256,7 +260,7 @@ Class KAI_SectorHazard : Actor
 		//$Arg2 Emitter Flags
 		//$Arg2Type 12
 		//$Arg2Tooltip "Flags that change the behavior of the emitter itself."
-		//$Arg2Enum {0 = "Don't warn flying monsters"; 1 = "Don't warn ground monsters";}
+		//$Arg2Enum {1 = "Don't warn flying monsters"; 2 = "Don't warn ground monsters";}
 		+MoveWithSector;
 		+NoInteraction;
 	}
@@ -270,11 +274,14 @@ Class KAI_SectorHazard : Actor
 		
 		//We have a set of tags, split the coma and space and keep individual tags as strings in the string array.
 		If (User_Tags != "" && User_Tags != " ")
-			User_Tags.Split (Tags, ", ");
+		{
+			User_Tags.Replace (" ","");
+			User_Tags.Split (Tags, ",");
+		}
 		
 		//Set up hazard.
 		Hazard = New ("HazardInfo");
-		console.printf ("world hazards are %d",hazardinfo.hazard_world);
+		
 		If (Hazard)
 		{
 			Hazard.Position = Pos;
@@ -332,18 +339,4 @@ Class KAI_SectorHazard : Actor
 	}
 	
 	HazardInfo Hazard; //The hazard to warn about.
-}
-
-Class TestEmitter : Unknown// Replaces MBFHelperDog
-{
-	Override Void Tick()
-	{
-		Super.Tick();
-		
-		If (!IsFrozen() && GetAge() % 4 == 0)
-		{
-			console.printf ("running debug warning zone");
-			HazardInfo.EmitHazard (Self,256,HazardInfo.HAZARD_ACTOR,HazardInfo.HAZARD_MEDIUM);
-		}
-	}
 }

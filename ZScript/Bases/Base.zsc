@@ -84,19 +84,16 @@ Class KAI_Actor : Actor Abstract
 			LastEnemyPosition = CurrentEnemyPosition = (Double.NaN,Double.NaN,Double.NaN);
 		
 		//Update hazard list, removing entries that are by now out of range.
+		//TODO: Probably add a flag that disables the updating, so that people can add their own logic, without making an expensive virtual.
 		If (!IsDead(Self) && GetAge() % (GameTicRate/2) == 0)
 		{
 			For (Int I = Hazards.Size()-1; I >= 0; I--)
 			{
 				HazardInfo CurHaz = Hazards[I];
-				
+				CurHaz.PrintHazardInfo();
 				//Remove hazards that are out of range, or that are actor-type hazards but have no actual source actor.
 				If (!InHazardRange(CurHaz) || CurHaz.Type == HazardInfo.HAZARD_ACTOR && !CurHaz.Origin)
-				{
-					if (!InHazardRange(CurHaz))
-						console.printf ("removed out of range danger");
 					Hazards.Delete(I);
-				}
 			}
 		}
 	}

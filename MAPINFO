@@ -2,3 +2,9 @@ GameInfo
 {
 	AddEventHandlers = "KAI_EventHandler"
 }
+
+DoomEdNums
+{
+	1700 = "KAI_HazardZone"
+	1701 = "KAI_SectorHazard"
+}

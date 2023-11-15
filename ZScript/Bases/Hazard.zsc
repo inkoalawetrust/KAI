@@ -11,8 +11,7 @@ Class HazardInfo
 	HazardTypes Type; //What is the hazard exactly ?
     HazardLevels Level; //How serious is it ?
 	HazardFlags Flags; //Specific attributes of the hazard. e.g to mark that NPCs are free to detect it even when its' out of sight (Skip CheckSight())
-	//Name CustomType; //MAYDO: Add this as a DamageType-like system for custom hazard types and identifiers ?
-	//Array <String> CustomTags; //Probably a better system for custom hazard types than a single string/name type. So that you can give multiple tags.
+	Array <String> CustomTags; //Custom attributes passed as strings for mods to use. e.g to mark a nukage sector hazard in particular as "Nukage" and "Toxic"
 	
 	Enum HazardTypes
 	{
@@ -37,10 +36,11 @@ Class HazardInfo
 	Enum HazardFlags
 	{
 		HAZ_NOSIGHT = 1 << 0, //NPCs should be aware of the hazard even if it's not visible.
+		HAZ_SECTOR	= 1 << 1, //The hazard in question is the sector at Position, instead of any particular point.
 	}
 	
 	//Emit a hazard alert around a source actor.
-	Static Play Void EmitHazard (Actor Source, Double Range, Int Type = HazardInfo.HAZARD_NONE, Int HazLevel = HazardInfo.HAZARD_LOW, Int Flags = 0)
+	Static Play Void EmitHazard (Actor Source, Double Range, Int Type = HazardInfo.HAZARD_NONE, Int HazLevel = HazardInfo.HAZARD_LOW, Int Flags = 0, Array <String> Tags = Null)
 	{
 		If (!Source || Range <= 0)
 			Return;
@@ -54,6 +54,7 @@ Class HazardInfo
 			Hazard.Type = Type;
 			Hazard.Level = HazLevel;
 			Hazard.Flags = Flags;
+			Hazard.CustomTags.Move (Tags);
 		}
 		Else
 			Return;
@@ -104,16 +105,50 @@ Class HazardInfo
 		
 		Return False;
 	}
+	
+	Void PrintHazardInfo()
+	{
+		Console.Printf ("Hazard pointer: %p",Self);
+		Console.Printf ("Position: %.2f %.2f %.2f",Position);
+		If (Origin) Console.Printf ("Origin name: %s, Pointer %p",Origin.GetClassName(),Origin);
+		Console.Printf ("Range %f",Range);
+		Console.Printf ("Type: %d, Level: %d", Type, Level);
+		Console.Printf ("Flags:");
+		If (Flags & HAZ_NOSIGHT) Console.Printf ("HAZ_NOSIGHT");
+		If (Flags & HAZ_SECTOR) Console.Printf ("HAZ_SECTOR");
+		
+		String TagList;
+		ForEach (CurStr : CustomTags) //Generate a coma separated tag list.
+		{
+			TagList.AppendFormat ("%s%s", ", ",CurStr);
+		}
+		TagList.StripLeft (", "); //Clean up the first coma split.
+		Console.Printf ("Custom tags: %s",TagList);
+	}
 }
 
 //Hazard-specific NPC code.
 Extend Class KAI_Actor
 {
-	//Check if the NPC is in range of the specified hazard. Either the origin actor or position.
+	//Check if the NPC is in range of the specified hazard. Either the origin actor, position, or sector.
 	Bool InHazardRange (HazardInfo Hazard)
 	{
-		If (!Hazard || Hazard.Range <= 0 || !Hazard.Origin && Hazard.Position != Hazard.Position) //No range or hazard.
+		//No hazard.
+		If (!Hazard)
 			Return False;
+		
+		//No range specified for point hazard, or there's no valid position, or a sector hazard is not on any sector.
+		If (!(Hazard.Flags & HazardInfo.HAZ_SECTOR) && Hazard.Range <= 0 || !Hazard.Origin && Hazard.Position != Hazard.Position)
+			Return False;
+		
+		Sector PointSec = Level.PointInSector (Hazard.Position.XY);
+		
+		//Sector hazard not actually on a sector.
+		If (Hazard.Flags & HazardInfo.HAZ_SECTOR && !PointSec)
+			Return False;
+		
+		If (Hazard.Flags & HazardInfo.HAZ_SECTOR && CurSector == PointSec)
+			{console.printf ("inside a hazardous sector"); Return True;}
 		
 		If (Hazard.Origin && Distance3DSquared (Hazard.Origin) < Hazard.Range*Hazard.Range || Level.Vec3Diff (Hazard.Position,Pos).Length() < Hazard.Range) //In range.
 			Return True;
@@ -122,7 +157,184 @@ Extend Class KAI_Actor
 	}
 }
 
-Class TestEmitter : Unknown Replaces MBFHelperDog
+//Stock hazard zone, emits a hazard every tic based on the initial arguments passed.
+Class KAI_HazardZone : Actor
+{
+	Default
+	{
+		Scale 0.5;
+		//$NotAngled
+		//$Title Hazard Zone
+		//$Category ZDoom
+		//$Sprite KAISA0
+		//$Arg0 Range
+		//$Arg0Tooltip "The range of the hazard zone, in map units."
+		//$Arg0Default 128
+		//$Arg1 Type
+		//$Arg1Type 11
+		//$Arg1Tooltip "The type of danger this hazard is"
+		//$Arg1Enum {0 = "None"; 1 = "Other"; 2 = "World"; 3 = "Actor"; 4 = "Attack";}
+		//$Arg1Default 1
+		//$Arg2 Level
+		//$Arg2Type 11
+		//$Arg2Tooltip "The severity of the hazard"
+		//$Arg2Enum {1 = "Very Low"; 2 = "Low"; 3 = "Medium"; 4 = "Large"; 5 = "Huge"; 6 = "Apollyon";}
+		//$Arg2Default 2
+		//$Arg3 Flags
+		//$Arg3Type 12
+		//$Arg3Tooltip "The attributes of the hazard"
+		//$Arg3Enum {1 = "Ignore sight checks";}
+		+MoveWithSector;
+		+NoInteraction;
+	}
+	
+	String User_Tags; //Custom tag attributes, this is a spaceless, coma separated list where its' word becomes an element in the hazards' CustomTags array.
+	Array <String> Tags;
+	
+	Enum HazParams
+	{
+		Range,
+		Type,
+		HazLevel,
+		Flags,
+	}
+	
+	Override Void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		
+		//We have a set of tags, split the coma and space and keep individual tags as strings in the string array.
+		If (User_Tags != "" && User_Tags != " ")
+			User_Tags.Split (Tags, ", ");
+		
+		Args[Flags] &= ~(HazardInfo.HAZ_SECTOR); //This is NOT a sector hazard emitter.
+		
+		//Set up hazard.
+		Hazard = New ("HazardInfo");
+		
+		If (Hazard)
+		{
+			Hazard.Position = (Double.NaN, Double.NaN, Double.NaN);
+			Hazard.Origin = Self;
+			Hazard.Range = Args[Range];
+			Hazard.Type = Args[Type];
+			Hazard.Level = Args[HazLevel];
+			Hazard.Flags = Args[Flags];
+			//Hazard.CustomTags = Tags;
+		}
+	}
+	
+	Override Void Tick()
+	{
+		Super.Tick ();
+		
+		If (!IsFrozen() && !bDormant)
+			{a_log ("emitting hazard");HazardInfo.EmitHazard (Self,Args[Range],Args[Type],Args[HazLevel],Args[Flags],Tags);}
+	}
+	
+	HazardInfo Hazard; //The hazard to warn about.
+}
+
+//Marks the entire sector its' on as a hazard, iterating through its' thinglist and warning every eligible actor.
+Class KAI_SectorHazard : Actor
+{
+	Default
+	{
+		//$Title Sector Hazard Zone
+		//$Category Sector Actions
+		//$Sprite KAISB0
+		//$ClearArgs
+		//$Arg0 Level
+		//$Arg0Type 11
+		//$Arg0Tooltip "The severity of the hazard"
+		//$Arg0Enum {1 = "Very Low"; 2 = "Low"; 3 = "Medium"; 4 = "Large"; 5 = "Huge"; 6 = "Apollyon";}
+		//$Arg0Default 2
+		//$Arg1 Flags (Does nothing currently)
+		//$Arg1Type 12
+		//$Arg1Tooltip "The attributes of the hazard"
+		//$Arg1Enum {1 = "Ignore sight checks";}
+		//$Arg2 Emitter Flags
+		//$Arg2Type 12
+		//$Arg2Tooltip "Flags that change the behavior of the emitter itself."
+		//$Arg2Enum {0 = "Don't warn flying monsters"; 1 = "Don't warn ground monsters";}
+		+MoveWithSector;
+		+NoInteraction;
+	}
+	
+	String User_Tags; //Custom tag attributes, this is a spaceless, coma separated list where its' word becomes an element in the hazards' CustomTags array.
+	Array <String> Tags;
+	
+	Override Void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		
+		//We have a set of tags, split the coma and space and keep individual tags as strings in the string array.
+		If (User_Tags != "" && User_Tags != " ")
+			User_Tags.Split (Tags, ", ");
+		
+		//Set up hazard.
+		Hazard = New ("HazardInfo");
+		console.printf ("world hazards are %d",hazardinfo.hazard_world);
+		If (Hazard)
+		{
+			Hazard.Position = Pos;
+			Hazard.Type = HazardInfo.HAZARD_WORLD;
+			Hazard.Level = Args[0];
+			Hazard.Flags = Args[1];
+			Hazard.CustomTags.Copy (Tags);
+			
+			Hazard.Flags |= HazardInfo.HAZ_SECTOR;
+		}
+	}
+	
+	Mixin KAI_CheckFunctions;
+	
+	Int Flags;
+	
+	Enum SecHazEmitFlags
+	{
+		SECHAZ_NOAIR 	= 1 << 0, //Flying NPCs are not warned by this zone. e.g if it's a harmful floor instead of a crusher
+		SECHAZ_NOGROUND	= 1 << 1, //Ground NPCs are not warned by this zone.
+	}
+	
+	Override Void Tick()
+	{
+		Super.Tick ();
+		
+		If (!IsFrozen() && !bDormant)
+		{
+			Hazard.Position = Pos; //Just in case it moves.
+			
+			int i;
+			For (Actor CurMo = CurSector.ThingList; CurMo != Null; CurMo = CurMo.SNext)
+			{
+				If (!CurMo || !(CurMo Is "KAI_Actor") || IsDead (CurMo))
+					Continue;
+				
+				If (Flags & SECHAZ_NOAIR && IsFlying (CurMo) || Flags & SECHAZ_NOGROUND && !IsFlying (CurMo))
+					Continue;
+				
+				Bool Skip;
+				//Don't give duplicate hazard entries if the NPC already got this one.
+				ForEach (CurHaz : KAI_Actor(CurMo).Hazards)
+				{
+					If (HazardInfo.AreHazardsIdentical (Hazard, CurHaz))
+						{console.printf ("prevented passing identical hazard to %s",CurMo.getclassname());Skip = True;}
+				}
+				
+				If (Skip)
+					Continue;
+				
+				KAI_Actor(CurMo).Hazards.Push (Hazard);
+				CurMo = CurMo.SNext;
+			}
+		}
+	}
+	
+	HazardInfo Hazard; //The hazard to warn about.
+}
+
+Class TestEmitter : Unknown// Replaces MBFHelperDog
 {
 	Override Void Tick()
 	{

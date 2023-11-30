@@ -44,13 +44,15 @@ Extend Class KAI_BaseVehicle
 			Turret.Angle = Angle;
 			Turret.Pitch = Pitch;
 			Turret.Master = Self;
-			If (!Turret.bTransferDamage) //FIXME: This causes a bug where if the UDMF health is 0 or -1, it will make the turret undead. Probably happens on normal turrets too.
+			If (!Turret.bTransferDamage)
 			{
 				Double HealthFactor = Double(Health) / Double(Default.Health); //HACK: There's no proper way to get the exact spawn health or spawn health multiplier defined in the map editor.
 				Turret.Health *= HealthFactor;
 			}
 			Turret.TurretOffsets = TurretOffsets;
 			If (bPassThreatLevelToTurrets && Turret.ThreatLevel == THREAT_ASSESS && ThreatLevel != THREAT_ASSESS) Turret.ThreatLevel = ThreatLevel;
+			If (IsDead(Self)) //If the vehicle spawning the turret is dead already, e.g if it spawns from the map with 0 health.
+				Turret.Die (Null, Null); //Then kill it's turret too.
 		}
 		Return;
 	}

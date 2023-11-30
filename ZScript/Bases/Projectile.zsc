@@ -29,7 +29,7 @@ Class KAI_BaseProjectile : FastProjectile
 	Bool TrailSpawned;
 	Vector3 OldPos;
 	
-	//HACK: The stock FastProjectile code. We have to basically reimplement the whole think to make it support bouncing projectiles again.
+	//HACK: The stock FastProjectile code. We have to basically reimplement the whole thing to make it support bouncing projectiles again.
 	Void FastProjectileTick()
 	{
 		ClearInterpolation();

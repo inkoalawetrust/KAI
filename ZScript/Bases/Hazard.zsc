@@ -76,7 +76,7 @@ Class HazardInfo
 			ForEach (CurHaz : KAI_Actor(Mobj).Hazards)
 			{
 				If (AreHazardsIdentical (Hazard, CurHaz))
-					{console.printf ("prevented passing identical hazard to %s",mobj.getclassname());Skip = True;}
+					Skip = True;
 			}
 			
 			If (Skip)
@@ -113,7 +113,56 @@ Class HazardInfo
 		Console.Printf ("Position: %.2f %.2f %.2f",Position);
 		If (Origin) Console.Printf ("Origin name: %s, Pointer %p",Origin.GetClassName(),Origin);
 		Console.Printf ("Range %f",Range);
-		Console.Printf ("Type: %d, Level: %d", Type, Level);
+		String TypeStr, LevelStr;
+		Switch (Type)
+		{
+			Case HAZARD_NONE:
+				TypeStr = "HAZARD_NONE";
+				Break;
+			Case HAZARD_OTHER:
+				TypeStr = "HAZARD_OTHER";
+				Break;
+			Case HAZARD_WORLD:
+				TypeStr = "HAZARD_WORLD";
+				Break;
+			Case HAZARD_ACTOR:
+				TypeStr = "HAZARD_ACTOR";
+				Break;
+			Case HAZARD_ATTACK:
+				TypeStr = "HAZARD_ATTACK";
+				Break;
+			Default:
+				TypeStr = "Undefined";
+				Break;
+		}
+		Switch (Level)
+		{
+			Case HAZARD_HARMLESS:
+				LevelStr = "HAZARD_HARMLESS";
+				Break;
+			Case HAZARD_VERYLOW:
+				LevelStr = "HAZARD_VERYLOW";
+				Break;
+			Case HAZARD_LOW:
+				LevelStr = "HAZARD_LOW";
+				Break;
+			Case HAZARD_MEDIUM:
+				LevelStr = "HAZARD_MEDIUM";
+				Break;
+			Case HAZARD_LARGE:
+				LevelStr = "HAZARD_LARGE";
+				Break;
+			Case HAZARD_HUGE:
+				LevelStr = "HAZARD_HUGE";
+				Break;
+			Case HAZARD_APOLLYON:
+				LevelStr = "HAZARD_APOLLYON";
+				Break;
+			Default:
+				LevelStr = "Undefined";
+				Break;
+		}
+		Console.Printf ("Type: %s, Level: %s", TypeStr, LevelStr);
 		Console.Printf ("Flags:");
 		If (Flags & HAZ_NOSIGHT) Console.Printf ("HAZ_NOSIGHT");
 		If (Flags & HAZ_SECTOR) Console.Printf ("HAZ_SECTOR");
@@ -155,6 +204,37 @@ Extend Class KAI_Actor
 			Return True;
 		
 		Return False;
+	}
+	
+	//Get the distance to a hazard.
+	Double GetHazardDistance (HazardInfo Hazard)
+	{
+		If (!Hazard) Return -1;
+		
+		//This is a sector hazard and you share the same sector, so it's right on you.
+		If (Hazard.Flags & HazardInfo.HAZ_SECTOR && CurSector == Level.PointInSector (Hazard.Position.XY))
+			Return 0;
+		
+		//No origin and the position vector isn't empty, get distance to vector.
+		If (!Hazard.Origin && !KAI_Math.IsEmptyVector3 (Hazard.Position))
+			Return Level.Vec3Diff (Pos,Hazard.Position).Length();
+		
+		//We have an Origin, just do Distance3D().
+		If (Hazard.Origin)
+			Return Distance3D (Hazard.Origin);
+		
+		Return 0;
+	}
+	
+	//Get the origin position of a hazard.
+	Vector3 GetHazardOriginPos (HazardInfo Hazard, Bool AttackerIsOrigin = False)
+	{
+		If (!Hazard) Return (Double.NaN, Double.NaN, Double.NaN);
+		
+		If (Hazard.Origin && (!AttackerIsOrigin || Hazard.Type != HazardInfo.HAZARD_ATTACK)) //Get the origin actors' position, unless it's an attack hazard.
+			Return Hazard.Origin.Pos;
+		
+		Return Hazard.Position;
 	}
 }
 
@@ -233,7 +313,7 @@ Class KAI_HazardZone : Actor
 		Super.Tick ();
 		
 		If (!IsFrozen() && !bDormant)
-			{a_log ("emitting hazard");HazardInfo.EmitHazard (Self,Args[Range],Args[Type],Args[HazLevel],Args[Flags],Tags);}
+			HazardInfo.EmitHazard (Self,Args[Range],Args[Type],Args[HazLevel],Args[Flags],Tags);
 	}
 	
 	HazardInfo Hazard; //The hazard to warn about.

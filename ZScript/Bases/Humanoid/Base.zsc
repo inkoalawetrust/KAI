@@ -64,7 +64,7 @@ Class KAI_Humanoid : KAI_Creature Abstract
 		If (!CheckMove (CheckPos,0,Tm) && !KAI_LineBlocksClimb (BlockingLine)
 		//NPCs can climb over actors, but shouldn't do it on LIVING ones, since it looks stupid, especially if they start climbing over the player.
 		//MAYDO: Make a flag to disable the living actor check ?
-		&& (!BlockingMobj || IsInanimateObject (BlockingMobj)))
+		&& (!BlockingMobj || (IsInanimateObject (BlockingMobj) || IsDead(BlockingMobj) && BlockingMobj.bDontCorpse)  ))
 		{
 			//KLUDGE: Why does CheckPosition() have a flag to only check actors but not one only for level geo ? So that I have to do this stupid hack.
 			Bool MobjBlock = bThruActors;

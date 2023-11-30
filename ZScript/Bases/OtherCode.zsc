@@ -285,7 +285,7 @@ Mixin Class KAI_CheckFunctions
 				Return True;
 			
 			//Is the other actor targeting an actor with the same species as you ? Then they are an enemy as far as you are concerned.
-			If (Other.Target && (Caller.bNoInfightSpecies && Caller.Species == Other.Target.Species))
+			If (Other.Target && !Other.Target.bFriendly && (Caller.bNoInfightSpecies && Caller.Species == Other.Target.Species))
 				Return True;
 		}
 		
@@ -601,6 +601,7 @@ Class LOFProjInfo
 	Int RipLevel; //The ripper level of the projectile
 	Int RipDepth; //How many rips the projectile will do before exploding. This is decremented here like it is for rippers.
 	Bool RipOnce; //Does the projectile only rip through each victim once ?
+	Bool HitOwner; //The projectile can hit its' own shooter.
 	
 	//Initialize and store info related to the projectile the check is for. THIS MUST BE CALLED AFTER THE PROJECTILE IS PASSED, AND BEFORE any TRACE().
 	Void InitializeProjectileInfo()
@@ -609,6 +610,7 @@ Class LOFProjInfo
 		IsRipper = GetDefaultByType(Projectile).bRipper;
 		NoBossRip = GetDefaultByType(Projectile).bNoBossRip;
 		RipLevel = GetDefaultByType(Projectile).RipperLevel;
+		HitOwner = GetDefaultByType(Projectile).bHitOwner;
 		//KAI specific properties.
 		If (Projectile Is "KAI_BaseProjectile")
 		{
@@ -681,11 +683,13 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 		
 		//The target is in the line of fire. Or the Mobj is an enemy. Shoot them anyway.
 		If (Other && Mobj == Other || !IsInanimateObject(Mobj) && IsHostile(Shooter,Mobj))
-			/*{console.printf("this is an enemy");*/Return Trace_Stop;//}
+			{/*console.printf("this is an enemy");*/Return Trace_Stop;}
 		
 		//If friendly fire prevention is on, return false if an ally is in the way.
-		If (FriendlyFire && Mobj && !IsDead(Mobj) && IsCollidable (Mobj) && !IsInanimateObject(Mobj) && !IsHostile(Shooter,Mobj))
-		{//console.printf ("blue on blue !");
+		Bool WillHitOwnShooter = (Shooter && ProjInfo && (Mobj == Shooter && ProjInfo.HitOwner) ); //Make sure the projectile won't kill the shooter itself.
+		
+		If (FriendlyFire && (WillHitOwnShooter || (Mobj && Mobj != Shooter && !IsDead(Mobj) && IsCollidable (Mobj) && !IsInanimateObject(Mobj) && !IsHostile (Shooter,Mobj))) )
+		{//console.printf ("blue on blue ! will hit %p by accident",mobj);
 			BadLOF = True;
 			Return Trace_Stop;
 		}

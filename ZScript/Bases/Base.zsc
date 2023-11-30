@@ -90,7 +90,7 @@ Class KAI_Actor : Actor Abstract
 			For (Int I = Hazards.Size()-1; I >= 0; I--)
 			{
 				HazardInfo CurHaz = Hazards[I];
-				CurHaz.PrintHazardInfo();
+				//CurHaz.PrintHazardInfo(); //DEBUG
 				//Remove hazards that are out of range, or that are actor-type hazards but have no actual source actor.
 				If (!InHazardRange(CurHaz) || CurHaz.Type == HazardInfo.HAZARD_ACTOR && !CurHaz.Origin)
 					Hazards.Delete(I);

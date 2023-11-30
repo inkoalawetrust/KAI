@@ -331,9 +331,13 @@ Extend Class KAI_Actor
 	//MaxSteps: How many steps the actor is allowed to take before having to find a new position to move away to.
 	//The rest are KAI_MoveTowards' parameters.
 	//KMAFlags: The flags unique to KAI_MoveAway.
-	Void KAI_MoveAway (Actor Other, Int Attempts = 32, Double RunRad = 128, Int MaxSteps = 32, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0, Int KMAFlags = 0)
+	//TargPos: If this is set to a non-NaN value. This position vector will be used directly instead of the Other pointer.
+	Void KAI_MoveAway (Actor Other, Int Attempts = 32, Double RunRad = 128, Int MaxSteps = 32, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0,
+	Int KMAFlags = 0, Vector3 TargPos = (Double.NaN, Double.NaN, Double.NaN))
 	{
-		If (!Other) Return;
+		If (!Other && KAI_Math.IsEmptyVector3(TargPos)) {console.printf ("KAI_MoveAway(): Premptively stopping execution");Return;}
+		
+		Vector3 RunPos = Other ? Other.Pos : TargPos;
 		
 		//Got a goal to head to, no time to get spooked.
 		If (Flags & KMT_CHASEGOAL && Goal && bChaseGoal)
@@ -356,8 +360,11 @@ Extend Class KAI_Actor
 			NewPosStepCount = 0;
 		}
 		
+		Actor SightTarget = Other;
+		If (!SightTarget) SightTarget = Spawn ("KAI_DebugPoint",TargPos); //Spawn a debug point to check the sight of at TargPos instead for running from a coordinate.
+		
 		//Try to run behind corners.
-		If (KMAFlags & KMA_USECORNERS && CheckSight(Other,SF_IGNOREWATERBOUNDARY))
+		If (KMAFlags & KMA_USECORNERS && CheckSight(SightTarget,SF_IGNOREWATERBOUNDARY))
 		{
 			Vector3 RealPos = Pos;
 			Double CheckLength = (Radius*2)*8; //Check 8 diameters to your right or left for a corner.
@@ -366,7 +373,7 @@ Extend Class KAI_Actor
 			Vector3 LeftPos = Vec3Angle (CheckLength,Angle-90);
 			SetOrigin (LeftPos,False);
 			//I think CheckSight() is literally cheaper than IsPosReachable() so run these checks first.
-			Bool LeftSight = Other.CheckSight (Self,SF_IGNOREWATERBOUNDARY);
+			Bool LeftSight = SightTarget.CheckSight (Self,SF_IGNOREWATERBOUNDARY);
 			SetOrigin (RealPos, False);
 			If (!LeftSight && IsPosReachable (LeftPos,ignoreactors:True))
 			{
@@ -377,7 +384,7 @@ Extend Class KAI_Actor
 			//Check your right.
 			Vector3 RightPos = Vec3Angle (CheckLength,Angle+90);
 			SetOrigin (RightPos,False);
-			Bool RightSight = Other.CheckSight (Self,SF_IGNOREWATERBOUNDARY);
+			Bool RightSight = SightTarget.CheckSight (Self,SF_IGNOREWATERBOUNDARY);
 			SetOrigin (RealPos, False);
 			If (!RightSight && IsPosReachable (RightPos,ignoreactors:True))
 			{
@@ -386,10 +393,10 @@ Extend Class KAI_Actor
 			}
 		}
 		If (!(KMAFlags & KMA_STRAIGHT))
-			NextMovePos = FindRandomMovePos (Other.Pos,Attempts,RunRad,FRMP_FURTHEST); //Pick whichever position is the furthest from Other.
+			NextMovePos = FindRandomMovePos (RunPos,Attempts,RunRad,FRMP_FURTHEST); //Pick whichever position is the furthest from Runpos.
 		Else
 		{
-			NextMovePos.XY = Vec2Angle (RunRad,AngleTo(Other)-180);
+			NextMovePos.XY = Vec2Angle (RunRad,GetAngleToPos(RunPos)-180);
 			NextMovePos.Z = GetZAt (NextMovePos.X,NextMovePos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
 		}
 	}
@@ -612,7 +619,7 @@ Extend Class KAI_Actor
 	Bool KAI_NPCUseLines()
 	{
 		If (bNoTrigger || !BlockingLine) Return False;
-        a_log ("KAI_NPCUseLines() running");
+       
         If (BlockingLine.Special)
         {
             If (bCanUseWalls)

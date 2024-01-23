@@ -192,8 +192,8 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	{
 		ORDER_NONE = 0, //Null
 		ORDER_FOLLOW = 1, //Follow the player when having no target.
-		ORDER_WANDER = 2, //Wander around when having no target, instead of following the player.
-		ORDER_STAY = 3, //Stay in place until a target appears or you are ordered to start moving again. Then stand around again once the chase timer is out.
+		ORDER_STAY = 2, //Stay in place until a target appears or you are ordered to start moving again. Then stand around again once the chase timer is out.
+		ORDER_WANDER = 3, //Wander around when having no target, instead of following the player.
 		//ORDER_GOTOPOINT ? Perhaps, but maybe not, since I'm not sure how I could code the vehicles to head to a specified point.
 	};
 	

@@ -11,9 +11,6 @@ Version "4.11.0"
 
 //Uh, add cool license and ASCII art or whatever the fuck here.
 
-//TODO:
-//Implement a warning zone system similar to the MVPs. But that works for all actors, not just the Smart Marines. Also maybe keep using inventory tokens for it, for non-KAI mod support.
-
 //IDEA:
 /*Today (1/7/2023) I made a suggestion to PBs' developers on how to implement the hitbox system to monsters. Move the hitbox handling to a HandleLocalDamage
 virtual, change the hitbox factors (e.g if an attack hit 0.8 of the monsters' height or above ,it hit the head) into properties instead of hardcoded values etc.

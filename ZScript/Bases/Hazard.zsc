@@ -1,4 +1,5 @@
 //IDEA: Add some way to allow non-KAI actors to get hazard warnings and store them ?
+//TODO: Figure out how to use the netevent command to create a custom command that returns all hazards a KAI NPC is currently tracking.
 
 //Has to be a class because ZScript is shit and can't handle struct arrays.
 Class HazardInfo
@@ -207,6 +208,7 @@ Extend Class KAI_Actor
 	}
 	
 	//Get the distance to a hazard.
+	//MAYDO: If it's a sector hazard but the NPC is outside of its' sector, maybe fire a LineTracer that only stops once it crosses the hazard sector ?
 	Double GetHazardDistance (HazardInfo Hazard)
 	{
 		If (!Hazard) Return -1;

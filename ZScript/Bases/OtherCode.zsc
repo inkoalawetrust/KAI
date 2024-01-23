@@ -257,7 +257,7 @@ Mixin Class KAI_CheckFunctions
 	//Is the other actor targeting an ally of the caller ?
 	Static ClearScope Bool IsTargetingAllies (Actor Caller, Actor Other)
 	{
-		If (!Caller || !Other || !Other.Target) Return False;
+		If (!Caller || !Other || !Other.Target || IsInanimateObject(Other.Target)) Return False;
 		
 		If (Caller.bFriendly)
 		{

@@ -88,6 +88,17 @@ Default
 	}
 }
 
+/*class pathfindingtest : lostsoul// replaces lostsoul
+{
+	Default{+PATHING;}
+	states
+	{
+		See:
+				SKUL AB 3 BRIGHT A_Chase;
+				Loop;
+	}
+}*/
+
 //=====|Library structure|=====\\
 /*The most basic NPC class, all types are based on this, land/water/air vehicles, humanoids, flying creatures, you name it. 
 So, the code that is meant to be shared by all NPCs also goes here.*/

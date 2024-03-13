@@ -84,10 +84,13 @@ Class KAI_Humanoid : KAI_Creature Abstract
 			if ((FloorZ - Tm.DropoffZ > MaxDropOffHeight))
 				console.printf ("the floor dropoff is over the max drop off height");
 			
-			Double RealZ = Pos.Z;
-			SetXYZ ((Pos.XY,ClimbZ));
-			Bool PosGood = CheckPosition (CheckPos);
-			SetXYZ ((Pos.XY,RealZ));
+			//Double RealZ = Pos.Z;
+			//SetXYZ ((Pos.XY,ClimbZ));
+			Vector3 OldPos = Pos;
+			SetXYZ ((CheckPos,ClimbZ));
+			Bool PosGood = TestMobjLocation ();
+			SetXYZ (OldPos);
+			//SetXYZ ((Pos.XY,RealZ));
 			
 			if (!PosGood)
 				console.printf ("checkposition failed");
@@ -268,6 +271,7 @@ Class KAI_Humanoid : KAI_Creature Abstract
 		if(dist >= aimDist)
 		{
 			double grav = 1.0 + ceil(self.GetGravity() * (level.gravity * 0.010769));
+			console.printf ("KAI_JumpTo(): Grav value is %.2f",grav);
 			double ticsDist = diff.Length() / double(max(self.Speed,1.0));        
 			double fallDist = ticsDist * grav;
 			toPos.z += fallDist * aimSens;
@@ -276,6 +280,7 @@ Class KAI_Humanoid : KAI_Creature Abstract
 		// Recalculate differences.
 		diff = level.vec3diff(fromPos, toPos);
 		double aimPitch = VectorAngle( sqrt(diff.y*diff.y + diff.x*diff.x), diff.z );
+		aimPitch = abs(aimPitch); //[inkoalawetrust] Hacky fix for gimbal lock when the aimPitch is calculated to be almost a straight line up.
 		aimPitch = min(aimPitch, maxPitch);
 		// Modify NPC velocity
 		double a = GetAngleToPos(Where,0);

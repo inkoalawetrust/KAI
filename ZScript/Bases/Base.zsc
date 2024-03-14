@@ -269,6 +269,7 @@ Class KAI_Actor : Actor Abstract
 	KAI_EventHandler KAIHandler; //A permanent pointer to the libraries' event handler, for regular accesses to info like the projectile list.
 	Double OldAngle; //The angle the NPC was at last tick.
 	Array <HazardInfo> Hazards; //The hazards the NPC is currently keeping track of.
+	Array <KAI_NPCGroup> Groups; //A list of all the groups the actor is part of. Behavior like what group leader to follow is up to the NPC. //URGENT: NOTE: I might change this so NPCs can only be part of one group.
 	
 	//Keep in mind that the threat level descriptions are mostly based on the stock AssessThreatLevel() code.
 	Enum ThreatLevels
@@ -306,6 +307,7 @@ Class KAI_DebugPoint : Actor
 
 Class KAI_EventHandler : EventHandler
 {
+	//Actor lists
 	Array <Actor> ProjectileList; //Much faster alternative to just using a ThinkerIterator.
 	Array <KAI_BaseVehicle> AllVehicles; //Stores references to the usually few vehicles found in maps.
 	
@@ -320,7 +322,6 @@ Class KAI_EventHandler : EventHandler
 	Override Void WorldThingDied (WorldEvent E)
 	{
 		RemoveFromProjectileList (E.Thing); //Delete any destroyed projectiles from the list.
-		//RemoveFromVehicleList (KAI_BaseVehicle(E.Thing));
 	}
 	
 	Override Void WorldThingDestroyed (WorldEvent E)
@@ -345,10 +346,70 @@ Class KAI_EventHandler : EventHandler
 	
 	Void RemoveFromVehicleList (KAI_BaseVehicle Who)
 	{
-		//If (!(E.Thing Is "KAI_BaseVehicle")) Return;
 		Let Veh = AllVehicles.Find(Who);
 		If (Veh < AllVehicles.Size())
 			AllVehicles.Delete(Veh);
+	}
+	//================================================
+	//NPC Group system handling.
+	Int GroupJanitorTimer;
+	
+	Map <Int, KAI_NPCGroup> NPCGroups; //Stores all the NPC groups available.
+	Override Void WorldTick ()
+	{
+		//Clean up map keys that don't lead to a pointer to a group.
+		//MAYDO: Add code to handle cases where the group might have no leader for some reason ? Like by calling a LeaderFallback() virtual or something.
+		If (!GroupJanitorTimer--)
+		{Console.Printf ("KAI_EventHandler: Running Group map janitor...");
+			ForEach (K, V : NPCGroups)
+			{
+				If (!NPCGroups.CheckKey(K)) //No group assigned, get rid of it.
+					{console.printf ("Deleting key %d",K);NPCGroups.Remove(K);}
+				Else
+				{
+					Console.printf ("Iterated through key %d, value %p",K,V);
+					//This key does have a group assigned to it, but the group has no members in it. Which means that it needs to be removed too.
+					If (!NPCGroups.Get(K).Members.Size())
+					{
+						NPCGroups.Get(K).Destroy(); //Destroy empty group.
+						NPCGroups.Remove(K);
+					}
+					
+				}
+			}
+			GroupJanitorTimer = Random (GameTicRate,GameTicRate*3); //Run this every 1-3 seconds.
+		}
+	}
+	
+	//Find a specific NPC group by its' ID, if you need that for some reason, instead of iterating all groups.
+	KAI_NPCGroup FindNPCGroupByID (Int ID)
+	{
+		ForEach (K, V : NPCGroups)
+		{
+			If (NPCGroups.CheckKey(ID))
+				Return NPCGroups.Get(ID);
+		}
+		
+		Return Null;
+	}
+	
+	//Find NPC group(s) by name. Since group names are not unique, you need an array in case multiple groups have the same name.
+	Bool FindNPCGroupsByName (String GroupName, Bool CaseSensitive, Array<KAI_NPCGroup> &Groups)
+	{
+		If (!Groups) Return False;
+		
+		ForEach (K, V : NPCGroups)
+		{
+			If (NPCGroups.CheckKey(K))
+			{
+				Let Group = NPCGroups.CheckValue(K);
+				//Found an identically named group, pass it to the return array.
+				If (CaseSensitive && GroupName == Group.GroupName || !CaseSensitive && GroupName ~== Group.GroupName)
+					Groups.Push (Group);
+			}
+		}
+		
+		Return Groups.Size();
 	}
 }
 

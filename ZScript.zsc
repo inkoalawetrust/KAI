@@ -1,3 +1,17 @@
+/*=============================================================================================================================
+      ___          ___                              ___               ___          ___          ___          ___       ___     
+     /\__\        /\  \         ___                /\__\   ___       /\  \        /\  \        /\  \        /\  \     |\__\    
+    /:/  /       /::\  \       /\  \              /:/  /  /\  \     /::\  \      /::\  \      /::\  \      /::\  \    |:|  |   
+   /:/__/       /:/\:\  \      \:\  \            /:/  /   \:\  \   /:/\:\  \    /:/\:\  \    /:/\:\  \    /:/\:\  \   |:|  |   
+  /::\__\____  /::\~\:\  \     /::\__\          /:/  /    /::\__\ /::\~\:\__\  /::\~\:\  \  /::\~\:\  \  /::\~\:\  \  |:|__|__ 
+ /:/\:::::\__\/:/\:\ \:\__\ __/:/\/__/         /:/__/  __/:/\/__//:/\:\ \:|__|/:/\:\ \:\__\/:/\:\ \:\__\/:/\:\ \:\__\ /::::\__\
+ \/_|:|~~|~   \/__\:\/:/  //\/:/  /            \:\  \ /\/:/  /   \:\~\:\/:/  /\/_|::\/:/  /\/__\:\/:/  /\/_|::\/:/  //:/~~/~   
+    |:|  |         \::/  / \::/__/              \:\  \\::/__/     \:\ \::/  /    |:|::/  /      \::/  /    |:|::/  //:/  /     
+    |:|  |         /:/  /   \:\__\               \:\  \\:\__\      \:\/:/  /     |:|\/__/       /:/  /     |:|\/__/ \/__/      
+    |:|  |        /:/  /     \/__/                \:\__\\/__/       \::/__/      |:|  |        /:/  /      |:|  |              
+     \|__|        \/__/                            \/__/             ~~           \|__|        \/__/        \|__|              
+===============================================================================================================================*/
+
 Version "4.11.0"
 
 //CUSTOM CODE TAGS: (Temporary list !)
@@ -8,8 +22,6 @@ Version "4.11.0"
 //DEBUG: Unlike the defintion on Wikipedia, here this signifies some bit of debugging code, probably something that should be removed or commented out before a full release.
 //MAYDO: Unlike TODO, this means that it's something I may or may not do. Hence the name.
 //IDEA: This is just an idea for the project. Likely some far away goal that would take a lot of time to implement.
-
-//Uh, add cool license and ASCII art or whatever the fuck here.
 
 //IDEA:
 /*Today (1/7/2023) I made a suggestion to PBs' developers on how to implement the hitbox system to monsters. Move the hitbox handling to a HandleLocalDamage
@@ -26,6 +38,9 @@ Add a GetBodyPart virtual to NPCs, to define positions for parts, and return the
 allowing for projectiles to do special effects like double damage on headshots.
 Maybe also add an OnBodyPartHit callback for projectiles to use. Such as to make the victim itself react to a headshot. Or the back of the tank being hit.
 */
+/*Cacodemon345 exposed the native FScanner class to ZScript a few months ago, maybe I could retry my idea for
+NPC voice packs using ScriptScanner ? Hopefully it'll be a lot easier to use than manually reading and parsing files !*/
+
 //DEBUG DEBUG DEBUG
 class TestPinky : KAI_Actor// Replaces Demon
 {
@@ -108,6 +123,7 @@ So, the code that is meant to be shared by all NPCs also goes here.*/
 #Include "ZScript/Bases/OtherFunctions.zsc"
 #Include "ZScript/Bases/OtherCode.zsc"
 #Include "ZScript/Bases/Hazard.zsc" //Universal code for hazards, hazard zones, etc
+#Include "ZScript/Bases/Groups.zsc" //NPC group/squad handling.
 #Include "ZScript/Bases/SharedCode.zsc" //Mixins and shit.
 	
 	//The base *land* vehicle class. As of 8/4/2023, this basically a direct rip from a dev build of MVP 0.5.0.

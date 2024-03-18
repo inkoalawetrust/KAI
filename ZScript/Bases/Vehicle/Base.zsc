@@ -8,6 +8,10 @@ If I do implement the order system to KAI actors, it will probably be before the
 //TODO:
 //Add a headlightsound property, that plays a sound when the vehicles' headlights turn on or off.
 
+//IDEA:
+/*Make a passenger system for vehicles ? By being able to define coordinates relative to the vehicle for NPCs to go to,
+"enter" the vehicle once they reach the entrance or exit point with A_ChangeLinkFlags and becoming STAT_INFOS.*/
+
 //FIXME:
 /*Try and fix the vehicle turrets to be at the top of their vehicle even at the first tick of their existance.
 The first fix I tried was immediately warping the turret to its vehicle. Which somehow turns the turrets into the vehicle they are attached on in the

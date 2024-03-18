@@ -1,28 +1,34 @@
-//Okay, I have no idea how this is even supposed to work exactly, like:
-//Should NPCs be able to be part of multiple groups ? If no, then NPCs should have a group pointer, otherwise, they should have an array to groups they're in.
-//Should NPC groups be able to have multiple leaders ? I don't think so, but if they should, how is that supposed to look and work like ?
-//Should I use an associative map to keep track of members ?
-/*How is group event handling meant to work ? For example, how is a "GroupMemberDied" event going to alert members that someone died , will it need making new classes?
-And how could it be made scriptable, so for example, human squads assign a living member as the leader based on some criteria, while a herd of Pinkies dissipates ?*/
-
-//URGENT: Right now, I'm just going to go with actors being able to be in multiple groups instead of only one, so the code will reflect that.
-
 //IDEA: Here's my plan right now for how creating groups should work:
-//A KAI_NPCGroup.CreateGroup(String Name, Array<Actor> Members, Actor Leader, Int Flags) function, for creating an NPC group in ZScript.
-/*A CreateGroupACS (Actor Activator, String Name, Int MemberTID, Int Flags) function for ACS, where the activator is the leader, and the members to add are found
-Using an ActorIterator that searches for the specified TID. Should be callable like: ScriptCall ("KAI_NPCGroup","CreateGroupACS","Cool Demons",123,NPCGRP_WHATEVER)*/
+/*I'll probably need to handle support for child classes, to allow for virtuals/events like MemberDied() to have custom behavior. So maybe also add a Class parameter
+to CreateGroup() (And a string parameter for the ACS version), that allows for specifying the child group class to create.*/
+
 /*IDEA: Maybe find a way to integrate the order system my marines and vehicles independently use - into this new group system, finally taking the feature out of its'
 semi-built-in code limbo.*/
+
+//IDEA: And this is my idea for handling group events:
+/*Example. When an actor dies, on WorldThingDied, I check if it's an NPC (Or player), if it is, I check its Groups array (Or in the data token for non-KAI members),
+if it's not empty (And the token also exists in the non-KAI NPC case). The MemberDied() virtual is called on the group, in turn, if NPCGRP_NOMEMBERALERT is false,
+the group then goes over all the KAI NPC members and fires the OnGroupEvent() virtual to have them handle that info individually, the first parameter of the
+function is the event type i.e. GRPEVNT_DEATH.
+The MemberDied() virtual tells the group structure itself how to handle the death e.g if the leader died, the custom KAI_NPCGroup class handles changing leaders with
+it's own custom logic. While the OnGroupEvent(GRPEVNT_DEATH) call allows NPCs to handle how to deal with it individually, e.g to have Imps in the group become afraid
+for a few seconds after their strongest member (Highest threat level) died or something.
+I have no fucking clue how I could pass group events like a members' death to non-KAI NPCs, for optional compatibility, or for that matter, in case someone wants to
+make a HUD alert or something for their mod, when a member of a group the player is leading is killed.*/
 
 //TODO:
 //Right now, I mainly need to first of all make a way to create groups, and second, begin testing the code I wrote so far, like the janitor.
 /*Reimplement the group icon feature the original marine squad system used, maybe as TextureIDs that are set and passed to VisualThinkers ? And have the original
 icons I had done added to this library instead, as default group icons. Maybe add a NPCGRP_NOICONS flag too for good measure.*/
+//For members that aren't KAI NPCs, use the KAI_DataToken item to give the non-KAI NPCs (Or players) a pointer array for all the groups they're in.
 
 //Base data class for NPC groups, accessed by NPCs to find data like the group they're in, other members in it, its' leader, if a member died, etc.
 //All NPC groups are stored in an associative array in KAI_EventHandler for easy lookup.
-Class KAI_NPCGroup
+Class KAI_NPCGroup Play
 {
+	Mixin KAI_CheckFunctions;
+	KAI_EventHandler Handler;
+	
 	String GroupName; //The name of the group. Doesn't do anything on its' own. IDEA: Maybe figure a way out to visually print the groups' name over its' members ?
 	Array<Actor> Members; //The groups' members. If the group is emtpy, the janitor in KAI_EventHandler removes it.
 	Actor Leader; //The head honcho of the group. Should be in the Members list too. Can be any actor, mainly in case a player is leading NPCs around or something.
@@ -35,6 +41,188 @@ Class KAI_NPCGroup
 		Flags &= ~Remove;
 	}
 	Int GetNPCGroupFlags() {Return Flags;}
+	
+	//Debug function for printing the groups variables into the console, also returns the debug string.
+	String PrintGroupInfo()
+	{
+		String DebugInfo;
+		DebugInfo.AppendFormat ("KAI NPC Group name: %s | Pointer: %p | Class: %s\n",GroupName,Self,GetClassName());
+		DebugInfo.AppendFormat ("Members:\n");
+		ForEach (Member : Members)
+		{
+			DebugInfo.AppendFormat ("%p, Class: %s\n",Member,Member.GetClassName());
+			If (Member == Leader)
+			{
+				DebugInfo.DeleteLastCharacter(); //Backspacing
+				DebugInfo.AppendFormat (" <= Group leader \n");
+			}
+		}
+		DebugInfo.AppendFormat ("Group flags:");
+		If (Flags & NPCGRP_EVERYONEDIED)
+			DebugInfo.AppendFormat ("NPCGRP_EVERYONEDIED | ");
+		Console.Printf (DebugInfo);
+		Return DebugInfo;
+	}
+	
+	//Actually create a group of NPCs. Functions like a constructor for the NPC Group class.
+	//Default group parameters: These are relevant for making a group with the base group class, and for passing the basic parameters any custom group still needs.
+		//GroupName: The name of the group, totally optional and decorative.
+		//Members: An array of pointers to all the members to add to the group.
+		//Leader: The actor to set as the leader of the group, the actor will be automatically be added as a group member, so it doesn't need to be in Members[].
+		//Flags: The flags to pass to the group.
+	//Custom group parameters: These are the parameters used for creating custom groups with their own behavior.
+		/*GroupClass: This variable is special, it specifies what instance of KAI_NPCGroup to create, can be used to create a child class instead, this is useful
+		for say, making a group using a class that simply has custom virtual overrides, like for events.*/
+		/*MAYDO: Figure out how to use function pointers, and add a function pointer parameter for passing a custom "constructor" function to run ? Like for
+		initiating any more advanced code a custom group might have, like making a MyMod_CreateCoolGroup() function that initializes custom variables and has
+		its' own set of parameters.*/
+	Static KAI_NPCGroup CreateGroup (Name GroupName, Array<Actor> Members, Actor Leader, NPCGroupFlags Flags, Class<KAI_NPCGroup> GroupClass = "KAI_NPCGroup")
+	{console.printf ("IS THIS RUNNING !?");
+		Let Group = KAI_NPCGroup(New (GroupClass));
+		
+		If (!Group)
+		{CONSOLE.PRINTF ("epic spawn fail");
+			Console.PrintfEx (PRINT_HIGH,"KAI_NPCGroup.CreateGroup(): Failed to create new instance of %s, returning null.",GroupClass);
+			Return Null;
+		}
+		
+		//Group has no leader at all, try to use the fallback.
+		If (!Leader && !(Leader = Group.LeaderFallback()))
+		{console.printf ("2b2t");
+			Console.PrintfEx (PRINT_HIGH,"KAI_NPCGroup.CreateGroup(): Failed to create new instance of %s, there's no assigned leader, nor could LeaderFallback() find one.",GroupClass);
+			Group.Destroy();
+			Return Null;
+		}
+		
+		Group.Leader = Leader;
+		Group.GroupName = GroupName;
+		
+		//Add leader to the group separetely. If they they weren't added, abort group creation.
+		If (!Group.AddNPCToGroup(Group.Leader))
+		{console.printf ("failed regime change ?");
+			Group.Destroy();
+			Return Null;
+		}		
+		//Group.Members.Move (Members); //Add members.
+		ForEach (Member : Members) //Add members, after checking them one by one to make sure they aren't corpses or props.
+		{
+			Group.AddNPCToGroup(Member);
+		}
+		
+		
+		Group.ChangeNPCGroupFlags (Flags,0); //Pass group flags.
+		
+		Group.Handler = KAI_EventHandler(EventHandler.Find("KAI_EventHandler")); //Find the library's handler, basically just to access the NPCGroups map.
+		
+		Group.Handler.AddNPCGroup(Group); //Add group to group map.
+		Console.Printf ("KAI_NPCGroup.CreateGroup(): Made group %p with leader %p and %d members",Group,Group.Leader,Group.Members.Size());
+		
+		Return Group; //Return our new group.
+	}
+	
+	//ACS wrapper for CreateGroup, the members are set by TID, and the leader is the scripts' activator.
+	Static Bool CreateGroupACS (Actor Activator, String GroupName, Int MemberTID, Int Flags = 0, String GroupClass = "KAI_NPCGroup")
+	{
+		Array <Actor> Members;
+		Actor CurMember;
+		Let MemberSearch = Level.CreateActorIterator (MemberTID); //Find members by TID, these will still be filtered out by AddNPCToGroup(), so no assigning props.
+		While ((CurMember = MemberSearch.Next()))
+		{
+			Members.Push(CurMember);
+		}
+		Return (KAI_NPCGroup.CreateGroup(GroupName,Members,Activator,Flags,GroupClass));
+	}
+	
+	//In case of there being no leader, as long as there are members, pick the strongest member as a new leader. Can be overriden.
+	Virtual Actor LeaderFallback ()
+	{
+		If (!Members.Size()) //Don't even have any members.
+		{
+			Destroy();
+			Return Null;
+		}
+		
+		Return GetStrongestMember();
+	}
+	
+	Bool QuickDestruction; //The group instance is erased without trying to find its' entry in the group map. Used by the janitor script thing.
+	
+	Override Void OnDestroy()
+	{
+		If (QuickDestruction) Return;
+		If (!Handler) Handler = KAI_EventHandler(EventHandler.Find("KAI_EventHandler"));
+		If (!Handler) Return; //No library handler found ? What the fuck ?
+		
+		ForEach (K, V : Handler.NPCGroups) //Remove self from group map.
+		{
+			If (V == Self)
+				Handler.NPCGroups.Remove(K);
+		}
+	}
+	
+	//MEMBER MANAGEMENT FUNCTIONS
+	
+	//Return the strongest member in the group based on the default AssessThreatLevel() virtual. Can be set to not count players as stronger based on not being NPCs.
+	Actor GetStrongestMember (Bool NoPlayers = False)
+	{
+		Map <Int, Actor> Powerscaling;
+		KAI_Actor Reference = KAI_Actor(Actor.Spawn("KAI_Actor"));
+		ForEach (Member : Members)
+		{
+			Powerscaling.Insert (Reference.AssessThreatLevel(Member,!NoPlayers), Member);
+		}
+		Reference.Destroy();
+		
+		Actor DaBiggestBird; //Current member found to be the strongest.
+		Int BiggestThreat;
+		
+		ForEach (K, V : Powerscaling)
+		{
+			Int CurThreat = K;
+			If (BiggestThreat < K) //Found bigger fish.
+			{
+				BiggestThreat = K;
+				DaBiggestBird = V;
+			}
+		}
+		
+		Return /*Im*/DaBiggestBird;
+	}
+	
+	//Add a living thing to the group. Returns true if successfully added.
+	Bool AddNPCToGroup (Actor Recruit)
+	{
+		If (!Recruit || IsInanimateObject(Recruit) || IsDead(Recruit)) {console.printf ("%p can't be in the %s group",recruit,groupname);Return False;}
+		
+		If (Members.Find(Recruit) == Members.Size())
+		{console.printf ("Welcome recruit %p",recruit);
+			Members.Push (Recruit);
+			//Add this group to the NPCs' group list, if it's not in that array already for some reason.
+			If (Recruit Is "KAI_Actor" && KAI_Actor(Recruit).Groups.Find(Self) == KAI_Actor(Recruit).Groups.Size())
+				KAI_Actor(Recruit).Groups.Push(Self);
+			Return True;
+		}
+		
+		Return False;
+	}
+	
+	//Ditto, but for removing members.
+	Bool RemoveNPCFromGroup (Actor Discharged)
+	{
+		If (!Discharged) Return False;
+		
+		Int RemoveIndex;
+		If ((RemoveIndex = Members.Find(Discharged)) != Members.Size())
+		{
+			Members.Delete (RemoveIndex);
+			//Pointer cast spaghetti.
+			If (Discharged Is "KAI_Actor" && KAI_Actor(Discharged).Groups.Find(Self) != KAI_Actor(Discharged).Groups.Size())
+				KAI_Actor(Discharged).Groups.Delete(KAI_Actor(Discharged).Groups.Find(Self));
+			Return True;
+		}
+		
+		Return False;
+	}
 	
 	//Functions useful for non-KAI actors that are part of an NPC group. i.e for players that are part of a group.
 	//This shit is probably slow as balls for more than like 5 groups, considering it iterates over every group AND THEN over every member in that group !
@@ -71,5 +259,7 @@ Class KAI_NPCGroup
 Enum NPCGroupFlags //NPCGRP_
 {
 	NPCGRP_EVERYONEDIED = 1 << 0, //Everyone in the group is dead. May be useful once this feature is complete for stuff like setting the first NPC revived as the leader.
+	//NPCGRP_NOMEMBERALERT= 1 << 1, //Group members aren't alerted of events through the OnGroupEvent() virtual. This hinges on how I decide to handle group events.
+	//NPCGRP_NOICONS	= 1 << 2, //Members of this group never have any icons over their heads.
 	//No idea what group flags to add yet, if any, maybe I'll just remove this flag field entirely.
 }

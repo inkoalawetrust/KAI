@@ -363,34 +363,48 @@ Class KAI_EventHandler : EventHandler
 		{Console.Printf ("KAI_EventHandler: Running Group map janitor...");
 			ForEach (K, V : NPCGroups)
 			{
-				If (!NPCGroups.CheckKey(K)) //No group assigned, get rid of it.
-					{console.printf ("Deleting key %d",K);NPCGroups.Remove(K);}
-				Else
+				Console.printf ("Iterated through key %d, value %p",K,V);
+				!NPCGroups.Get(K).PrintGroupInfo();
+				//This group has no members in it, remove it.
+				If (!NPCGroups.Get(K).Members.Size())
 				{
-					Console.printf ("Iterated through key %d, value %p",K,V);
-					//This key does have a group assigned to it, but the group has no members in it. Which means that it needs to be removed too.
-					If (!NPCGroups.Get(K).Members.Size())
-					{
-						NPCGroups.Get(K).Destroy(); //Destroy empty group.
-						NPCGroups.Remove(K);
-					}
-					
+					NPCGroups.Get(K).QuickDestruction = True; //You're getting removed from the map already, no need to try removing yourself.
+					NPCGroups.Get(K).Destroy(); //Destroy empty group.
+					NPCGroups.Remove(K);
 				}
 			}
 			GroupJanitorTimer = Random (GameTicRate,GameTicRate*3); //Run this every 1-3 seconds.
 		}
 	}
 	
+	//Add an NPC group to NPCGroups. THIS ASSUMES IT'S NOT IN ALREADY !
+	Bool AddNPCGroup (KAI_NPCGroup Group) Const
+	{
+		If (!Group)
+			Return False;
+		
+		Int ID;
+		Bool Used;
+		For (Int I = 32; I >= 0; I--) //Find an unused random key to to put the group in.
+		{
+			ID = Random (INT.MIN+1,INT.MAX-1);
+			
+			Used = NPCGroups.CheckKey(ID); //Random key already in use, try finding another one.
+			
+			If (!Used) //Found unused key, terminate.
+				Break;
+		}
+		If (Used) //The code tried 32 times to find an unused key and failed, either RNGesus was extraordinarily punishing or there's somehow over 1 billion groups.
+			Return False;
+		
+		NPCGroups.Insert (ID,Group);
+		Return True;
+	}
+	
 	//Find a specific NPC group by its' ID, if you need that for some reason, instead of iterating all groups.
 	KAI_NPCGroup FindNPCGroupByID (Int ID)
 	{
-		ForEach (K, V : NPCGroups)
-		{
-			If (NPCGroups.CheckKey(ID))
-				Return NPCGroups.Get(ID);
-		}
-		
-		Return Null;
+		Return NPCGroups.GetIfExists(ID);
 	}
 	
 	//Find NPC group(s) by name. Since group names are not unique, you need an array in case multiple groups have the same name.
@@ -400,13 +414,10 @@ Class KAI_EventHandler : EventHandler
 		
 		ForEach (K, V : NPCGroups)
 		{
-			If (NPCGroups.CheckKey(K))
-			{
-				Let Group = NPCGroups.CheckValue(K);
-				//Found an identically named group, pass it to the return array.
-				If (CaseSensitive && GroupName == Group.GroupName || !CaseSensitive && GroupName ~== Group.GroupName)
-					Groups.Push (Group);
-			}
+			Let Group = NPCGroups.CheckValue(K);
+			//Found an identically named group, pass it to the return array.
+			If (CaseSensitive && GroupName == Group.GroupName || !CaseSensitive && GroupName ~== Group.GroupName)
+				Groups.Push (Group);
 		}
 		
 		Return Groups.Size();

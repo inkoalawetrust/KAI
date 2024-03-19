@@ -17,10 +17,9 @@ I have no fucking clue how I could pass group events like a members' death to no
 make a HUD alert or something for their mod, when a member of a group the player is leading is killed.*/
 
 //TODO:
-//Right now, I mainly need to first of all make a way to create groups, and second, begin testing the code I wrote so far, like the janitor.
+//Right now, I mainly need to just test the code I wrote so far, like the janitor.
 /*Reimplement the group icon feature the original marine squad system used, maybe as TextureIDs that are set and passed to VisualThinkers ? And have the original
 icons I had done added to this library instead, as default group icons. Maybe add a NPCGRP_NOICONS flag too for good measure.*/
-//For members that aren't KAI NPCs, use the KAI_DataToken item to give the non-KAI NPCs (Or players) a pointer array for all the groups they're in.
 
 //Base data class for NPC groups, accessed by NPCs to find data like the group they're in, other members in it, its' leader, if a member died, etc.
 //All NPC groups are stored in an associative array in KAI_EventHandler for easy lookup.
@@ -50,11 +49,22 @@ Class KAI_NPCGroup Play
 		DebugInfo.AppendFormat ("Members:\n");
 		ForEach (Member : Members)
 		{
-			DebugInfo.AppendFormat ("%p, Class: %s\n",Member,Member.GetClassName());
+			If (!Member) Continue;
+			DebugInfo.AppendFormat ("%p, Class: %s, Member index %d\n",Member,Member.GetClassName(),Members.Find(Member));
 			If (Member == Leader)
 			{
 				DebugInfo.DeleteLastCharacter(); //Backspacing
-				DebugInfo.AppendFormat (" <= Group leader \n");
+				DebugInfo.AppendFormat (" <= Group leader\n");
+			}
+			If (!(Member Is "KAI_Actor"))
+			{
+				DebugInfo.DeleteLastCharacter();
+				DebugInfo.AppendFormat (", Non-KAI NPC\n");
+			}
+			If (Member.Player)
+			{
+				DebugInfo.DeleteLastCharacter();
+				DebugInfo.AppendFormat (", This is a player\n");
 			}
 		}
 		DebugInfo.AppendFormat ("Group flags:");
@@ -200,6 +210,21 @@ Class KAI_NPCGroup Play
 			//Add this group to the NPCs' group list, if it's not in that array already for some reason.
 			If (Recruit Is "KAI_Actor" && KAI_Actor(Recruit).Groups.Find(Self) == KAI_Actor(Recruit).Groups.Size())
 				KAI_Actor(Recruit).Groups.Push(Self);
+			
+			//Adding non-KAI actor (Like an external NPC or player) to the group.
+			If (!(Recruit Is "KAI_Actor"))
+			{
+				KAI_DataToken Token = KAI_DataToken(Recruit.FindInventory ("KAI_DataToken"));
+				If (Token)
+					Token.Groups.Push(Self);
+				Else //This foreign actor doesn't already have the token.
+				{
+					Token = KAI_DataToken(Recruit.GiveInventoryType ("KAI_DataToken"));
+					
+					If (!Token) Return False; //Just in case.
+					Token.Groups.Push(Self);
+				}
+			}
 			Return True;
 		}
 		
@@ -214,10 +239,19 @@ Class KAI_NPCGroup Play
 		Int RemoveIndex;
 		If ((RemoveIndex = Members.Find(Discharged)) != Members.Size())
 		{
-			Members.Delete (RemoveIndex);
+			Members.Delete (RemoveIndex); //Removed member index.
+			console.printf ("RemoveNPCFromGroup(): Removed member index %d",Removeindex);
 			//Pointer cast spaghetti.
 			If (Discharged Is "KAI_Actor" && KAI_Actor(Discharged).Groups.Find(Self) != KAI_Actor(Discharged).Groups.Size())
 				KAI_Actor(Discharged).Groups.Delete(KAI_Actor(Discharged).Groups.Find(Self));
+			
+			//Remove the group reference for non-KAI actors by removing it from their KAI_DataToken, since a non-KAI actor won't have a local Groups[] array.
+			If (!(Discharged Is "KAI_Actor"))
+			{
+				KAI_DataToken Token = KAI_DataToken(Discharged.FindInventory ("KAI_DataToken"));
+				If (Token)
+					Token.Groups.Delete(Token.Groups.Find(Self));
+			}			
 			Return True;
 		}
 		
@@ -261,5 +295,5 @@ Enum NPCGroupFlags //NPCGRP_
 	NPCGRP_EVERYONEDIED = 1 << 0, //Everyone in the group is dead. May be useful once this feature is complete for stuff like setting the first NPC revived as the leader.
 	//NPCGRP_NOMEMBERALERT= 1 << 1, //Group members aren't alerted of events through the OnGroupEvent() virtual. This hinges on how I decide to handle group events.
 	//NPCGRP_NOICONS	= 1 << 2, //Members of this group never have any icons over their heads.
-	//No idea what group flags to add yet, if any, maybe I'll just remove this flag field entirely.
+	//No idea what other group flags to add yet, if any.
 }

@@ -47,6 +47,10 @@ Class KAI_Actor : Actor Abstract
 	{
 		Super.OnDestroy();
 		AttackStates.Clear(); //Clean the array before removal, because the GC can't: https://github.com/ZDoom/gzdoom/issues/2019
+		ForEach (Group : Groups) //Remove ourselves from any groups we're in.
+		{console.printf ("%p is being erased, removing index from groups",self);
+			Group.RemoveNPCFromGroup (Self);
+		}
 	}
 	
 	Override Void Tick()
@@ -358,18 +362,28 @@ Class KAI_EventHandler : EventHandler
 	Override Void WorldTick ()
 	{
 		//Clean up map keys that don't lead to a pointer to a group.
-		//MAYDO: Add code to handle cases where the group might have no leader for some reason ? Like by calling a LeaderFallback() virtual or something.
 		If (!GroupJanitorTimer--)
-		{Console.Printf ("KAI_EventHandler: Running Group map janitor...");
+		{
+			Console.Printf ("KAI_EventHandler: Running Group map janitor...");
+			Array<Int> DirtyKeys;
 			ForEach (K, V : NPCGroups)
 			{
 				Console.printf ("Iterated through key %d, value %p",K,V);
-				!NPCGroups.Get(K).PrintGroupInfo();
+				NPCGroups.Get(K).PrintGroupInfo(); //DEBUG
 				//This group has no members in it, remove it.
 				If (!NPCGroups.Get(K).Members.Size())
 				{
-					NPCGroups.Get(K).QuickDestruction = True; //You're getting removed from the map already, no need to try removing yourself.
-					NPCGroups.Get(K).Destroy(); //Destroy empty group.
+					NPCGroups.Get(K).QuickDestruction = True; //You're getting removed from the map automatically, no need to try removing yourself.
+					DirtyKeys.Push(K);
+				}
+			}
+			
+			ForEach (K : DirtyKeys)
+			{
+				If (K)
+				{console.printf ("removed group with no members");
+					Let EmptyGroup = NPCGroups.GetIfExists(K);
+					If (EmptyGroup) EmptyGroup.Destroy(); //Destroy empty group.
 					NPCGroups.Remove(K);
 				}
 			}
@@ -443,10 +457,32 @@ Class KAI_DataToken : Inventory
 		+Inventory.NoScreenFlash;
 	}
 	
+	Actor ErasedOwner; //A pointer to the owner before they were erased.
+	//The token is getting ditched by the owner, either because they are removing it for some reason, or because the owner was erased.
+	Override Void DoEffect()
+	{
+		Super.DoEffect();
+
+		If (Owner)
+			ErasedOwner = Owner;
+	}
+	Override Void OnDestroy()
+	{
+		If (ErasedOwner)
+		{
+		console.printf ("%p is being removed",erasedowner);
+			ForEach (Group : Groups) //Remove the tokens' owner from any groups they may be in. To handle non-KAI NPCs being erased while in a group.
+			{console.printf ("non-KAI actor %p is being erased, removing it from any groups it's in through KAI_DataToken",erasedowner);
+				Group.RemoveNPCFromGroup (ErasedOwner);
+			}
+		}
+	}
+	
 	Int ThreatLevel; //The threat level of the tokens' owner.
 	Bool VelocityMonster;	//This actor moves with actual momentum instead of using TryMove() like normal monsters do.
 							//Non-KAI actors that genuinely move need to mark themselves with this to be detected
 							//as moving with momentum by the target prediction code.
+	Array <KAI_NPCGroup> Groups; //The groups this KAI NPC is in.
 }
 //DEBUG: Assesses the threat level of an actor in front of it, to see if the system works as intended.
 Class ThreatAssess : KAI_Actor// replaces gibbedmarineextra

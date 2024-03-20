@@ -311,6 +311,42 @@ Class KAI_DebugPoint : Actor
 
 Class KAI_EventHandler : EventHandler
 {
+	//Custom command handling
+	Override Void NetworkProcess (ConsoleEvent E)
+	{
+		If (E.Player < 0 || !PlayerInGame[E.Player] || !Players[E.Player].Mo)
+			Return;
+		
+		Let PlrMo = Players[E.Player].Mo;
+		
+		Array <String> Command;
+		Command.Push (E.Name);
+		
+		If (Command[0] ~== "KAI_GetTargetGroup") //Find the groups the actor in front of the player is in, if any, and print their info.
+		{
+			FLineTraceData MoFind;
+			Double PlrHeight = PlrMo.Height * 0.5 - PlrMo.Floorclip + PlrMo.AttackZOffset*Players[E.Player].CrouchFactor;
+			PlrMo.LineTrace (PlrMo.Angle,PLAYERMISSILERANGE,PlrMo.Pitch,TRF_THRUHITSCAN|TRF_SOLIDACTORS,PlrHeight,data:MoFind);
+			If (MoFind.HitActor)
+			{
+				Array <KAI_NPCGroup> GroupList;
+				
+				KAI_NPCGroup.FindGroupsImIn (MoFind.HitActor,GroupList);
+				
+				Console.Printf ("\c[Green]KAI_GetTargetGroup: Printing info of all the groups %p is in",MoFind.HitActor);
+				Int GroupNum = -1;
+				ForEach (CurGroup : GroupList)
+				{
+					GroupNum++;
+					Console.Printf ("\c[Green]KAI_GetTargetGroup: Printing info for group %d",GroupNum);
+					Console.Printf ("\c[Blue]%s",CurGroup.PrintGroupInfo(True)); //BUG: The blue is only applied on the first group info string, and not the other appended ones.
+				}
+				If (GroupNum == -1)
+					Console.Printf ("\c[Green]KAI_GetTargetGroup: %p is in no NPC groups",MoFind.HitActor);
+			}
+		}
+	}
+	
 	//Actor lists
 	Array <Actor> ProjectileList; //Much faster alternative to just using a ThinkerIterator.
 	Array <KAI_BaseVehicle> AllVehicles; //Stores references to the usually few vehicles found in maps.

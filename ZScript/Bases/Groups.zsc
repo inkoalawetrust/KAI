@@ -19,7 +19,8 @@ make a HUD alert or something for their mod, when a member of a group the player
 //TODO:
 //Right now, I mainly need to just test the code I wrote so far, like the janitor.
 /*Reimplement the group icon feature the original marine squad system used, maybe as TextureIDs that are set and passed to VisualThinkers ? And have the original
-icons I had done added to this library instead, as default group icons. Maybe add a NPCGRP_NOICONS flag too for good measure.*/
+icons I had done added to this library instead, as default group icons. Maybe add a NPCGRP_NOICONS flag too for good measure. Also, maybe also make a "Dead member"
+icon type, that the icon over a group member is changed do when they die, graphic will either be the group icon but fully red, or with one red figure.*/
 
 //Base data class for NPC groups, accessed by NPCs to find data like the group they're in, other members in it, its' leader, if a member died, etc.
 //All NPC groups are stored in an associative array in KAI_EventHandler for easy lookup.
@@ -42,7 +43,7 @@ Class KAI_NPCGroup Play
 	Int GetNPCGroupFlags() {Return Flags;}
 	
 	//Debug function for printing the groups variables into the console, also returns the debug string.
-	String PrintGroupInfo()
+	String PrintGroupInfo (Bool DontPrint = False)
 	{
 		String DebugInfo;
 		DebugInfo.AppendFormat ("KAI NPC Group name: %s | Pointer: %p | Class: %s\n",GroupName,Self,GetClassName());
@@ -70,7 +71,7 @@ Class KAI_NPCGroup Play
 		DebugInfo.AppendFormat ("Group flags:");
 		If (Flags & NPCGRP_EVERYONEDIED)
 			DebugInfo.AppendFormat ("NPCGRP_EVERYONEDIED | ");
-		Console.Printf (DebugInfo);
+		If (!DontPrint) Console.Printf (DebugInfo);
 		Return DebugInfo;
 	}
 	
@@ -262,7 +263,7 @@ Class KAI_NPCGroup Play
 	//This shit is probably slow as balls for more than like 5 groups, considering it iterates over every group AND THEN over every member in that group !
 	Static Void FindGroupsImIn (Actor Who, Array <KAI_NPCGroup> &Groups)
 	{
-		If (!Groups) Return;
+		If (!Groups || !Who) Return;
 		If (Who Is "KAI_Actor") //If a KAI NPC is calling this for some reason, just return its' Groups array back.
 		{
 			Groups.Copy(KAI_Actor(Who).Groups);

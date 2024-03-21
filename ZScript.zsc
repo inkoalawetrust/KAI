@@ -42,7 +42,7 @@ Maybe also add an OnBodyPartHit callback for projectiles to use. Such as to make
 NPC voice packs using ScriptScanner ? Hopefully it'll be a lot easier to use than manually reading and parsing files !*/
 
 //DEBUG DEBUG DEBUG
-class TestPinky : KAI_Actor Replaces Demon
+class TestPinky : KAI_Actor// Replaces Demon
 {
 Default
 	{

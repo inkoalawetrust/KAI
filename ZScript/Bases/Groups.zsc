@@ -5,12 +5,6 @@ to CreateGroup() (And a string parameter for the ACS version), that allows for s
 /*IDEA: Maybe find a way to integrate the order system my marines and vehicles independently use - into this new group system, finally taking the feature out of its'
 semi-built-in code limbo.*/
 
-//TODO:
-//Right now, I mainly need to just test the code I wrote so far, like the janitor.
-/*Reimplement the group icon feature the original marine squad system used, maybe as TextureIDs that are set and passed to VisualThinkers ? And have the original
-icons I had done added to this library instead, as default group icons. Maybe add a NPCGRP_NOICONS flag too for good measure. Also, maybe also make a "Dead member"
-icon type, that the icon over a group member is changed do when they die, graphic will either be the group icon but fully red, or with one red figure.*/
-
 //Base data class for NPC groups, accessed by NPCs to find data like the group they're in, other members in it, its' leader, if a member died, etc.
 //All NPC groups are stored in an associative array in KAI_EventHandler for easy lookup.
 Class KAI_NPCGroup Play
@@ -26,7 +20,7 @@ Class KAI_NPCGroup Play
 	{
 		NPCGRP_EVERYONEDIED = 1 << 0, //Everyone in the group is dead. May be useful once this feature is complete for stuff like setting the first NPC revived as the leader.
 		NPCGRP_NOMEMBEREVENT= 1 << 1, //Group members aren't also individually alerted of events through the OnGroupEvent() virtual.
-		//NPCGRP_NOICONS	= 1 << 2, //Members of this group never have any icons over their heads.
+		NPCGRP_NOICONS		= 1 << 2, //Members of this group never have any icons over their heads.
 		//No idea what other group flags to add yet, if any.
 	}
 	
@@ -34,10 +28,92 @@ Class KAI_NPCGroup Play
 	Protected NPCGroupFlags Flags;
 	Void ChangeNPCGroupFlags (Int Set, Int Remove)
 	{
+		Int OldFlags = Flags;
 		Flags |= Set;
 		Flags &= ~Remove;
+		//While NOICONS is true, they don't update, so if the flag is turned back off, update the icons to match any status changes that occured while it was still on.
+		If (OldFlags & NPCGRP_NOICONS && !(Flags & NPCGRP_NOICONS))
+			UpdateGroupIcons();
 	}
 	Int GetNPCGroupFlags() {Return Flags;}
+	
+	//Group icon handling
+	TextureID MemberIcon, DeadMemberIcon, LeaderIcon, DeadLeaderIcon, PlayerIcon, DeadPlayerIcon; //Group icon TextureIDs.
+	Vector2 IconScale; //The scale that the icons are spawned at.
+	Array <KAI_GroupIcon> MemberIcons; //NOTE: Only tracks normal icons, player icons aren't tracked, since a player will not suddenly stop being one.
+	
+	KAI_GroupIcon AddGroupIcon (Actor ToWho)
+	{
+		//Pointer casting hell.
+		KAI_GroupIcon Icon = KAI_GroupIcon(Level.SpawnVisualThinker ("KAI_GroupIcon"));
+		If (Icon)
+		{
+			Icon.Scale = IconScale;
+			Icon.Owner = ToWho;
+			Icon.Group = Self;
+			
+			If (ToWho == Leader)
+				Icon.Texture = LeaderIcon;
+			Else
+				Icon.Texture = MemberIcon;
+			
+			If (ToWho.Player)
+			{
+				Icon.PlayerIcon = KAI_GroupIcon(Level.SpawnVisualThinker ("KAI_GroupPlayerIcon"));
+				Icon.PlayerIcon.Texture = PlayerIcon;
+				Icon.PlayerIcon.Owner = ToWho;
+				KAI_GroupPlayerIcon(Icon.PlayerIcon).Master = Icon;
+				Icon.PlayerIcon.Group = Self;
+				Icon.PlayerIcon.Scale = IconScale;
+			}
+			
+			MemberIcons.Push (Icon); //Keep track of member icons to be able to update them at once.
+			
+			Return Icon;
+		}
+		Return Null;
+	}
+	
+	Void RemoveGroupIcon (KAI_GroupIcon Icon)
+	{
+		If (!Icon) Return;
+		
+		Int RemoveIndex;
+		If ((RemoveIndex = MemberIcons.Find(Icon)) != MemberIcons.Size())
+		{
+			//Icon.Destroy();
+			MemberIcons.Delete (RemoveIndex);
+		}
+		Return;
+	}
+	
+	//Change the graphics the GroupIcons show based on the status of each member and if they're just a member, the leader, and/or a player.
+	Void UpdateGroupIcons ()
+	{console.printf ("RUNNING ICON UPDATING LOOP");
+		ForEach (Icon : MemberIcons)
+		{
+			If (Icon.Owner.Health <= 0)
+			{
+				If (Icon.Owner == Leader)
+					Icon.Texture = DeadLeaderIcon;
+				Else
+					Icon.Texture = DeadMemberIcon;
+				
+				If (Icon.Owner.Player)
+					Icon.PlayerIcon.Texture = DeadPlayerIcon;
+			}
+			Else
+			{
+				If (Icon.Owner == Leader)
+					Icon.Texture = LeaderIcon;
+				Else
+					Icon.Texture = MemberIcon;
+				
+				If (Icon.Owner.Player)
+					Icon.PlayerIcon.Texture = PlayerIcon;
+			}
+		}
+	}
 	
 	//Debug function for printing the groups variables into the console, also returns the debug string.
 	String PrintGroupInfo (Bool DontPrint = False, String ColorCode = "-")
@@ -72,9 +148,18 @@ Class KAI_NPCGroup Play
 		}
 		DebugInfo.AppendFormat ("\c[%s]Group flags:",ColorCode);
 		If (Flags & NPCGRP_EVERYONEDIED)
-			DebugInfo.AppendFormat ("\c[%s]NPCGRP_EVERYONEDIED | ",ColorCode);
+			DebugInfo.AppendFormat ("\c[%s]NPCGRP_EVERYONEDIED ",ColorCode);
 		If (Flags & NPCGRP_NOMEMBEREVENT)
-			DebugInfo.AppendFormat ("\c[%s]NPCGRP_NOMEMBEREVENT | ",ColorCode);
+			DebugInfo.AppendFormat ("\c[%s]| NPCGRP_NOMEMBEREVENT ",ColorCode);
+		If (Flags & NPCGRP_NOICONS)
+			DebugInfo.AppendFormat ("\c[%s]| NPCGRP_NOICONS ",ColorCode);
+		DebugInfo.AppendFormat ("\c[%s]Group icon names:\n",ColorCode);
+		DebugInfo.AppendFormat ("	\c[%s]Member icon: %s\n",ColorCode,TexMan.GetName(MemberIcon));
+		DebugInfo.AppendFormat ("	\c[%s]Dead member icon: %s\n",ColorCode,TexMan.GetName(DeadMemberIcon));
+		DebugInfo.AppendFormat ("	\c[%s]Leader icon: %s\n",ColorCode,TexMan.GetName(LeaderIcon));
+		DebugInfo.AppendFormat ("	\c[%s]Dead leader icon: %s\n",ColorCode,TexMan.GetName(DeadLeaderIcon));
+		DebugInfo.AppendFormat ("	\c[%s]Player icon: %s\n",ColorCode,TexMan.GetName(PlayerIcon));
+		DebugInfo.AppendFormat ("	\c[%s]Dead player icon: %s\n",ColorCode,TexMan.GetName(DeadPlayerIcon));
 		If (!DontPrint) Console.Printf (DebugInfo);
 		Return DebugInfo;
 	}
@@ -88,9 +173,6 @@ Class KAI_NPCGroup Play
 	//Custom group parameters: These are the parameters used for creating custom groups with their own behavior.
 		/*GroupClass: This variable is special, it specifies what instance of KAI_NPCGroup to create, can be used to create a child class instead, this is useful
 		for say, making a group using a class that simply has custom virtual overrides, like for events.*/
-		/*MAYDO: Figure out how to use function pointers, and add a function pointer parameter for passing a custom "constructor" function to run ? Like for
-		initiating any more advanced code a custom group might have, like making a MyMod_CreateCoolGroup() function that initializes custom variables and has
-		its' own set of parameters.*/
 	Static KAI_NPCGroup CreateGroup (Name GroupName, Array<Actor> Members, Actor Leader, NPCGroupFlags Flags, Class<KAI_NPCGroup> GroupClass = "KAI_NPCGroup")
 	{
 		Let Group = KAI_NPCGroup(New (GroupClass));
@@ -100,6 +182,8 @@ Class KAI_NPCGroup Play
 			Console.PrintfEx (PRINT_HIGH,"KAI_NPCGroup.CreateGroup(): Failed to create new instance of %s, returning null.",GroupClass);
 			Return Null;
 		}
+		
+		Group.PreInitialize();
 		
 		ForEach (Member : Members) //Add members, after checking them one by one to make sure they aren't corpses or props.
 		{
@@ -129,6 +213,7 @@ Class KAI_NPCGroup Play
 		Group.Handler = KAI_EventHandler(EventHandler.Find("KAI_EventHandler")); //Find the library's handler, basically just to access the NPCGroups map.
 		
 		Group.Handler.AddNPCGroup(Group); //Add group to group map.
+		Group.PostInitialize(); //Call any custom initialization code.
 		Console.Printf ("KAI_NPCGroup.CreateGroup(): Made group %p with leader %p and %d members",Group,Group.Leader,Group.Members.Size());
 		
 		Return Group; //Return our new group.
@@ -146,6 +231,20 @@ Class KAI_NPCGroup Play
 	}
 	
 	//VIRTUAL METHODS
+	//Called by CreateGroup() early when a group forms, can be used to potentially pass custom code, and set variables like group icon TextureIDs.
+	Virtual Void PreInitialize()
+	{
+		MemberIcon = TexMan.CheckForTexture ("GRPICON1");
+		DeadMemberIcon = TexMan.CheckForTexture ("GRPICON4");
+		LeaderIcon = TexMan.CheckForTexture ("GRPICON2");
+		DeadLeaderIcon = TexMan.CheckForTexture ("GRPICON5");
+		PlayerIcon = TexMan.CheckForTexture ("GRPICON3");
+		DeadPlayerIcon = TexMan.CheckForTexture ("GRPICON6");
+		IconScale = (0.75,0.75);
+	}
+	
+	//Called by CreateGroup() after the group is fully generated.
+	Virtual Void PostInitialize(){}
 	
 	Enum GroupEventTypes
 	{
@@ -182,6 +281,8 @@ Class KAI_NPCGroup Play
 			}
 			ChangeNPCGroupFlags (0,NPCGRP_EVERYONEDIED);
 		}
+		
+		If (!(GetNPCGroupFlags() & NPCGRP_NOICONS)) UpdateGroupIcons(); //Basically every single event changes the group icons in some way.
 	}
 	
 	//In case of there being no leader, as long as there are members, pick the strongest member as a new leader. Can be overriden.
@@ -296,6 +397,8 @@ Class KAI_NPCGroup Play
 				}
 			}
 			
+			AddGroupIcon (Recruit);
+			
 			HandleGroupEvent (GRPEVNT_JOIN,Recruit);
 			If (KAI_DebugPrintGroupEvents) Console.Printf ("AddNPCToGroup(), Group %p: New member %p (%s) joined", Self, Recruit, Recruit.GetClassName());
 			Return True;
@@ -327,6 +430,13 @@ Class KAI_NPCGroup Play
 				If (Token)
 					Token.Groups.Delete(Token.Groups.Find(Self));
 			}
+			
+			ForEach (Icon : MemberIcons) //Remove icon, this doesn't use the RemoveGroupIcon() function.
+			{
+				If (Icon.Owner == Discharged)
+					Icon.Destroy();
+			}
+			
 			If (NoLeftEvent)
 				Return True;
 			HandleGroupEvent (GRPEVNT_LEFT,Discharged);
@@ -381,24 +491,80 @@ Class KAI_NPCGroup Play
 				Return;
 			}
 		}
-		/*If (!Handler)
-			Handler = KAI_EventHandler(EventHandler.Find("KAI_EventHandler"));
-		
-		//This is the first time I'm even using a map, I have no idea if this code will even iterate through the group list like I think it will.
-		ForEach (K, V : Handler.NPCGroups)
-		{
-			If (Handler.NPCGroups.CheckKey(K)) //We found an NPC group on the global list.
-			{
-				ForEach (MayBeMe : V.Members) //Now iterate over the groups' member list.
-				{
-					If (MayBeMe == Who) //Found ourselves in the members of this group !
-						Groups.Push(V);
-				}
-			}
-			//Else //No pointer to a group (Value) for this key ? Might as well clean it up while we're here.
-			//	Handler.NPCGroups.Remove(K); //Right now this gives me an error "Readonly struct on left hand side of Remove not allowed" for some retarded reason.
-		}*/
-		
 		Return;
+	}
+}
+
+//The individual icon appearing over a single group member.
+Class KAI_GroupIcon : VisualThinker
+{
+	Actor Owner;
+	KAI_NPCGroup Group; //The group the Owner member is part of for this icon.
+	KAI_GroupIcon PlayerIcon; //Extra player icon indicator.
+	
+	Override Void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		
+		Flags |= SPF_NO_XY_BILLBOARD;
+	}
+	
+	Override Void OnDestroy ()
+	{
+		Super.OnDestroy();
+		If (Group)
+			Group.RemoveGroupIcon (Self);
+	}
+	
+	Override Void Tick()
+	{
+		Super.Tick();
+		
+		If (IsFrozen()) Return;
+		
+		If (Group.GetNPCGroupFlags() & Group.NPCGRP_NOICONS) //Icons are disabled for this group, go invisible and stop.
+		{
+			Alpha = 0;
+			Return;
+		}
+		Else
+			Alpha = 1;
+		
+		If (Owner) //Move graphic relative to the member it's following.
+		{
+			Pos.XY = Owner.Pos.XY;
+			Pos.Z = Owner.Pos.Z + TexMan.CheckRealHeight (Owner.CurState.GetSpriteTexture(0)) + 3;
+		}
+		Else
+			Destroy();
+	}
+}
+
+//Special extra icon attached to a members' group icon. This icon is only created if the member in question is a player.
+Class KAI_GroupPlayerIcon : KAI_GroupIcon
+{
+	KAI_GroupIcon Master; //The group icon you're attached to.
+	
+	Override Void Tick()
+	{
+		VisualThinker.Tick();
+		
+		If (IsFrozen()) Return;
+		
+		If (Group.GetNPCGroupFlags() & Group.NPCGRP_NOICONS)
+		{
+			Alpha = 0;
+			Return;
+		}
+		Else
+			Alpha = 1;
+		
+		If (Master) //Player indicator is straight above the normal member icon.
+		{
+			Pos.XY = Master.Pos.XY;
+			Pos.Z = Master.Pos.Z + TexMan.CheckRealHeight (Master.Texture) + 3;
+		}
+		Else
+			Destroy();
 	}
 }

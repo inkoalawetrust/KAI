@@ -5,17 +5,6 @@ to CreateGroup() (And a string parameter for the ACS version), that allows for s
 /*IDEA: Maybe find a way to integrate the order system my marines and vehicles independently use - into this new group system, finally taking the feature out of its'
 semi-built-in code limbo.*/
 
-//IDEA: And this is my idea for handling group events:
-/*Example. When an actor dies, on WorldThingDied, I check if it's an NPC (Or player), if it is, I check its Groups array (Or in the data token for non-KAI members),
-if it's not empty (And the token also exists in the non-KAI NPC case). The MemberDied() virtual is called on the group, in turn, if NPCGRP_NOMEMBERALERT is false,
-the group then goes over all the KAI NPC members and fires the OnGroupEvent() virtual to have them handle that info individually, the first parameter of the
-function is the event type i.e. GRPEVNT_DEATH.
-The MemberDied() virtual tells the group structure itself how to handle the death e.g if the leader died, the custom KAI_NPCGroup class handles changing leaders with
-it's own custom logic. While the OnGroupEvent(GRPEVNT_DEATH) call allows NPCs to handle how to deal with it individually, e.g to have Imps in the group become afraid
-for a few seconds after their strongest member (Highest threat level) died or something.
-I have no fucking clue how I could pass group events like a members' death to non-KAI NPCs, for optional compatibility, or for that matter, in case someone wants to
-make a HUD alert or something for their mod, when a member of a group the player is leading is killed.*/
-
 //TODO:
 //Right now, I mainly need to just test the code I wrote so far, like the janitor.
 /*Reimplement the group icon feature the original marine squad system used, maybe as TextureIDs that are set and passed to VisualThinkers ? And have the original
@@ -33,6 +22,14 @@ Class KAI_NPCGroup Play
 	Array<Actor> Members; //The groups' members. If the group is emtpy, the janitor in KAI_EventHandler removes it.
 	Actor Leader; //The head honcho of the group. Should be in the Members list too. Can be any actor, mainly in case a player is leading NPCs around or something.
 	
+	Enum NPCGroupFlags
+	{
+		NPCGRP_EVERYONEDIED = 1 << 0, //Everyone in the group is dead. May be useful once this feature is complete for stuff like setting the first NPC revived as the leader.
+		NPCGRP_NOMEMBEREVENT= 1 << 1, //Group members aren't also individually alerted of events through the OnGroupEvent() virtual.
+		//NPCGRP_NOICONS	= 1 << 2, //Members of this group never have any icons over their heads.
+		//No idea what other group flags to add yet, if any.
+	}
+	
 	//Group flags and its' setters and getters
 	Protected NPCGroupFlags Flags;
 	Void ChangeNPCGroupFlags (Int Set, Int Remove)
@@ -43,34 +40,41 @@ Class KAI_NPCGroup Play
 	Int GetNPCGroupFlags() {Return Flags;}
 	
 	//Debug function for printing the groups variables into the console, also returns the debug string.
-	String PrintGroupInfo (Bool DontPrint = False)
+	String PrintGroupInfo (Bool DontPrint = False, String ColorCode = "-")
 	{
 		String DebugInfo;
-		DebugInfo.AppendFormat ("KAI NPC Group name: %s | Pointer: %p | Class: %s\n",GroupName,Self,GetClassName());
-		DebugInfo.AppendFormat ("Members:\n");
+		DebugInfo.AppendFormat ("\c[%s]KAI NPC Group name: %s | Pointer: %p | Class: %s\n",ColorCode,GroupName,Self,GetClassName());
+		DebugInfo.AppendFormat ("\c[%s]Members:\n",ColorCode);
 		ForEach (Member : Members)
 		{
 			If (!Member) Continue;
-			DebugInfo.AppendFormat ("%p, Class: %s, Member index %d\n",Member,Member.GetClassName(),Members.Find(Member));
+			DebugInfo.AppendFormat ("\c[%s]%p, Class: %s, Member index %d\n",ColorCode,Member,Member.GetClassName(),Members.Find(Member));
 			If (Member == Leader)
 			{
 				DebugInfo.DeleteLastCharacter(); //Backspacing
-				DebugInfo.AppendFormat (" <= Group leader\n");
+				DebugInfo.AppendFormat ("\c[%s] <= Group leader\n",ColorCode);
 			}
 			If (!(Member Is "KAI_Actor"))
 			{
 				DebugInfo.DeleteLastCharacter();
-				DebugInfo.AppendFormat (", Non-KAI NPC\n");
+				DebugInfo.AppendFormat ("\c[%s], Non-KAI NPC\n",ColorCode);
 			}
 			If (Member.Player)
 			{
 				DebugInfo.DeleteLastCharacter();
-				DebugInfo.AppendFormat (", This is a player\n");
+				DebugInfo.AppendFormat ("\c[%s], Is a player (%s)\n",ColorCode,Member.Player.GetUsername());
+			}
+			If (IsDead(Member))
+			{
+				DebugInfo.DeleteLastCharacter();
+				DebugInfo.AppendFormat ("\c[%s], Dead\n",ColorCode);
 			}
 		}
-		DebugInfo.AppendFormat ("Group flags:");
+		DebugInfo.AppendFormat ("\c[%s]Group flags:",ColorCode);
 		If (Flags & NPCGRP_EVERYONEDIED)
-			DebugInfo.AppendFormat ("NPCGRP_EVERYONEDIED | ");
+			DebugInfo.AppendFormat ("\c[%s]NPCGRP_EVERYONEDIED | ",ColorCode);
+		If (Flags & NPCGRP_NOMEMBEREVENT)
+			DebugInfo.AppendFormat ("\c[%s]NPCGRP_NOMEMBEREVENT | ",ColorCode);
 		If (!DontPrint) Console.Printf (DebugInfo);
 		Return DebugInfo;
 	}
@@ -88,19 +92,24 @@ Class KAI_NPCGroup Play
 		initiating any more advanced code a custom group might have, like making a MyMod_CreateCoolGroup() function that initializes custom variables and has
 		its' own set of parameters.*/
 	Static KAI_NPCGroup CreateGroup (Name GroupName, Array<Actor> Members, Actor Leader, NPCGroupFlags Flags, Class<KAI_NPCGroup> GroupClass = "KAI_NPCGroup")
-	{console.printf ("IS THIS RUNNING !?");
+	{
 		Let Group = KAI_NPCGroup(New (GroupClass));
 		
 		If (!Group)
-		{CONSOLE.PRINTF ("epic spawn fail");
+		{
 			Console.PrintfEx (PRINT_HIGH,"KAI_NPCGroup.CreateGroup(): Failed to create new instance of %s, returning null.",GroupClass);
 			Return Null;
 		}
 		
+		ForEach (Member : Members) //Add members, after checking them one by one to make sure they aren't corpses or props.
+		{
+			Group.AddNPCToGroup(Member);
+		}
+		
 		//Group has no leader at all, try to use the fallback.
 		If (!Leader && !(Leader = Group.LeaderFallback()))
-		{console.printf ("2b2t");
-			Console.PrintfEx (PRINT_HIGH,"KAI_NPCGroup.CreateGroup(): Failed to create new instance of %s, there's no assigned leader, nor could LeaderFallback() find one.",GroupClass);
+		{
+			Console.PrintfEx (PRINT_HIGH,"KAI_NPCGroup.CreateGroup(): Failed to create new instance of %s, there's no assigned leader, nor could LeaderFallback() find one.",GroupClass.GetClassName());
 			Group.Destroy();
 			Return Null;
 		}
@@ -110,16 +119,10 @@ Class KAI_NPCGroup Play
 		
 		//Add leader to the group separetely. If they they weren't added, abort group creation.
 		If (!Group.AddNPCToGroup(Group.Leader))
-		{console.printf ("failed regime change ?");
+		{
 			Group.Destroy();
 			Return Null;
 		}		
-		//Group.Members.Move (Members); //Add members.
-		ForEach (Member : Members) //Add members, after checking them one by one to make sure they aren't corpses or props.
-		{
-			Group.AddNPCToGroup(Member);
-		}
-		
 		
 		Group.ChangeNPCGroupFlags (Flags,0); //Pass group flags.
 		
@@ -138,13 +141,51 @@ Class KAI_NPCGroup Play
 		Actor CurMember;
 		Let MemberSearch = Level.CreateActorIterator (MemberTID); //Find members by TID, these will still be filtered out by AddNPCToGroup(), so no assigning props.
 		While ((CurMember = MemberSearch.Next()))
-		{
 			Members.Push(CurMember);
-		}
 		Return (KAI_NPCGroup.CreateGroup(GroupName,Members,Activator,Flags,GroupClass));
 	}
 	
+	//VIRTUAL METHODS
+	
+	Enum GroupEventTypes
+	{
+		GRPEVNT_NONE	= 0, //No event occured.
+		GRPEVNT_DEATH	= 1, //A member died.
+		GRPEVNT_ERASED	= 2, //A member was erased from existence.
+		GRPEVNT_REVIVAL	= 3, //A member was resurrected.
+		GRPEVNT_JOIN	= 4, //A new member joined the group.
+		GRPEVNT_LEFT	= 5, //A member left the group.
+		GRPEVNT_NEWLEADER=6, //The group has a new leader.
+	}
+	
+	Virtual Void HandleGroupEvent (Int EventType, Actor Affected)
+	{
+		If (EventType == GRPEVNT_NONE || !Affected) //Nothingburger
+			{console.printf ("HandleGroupEvent(): stopped empty event from occuring for member %p",affected);Return;}
+		
+		AlertMembersOfEvent (EventType, Affected);
+		
+		//By default, the only event the stock group class handles is the death or erasure of the group leader, using the stock LeaderFallback() virtual.
+		If (Affected == Leader && (EventType == GRPEVNT_DEATH || EventType == GRPEVNT_ERASED))
+		{console.printf ("HandleGroupEvent(): The group leader died, calling LeaderFallback() to get a new one.");
+			ChangeLeader(LeaderFallBack());
+		}
+		
+		If (EventType == GRPEVNT_REVIVAL) //A member is alive again, clearly not EVERYONE'S dead anymore.
+		{
+			If (Affected != Leader)
+			{
+				//The resurrected member is hostile to the leader, like if it was revived by an enemy Archvile.
+				If (Leader Is "KAI_Actor" && KAI_Actor(Leader).IsActorHostile(Affected)
+				|| !(Leader Is "KAI_Actor") && Leader.IsHostile(Affected))
+					RemoveNPCFromGroup (Affected);
+			}
+			ChangeNPCGroupFlags (0,NPCGRP_EVERYONEDIED);
+		}
+	}
+	
 	//In case of there being no leader, as long as there are members, pick the strongest member as a new leader. Can be overriden.
+	//Used by the default handling of death and erasure events, and also by CreateGroup() if no leader was passed.
 	Virtual Actor LeaderFallback ()
 	{
 		If (!Members.Size()) //Don't even have any members.
@@ -173,13 +214,26 @@ Class KAI_NPCGroup Play
 	
 	//MEMBER MANAGEMENT FUNCTIONS
 	
+	Void AlertMembersOfEvent (Int EventType, Actor Affected)
+	{
+		//Only alert individual members of events if the group allows it. NOTE: Only works for KAI NPCs.
+		If (!(GetNPCGroupFlags() & NPCGRP_NOMEMBEREVENT))
+		{
+			ForEach (Member : Members)
+			{
+				If (Member Is "KAI_Actor")
+					KAI_Actor(Member).HandleNPCGroupEvent (EventType, Affected);
+			}
+		}
+	}
 	//Return the strongest member in the group based on the default AssessThreatLevel() virtual. Can be set to not count players as stronger based on not being NPCs.
 	Actor GetStrongestMember (Bool NoPlayers = False)
 	{
 		Map <Int, Actor> Powerscaling;
-		KAI_Actor Reference = KAI_Actor(Actor.Spawn("KAI_Actor"));
+		KAI_Actor Reference = KAI_Actor(Actor.Spawn("ThreatAssess"));
 		ForEach (Member : Members)
 		{
+			If (IsDead(Member)) Continue; //Corpses aren't exactly dangerous, excluding diseases.
 			Powerscaling.Insert (Reference.AssessThreatLevel(Member,!NoPlayers), Member);
 		}
 		Reference.Destroy();
@@ -196,17 +250,32 @@ Class KAI_NPCGroup Play
 				DaBiggestBird = V;
 			}
 		}
-		
+		console.printf ("the strongest member of the group is %p",dabiggestbird);
 		Return /*Im*/DaBiggestBird;
+	}
+	
+	//https://www.youtube.com/watch?v=3WM1XNdJufI
+	Bool AreWeAllDead()
+	{
+		Bool Ded = True;
+		ForEach (Member : Members)
+		{
+			If (Member.Player ? Member.Player.Health : Member.Health > 0) //NOTE: We can't use IsDead() here, because the playerstate isn't updated to PST_DEAD fast enough.
+			{
+				Ded = False;
+				Break;
+			}
+		}
+		Return Ded;
 	}
 	
 	//Add a living thing to the group. Returns true if successfully added.
 	Bool AddNPCToGroup (Actor Recruit)
 	{
-		If (!Recruit || IsInanimateObject(Recruit) || IsDead(Recruit)) {console.printf ("%p can't be in the %s group",recruit,groupname);Return False;}
+		If (!Recruit || IsInanimateObject(Recruit) || IsDead(Recruit)) Return False;
 		
 		If (Members.Find(Recruit) == Members.Size())
-		{console.printf ("Welcome recruit %p",recruit);
+		{
 			Members.Push (Recruit);
 			//Add this group to the NPCs' group list, if it's not in that array already for some reason.
 			If (Recruit Is "KAI_Actor" && KAI_Actor(Recruit).Groups.Find(Self) == KAI_Actor(Recruit).Groups.Size())
@@ -226,6 +295,9 @@ Class KAI_NPCGroup Play
 					Token.Groups.Push(Self);
 				}
 			}
+			
+			HandleGroupEvent (GRPEVNT_JOIN,Recruit);
+			If (KAI_DebugPrintGroupEvents) Console.Printf ("AddNPCToGroup(), Group %p: New member %p (%s) joined", Self, Recruit, Recruit.GetClassName());
 			Return True;
 		}
 		
@@ -233,7 +305,9 @@ Class KAI_NPCGroup Play
 	}
 	
 	//Ditto, but for removing members.
-	Bool RemoveNPCFromGroup (Actor Discharged)
+	//Discharged: The actor to remove.
+	//NoDeathEvent: Don't trigger the GRPEVNT_LEFT event, only used if a member is erased from existence. You should also use this if you want to remove members when they die.
+	Bool RemoveNPCFromGroup (Actor Discharged, Bool NoLeftEvent = False)
 	{
 		If (!Discharged) Return False;
 		
@@ -241,7 +315,7 @@ Class KAI_NPCGroup Play
 		If ((RemoveIndex = Members.Find(Discharged)) != Members.Size())
 		{
 			Members.Delete (RemoveIndex); //Removed member index.
-			console.printf ("RemoveNPCFromGroup(): Removed member index %d",Removeindex);
+			
 			//Pointer cast spaghetti.
 			If (Discharged Is "KAI_Actor" && KAI_Actor(Discharged).Groups.Find(Self) != KAI_Actor(Discharged).Groups.Size())
 				KAI_Actor(Discharged).Groups.Delete(KAI_Actor(Discharged).Groups.Find(Self));
@@ -252,15 +326,44 @@ Class KAI_NPCGroup Play
 				KAI_DataToken Token = KAI_DataToken(Discharged.FindInventory ("KAI_DataToken"));
 				If (Token)
 					Token.Groups.Delete(Token.Groups.Find(Self));
-			}			
+			}
+			If (NoLeftEvent)
+				Return True;
+			HandleGroupEvent (GRPEVNT_LEFT,Discharged);
+			If (KAI_DebugPrintGroupEvents) Console.Printf ("RemoveNPCFromGroup(), Group %p: Member %p (%s) left", Self, Discharged, Discharged.GetClassName());
 			Return True;
 		}
 		
 		Return False;
 	}
 	
+	//Handles changing the groups' leader to another actor, to only allow valid leaders (i.e not props), and joining eligible actors who are members yet to the group.
+	Bool ChangeLeader (Actor NewLeader)
+	{
+		If (!NewLeader)
+			Return False;
+		
+		//The leader is not in the group yet. So try adding them in if they're valid.
+		Bool FailNow;
+		If (Members.Find(NewLeader) == Members.Size())
+			FailNow = !AddNPCToGroup (NewLeader);
+		
+		If (FailNow) //Couldn't add the new leader to the group.
+			Return False;
+		
+		//The event is fired BEFORE the leader is changed, just in case the group or members want to compare the old and new leader.
+		HandleGroupEvent (GRPEVNT_NEWLEADER,NewLeader);
+		Actor OldLeader = Leader;
+		Leader = NewLeader;
+		If (KAI_DebugPrintGroupEvents) Console.Printf ("KAI_NPCGroup.ChangeLeader(), Group %p: Member %p took member %p's leader position", Self, NewLeader, OldLeader);
+		
+		Return True;
+	}
+	
 	//Functions useful for non-KAI actors that are part of an NPC group. i.e for players that are part of a group.
 	//This shit is probably slow as balls for more than like 5 groups, considering it iterates over every group AND THEN over every member in that group !
+	//Who: The actor to check for any groups they're in.
+	//Groups: An array to pass by reference, this array will be given all the groups that the Who actor is part of, if any.
 	Static Void FindGroupsImIn (Actor Who, Array <KAI_NPCGroup> &Groups)
 	{
 		If (!Groups || !Who) Return;
@@ -269,8 +372,17 @@ Class KAI_NPCGroup Play
 			Groups.Copy(KAI_Actor(Who).Groups);
 			Return;
 		}
-		
-		Let Handler = KAI_EventHandler(EventHandler.Find("KAI_EventHandler"));
+		Else
+		{
+			KAI_DataToken Token = KAI_DataToken(Who.FindInventory ("KAI_DataToken"));
+			If (Token)
+			{
+				Groups.Copy(Token.Groups);
+				Return;
+			}
+		}
+		/*If (!Handler)
+			Handler = KAI_EventHandler(EventHandler.Find("KAI_EventHandler"));
 		
 		//This is the first time I'm even using a map, I have no idea if this code will even iterate through the group list like I think it will.
 		ForEach (K, V : Handler.NPCGroups)
@@ -285,16 +397,8 @@ Class KAI_NPCGroup Play
 			}
 			//Else //No pointer to a group (Value) for this key ? Might as well clean it up while we're here.
 			//	Handler.NPCGroups.Remove(K); //Right now this gives me an error "Readonly struct on left hand side of Remove not allowed" for some retarded reason.
-		}
+		}*/
 		
 		Return;
 	}
-}
-
-Enum NPCGroupFlags //NPCGRP_
-{
-	NPCGRP_EVERYONEDIED = 1 << 0, //Everyone in the group is dead. May be useful once this feature is complete for stuff like setting the first NPC revived as the leader.
-	//NPCGRP_NOMEMBERALERT= 1 << 1, //Group members aren't alerted of events through the OnGroupEvent() virtual. This hinges on how I decide to handle group events.
-	//NPCGRP_NOICONS	= 1 << 2, //Members of this group never have any icons over their heads.
-	//No idea what other group flags to add yet, if any.
 }

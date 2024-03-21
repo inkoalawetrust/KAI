@@ -48,8 +48,14 @@ Class KAI_Actor : Actor Abstract
 		Super.OnDestroy();
 		AttackStates.Clear(); //Clean the array before removal, because the GC can't: https://github.com/ZDoom/gzdoom/issues/2019
 		ForEach (Group : Groups) //Remove ourselves from any groups we're in.
-		{console.printf ("%p is being erased, removing index from groups",self);
-			Group.RemoveNPCFromGroup (Self);
+		{
+			/*URGENT: HACK: KAI NPCs for some reason need to fire the ERASED group event on their own, because unlike non-KAI group members, whose membership is
+			handled by KAI_DataToken. Library NPC are instead somehow removed BEFORE the group event can be fired on it's on in KAI_EventHandler, so it needs to
+			manually be fired here !*/
+			Group.HandleGroupEvent(Group.GRPEVNT_ERASED,Self);
+			If (KAI_DebugPrintGroupEvents)
+				Console.Printf ("KAI_Actor.OnDestroy(), Group %p: Member %p died", Group, Self);
+			Group.RemoveNPCFromGroup (Self,True);
 		}
 	}
 	
@@ -106,9 +112,7 @@ Class KAI_Actor : Actor Abstract
 	because it allows default user variable values to be set for actors that are spawned in-game as well, not just ones placed in UDB*/
 	Virtual Void UserVariableDefaults(){}
 	
-	/*PLAYTEST: For the time being I'm focusing on the vehicles (This codebase IS still mostly a rip from the MVP after all, for now.)
-	So I have not actually playtested if the default CanAttack() and ShouldAttack() code works like the native code. Since the vehicles just override it.
-	I'll begin putting more attention to the non-vehicle NPC code once I begin rewriting the Smart Marines, to code them more properly this time.*/
+	//PLAYTEST: I have not actually playtested if the default CanAttack() and ShouldAttack() code works like the native code. Since my own NPCs just override it.
 	//Used by the chase functions of each NPC type to check for all the different methods each actor has to attack.
 	Virtual Bool CanAttack()
 	{
@@ -164,30 +168,42 @@ Class KAI_Actor : Actor Abstract
 		Return IsHostile(Other);
 	}
 	
+	//This is called by NPC groups (If NPCGRP_NOMEMBERALERT is false) when an event that has to do with the group, like a member dying, occurs.
+	//Can be used to do things like make NPCs individually react to events, like saying something, becoming more aggressive, etc.
+	Virtual Void HandleNPCGroupEvent (Int EventType, Actor Affected)
+	{
+		//NPCs do nothing by default when something happens to the group, but these basic conditions SHOULD be inherited with Super. !
+		If (EventType == KAI_NPCGroup.GRPEVNT_NONE || !Affected || IsDead(Self))
+			Return;
+	}
+	
 	Bool ThreatHealthCheck (Actor Other, Int Amount)
 	{
 		Return (Other.SpawnHealth() >= Amount || Other.Health >= Amount);
 	}
 	//Tries to heuristically determine how dangerous another actor is. This is pretty hard to do universally. Since stuff like attacks can't be checked.
-	//TODO: Add a forceassess parameter, that skips returning the other actors' preset threat level.
 	//Other: The actor to check.
 	//CheckPlayers: Should the checks factor in players too ? e.g counting players with god or buddha mode as THREAT_UNSTOPPABLE. Useful for say not having NPCs just run away from cheating players.
-	Virtual Int AssessThreatLevel (Actor Other, Bool CheckPlayers = True)
+	Virtual Int AssessThreatLevel (Actor Other, Bool CheckPlayers = True, Bool ForceAssess = False)
 	{
 		If (!Other || IsDead (Other)) Return THREAT_NONE; //Nonexistent or dead actors aren't a problem.
-		
-		//KAI NPCs can have specific threat levels set, in which Case, just return whatever the NPCs' threat level is.
-		If (Other Is "KAI_Actor" && KAI_Actor(Other).ThreatLevel != THREAT_ASSESS)
-			Return KAI_Actor(Other).ThreatLevel;
-		
-		//Alternatively, if this is a non-KAI NPC. But has the KAI data token, and that token has a threat level specified, pass that instead.
-		Inventory Token = Other.FindInventory ("KAI_DataToken");
-		If (!(Other Is "KAI_Actor") && Token && KAI_DataToken(Token).ThreatLevel != THREAT_ASSESS)
-			Return KAI_DataToken(Token).ThreatLevel;
 		
 		//It's not even a player or NPC.
 		If (IsInanimateObject (Other))
 			Return THREAT_NONE;
+		
+		//KAI NPCs can have specific threat levels set, in which Case, just return whatever the NPCs' threat level is.
+		If (!ForceAssess && Other Is "KAI_Actor" && KAI_Actor(Other).ThreatLevel != THREAT_ASSESS)
+			Return KAI_Actor(Other).ThreatLevel;
+		
+		//Alternatively, if this is a non-KAI NPC. But has the KAI data token, and that token has a threat level specified, pass that instead.
+		If (!ForceAssess && !(Other Is "KAI_Actor"))
+		{
+			Inventory Token = Other.FindInventory ("KAI_DataToken");
+			If (Token && KAI_DataToken(Token).ThreatLevel != THREAT_ASSESS)
+				Return KAI_DataToken(Token).ThreatLevel;
+		}
+		
 		
 		//If indestructible. Then the other actor is unstoppable (Obviously)
 		If (HasGodMode (Other, !CheckPlayers) || HasBuddha (Other, !CheckPlayers) || IsIndestructible (Other) ||
@@ -339,7 +355,7 @@ Class KAI_EventHandler : EventHandler
 				{
 					GroupNum++;
 					Console.Printf ("\c[Green]KAI_GetTargetGroup: Printing info for group %d",GroupNum);
-					Console.Printf ("\c[Blue]%s",CurGroup.PrintGroupInfo(True)); //BUG: The blue is only applied on the first group info string, and not the other appended ones.
+					CurGroup.PrintGroupInfo(False,"Blue");
 				}
 				If (GroupNum == -1)
 					Console.Printf ("\c[Green]KAI_GetTargetGroup: %p is in no NPC groups",MoFind.HitActor);
@@ -362,12 +378,19 @@ Class KAI_EventHandler : EventHandler
 	Override Void WorldThingDied (WorldEvent E)
 	{
 		RemoveFromProjectileList (E.Thing); //Delete any destroyed projectiles from the list.
+		NPCGroupEventHandler (KAI_NPCGroup.GRPEVNT_DEATH,E.Thing);
 	}
 	
 	Override Void WorldThingDestroyed (WorldEvent E)
 	{
 		RemoveFromProjectileList (E.Thing); //Delete any removed projectiles from the list.
 		RemoveFromVehicleList (KAI_BaseVehicle(E.Thing));
+		NPCGroupEventHandler (KAI_NPCGroup.GRPEVNT_ERASED,E.Thing);
+	}
+	
+	Override Void WorldThingRevived (WorldEvent E)
+	{
+		NPCGroupEventHandler (KAI_NPCGroup.GRPEVNT_REVIVAL,E.Thing);
 	}
 	
 	Void AddToProjectileList (Actor What)
@@ -390,6 +413,7 @@ Class KAI_EventHandler : EventHandler
 		If (Veh < AllVehicles.Size())
 			AllVehicles.Delete(Veh);
 	}
+	
 	//================================================
 	//NPC Group system handling.
 	Int GroupJanitorTimer;
@@ -404,7 +428,7 @@ Class KAI_EventHandler : EventHandler
 			Array<Int> DirtyKeys;
 			ForEach (K, V : NPCGroups)
 			{
-				Console.printf ("Iterated through key %d, value %p",K,V);
+				//Console.printf ("Iterated through key %d, value %p",K,V);
 				NPCGroups.Get(K).PrintGroupInfo(); //DEBUG
 				//This group has no members in it, remove it.
 				If (!NPCGroups.Get(K).Members.Size())
@@ -472,6 +496,42 @@ Class KAI_EventHandler : EventHandler
 		
 		Return Groups.Size();
 	}
+	
+	//Handle the occurance of an event involving an NPC group and its' individual members.
+	Void NPCGroupEventHandler (Int EventType, Actor Affected)
+	{
+		If (EventType == KAI_NPCGroup.GRPEVNT_NONE || !Affected)
+			Return;
+		
+		//HACK: KAI NPCs for some reason remove themselves from their groups BEFORE this function calls the ERASED event. So they also handle this event themselves.
+		If (EventType == KAI_NPCGroup.GRPEVNT_ERASED && Affected Is "KAI_Actor")
+			Return;
+		
+		Array <KAI_NPCGroup> AffectedGroups;
+		
+		KAI_NPCGroup.FindGroupsImIn (Affected,AffectedGroups);
+		
+		ForEach (CurGroup : AffectedGroups)
+		{
+			CurGroup.HandleGroupEvent (EventType, Affected);
+			If (EventType == CurGroup.GRPEVNT_DEATH)
+			{
+				If (CurGroup.AreWeAllDead()) //Update whether all group members died.
+					CurGroup.ChangeNPCGroupFlags (CurGroup.NPCGRP_EVERYONEDIED,0);
+				Else
+					CurGroup.ChangeNPCGroupFlags (0,CurGroup.NPCGRP_EVERYONEDIED);
+			}
+			If (KAI_DebugPrintGroupEvents) //Print debug info on events caught by the built-in event handlers.
+			{
+				If (EventType == KAI_NPCGroup.GRPEVNT_DEATH)
+					Console.Printf ("HandleGroupEvent(), Group %p: Member %p died", CurGroup, Affected);
+				Else If (EventType == KAI_NPCGroup.GRPEVNT_ERASED)
+					Console.Printf ("HandleGroupEvent(), Group %p: Member %p was removed", CurGroup, Affected);
+				Else If (EventType == KAI_NPCGroup.GRPEVNT_REVIVAL)
+					Console.Printf ("HandleGroupEvent(), Group %p: Member %p was resurrected", CurGroup, Affected);
+			}
+		}
+	}
 }
 
 //DOCUMENT: Write instructions on using this to add support for KAI NPCs without making the library needed for the non-KAI mod to run.
@@ -506,10 +566,9 @@ Class KAI_DataToken : Inventory
 	{
 		If (ErasedOwner)
 		{
-		console.printf ("%p is being removed",erasedowner);
 			ForEach (Group : Groups) //Remove the tokens' owner from any groups they may be in. To handle non-KAI NPCs being erased while in a group.
-			{console.printf ("non-KAI actor %p is being erased, removing it from any groups it's in through KAI_DataToken",erasedowner);
-				Group.RemoveNPCFromGroup (ErasedOwner);
+			{
+				Group.RemoveNPCFromGroup (ErasedOwner,True);
 			}
 		}
 	}
@@ -518,7 +577,7 @@ Class KAI_DataToken : Inventory
 	Bool VelocityMonster;	//This actor moves with actual momentum instead of using TryMove() like normal monsters do.
 							//Non-KAI actors that genuinely move need to mark themselves with this to be detected
 							//as moving with momentum by the target prediction code.
-	Array <KAI_NPCGroup> Groups; //The groups this KAI NPC is in.
+	Array <KAI_NPCGroup> Groups; //The groups this non-KAI NPC is in.
 }
 //DEBUG: Assesses the threat level of an actor in front of it, to see if the system works as intended.
 Class ThreatAssess : KAI_Actor// replaces gibbedmarineextra

@@ -1,2 +1,3 @@
 Server Bool KAI_DebugPredictiveAim = False; //Display white (Desired) and yellow (Actual) aim lines from NPCs with predictive aiming.
 Server Bool KAI_DebugHitChance = False; //Show debug info and hitscan paths for DetermineHitChance().
+Server Bool KAI_DebugPrintGroupEvents = False; //Print NPC group event info like when a groups' member dies.

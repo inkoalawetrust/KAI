@@ -89,7 +89,9 @@ Class KAI_NPCGroup Play
 	
 	//Change the graphics the GroupIcons show based on the status of each member and if they're just a member, the leader, and/or a player.
 	Void UpdateGroupIcons ()
-	{console.printf ("RUNNING ICON UPDATING LOOP");
+	{
+		If ((GetNPCGroupFlags() & NPCGRP_NOICONS))
+			Return;
 		ForEach (Icon : MemberIcons)
 		{
 			If (Icon.Owner.Health <= 0)
@@ -116,7 +118,7 @@ Class KAI_NPCGroup Play
 	}
 	
 	//Debug function for printing the groups variables into the console, also returns the debug string.
-	String PrintGroupInfo (Bool DontPrint = False, String ColorCode = "-")
+	String PrintGroupInfo (Bool DontPrint = False, String ColorCode = "l")
 	{
 		String DebugInfo;
 		DebugInfo.AppendFormat ("\c[%s]KAI NPC Group name: %s | Pointer: %p | Class: %s\n",ColorCode,GroupName,Self,GetClassName());
@@ -260,15 +262,13 @@ Class KAI_NPCGroup Play
 	Virtual Void HandleGroupEvent (Int EventType, Actor Affected)
 	{
 		If (EventType == GRPEVNT_NONE || !Affected) //Nothingburger
-			{console.printf ("HandleGroupEvent(): stopped empty event from occuring for member %p",affected);Return;}
+			Return;
 		
 		AlertMembersOfEvent (EventType, Affected);
 		
 		//By default, the only event the stock group class handles is the death or erasure of the group leader, using the stock LeaderFallback() virtual.
 		If (Affected == Leader && (EventType == GRPEVNT_DEATH || EventType == GRPEVNT_ERASED))
-		{console.printf ("HandleGroupEvent(): The group leader died, calling LeaderFallback() to get a new one.");
 			ChangeLeader(LeaderFallBack());
-		}
 		
 		If (EventType == GRPEVNT_REVIVAL) //A member is alive again, clearly not EVERYONE'S dead anymore.
 		{
@@ -282,7 +282,7 @@ Class KAI_NPCGroup Play
 			ChangeNPCGroupFlags (0,NPCGRP_EVERYONEDIED);
 		}
 		
-		If (!(GetNPCGroupFlags() & NPCGRP_NOICONS)) UpdateGroupIcons(); //Basically every single event changes the group icons in some way.
+		UpdateGroupIcons(); //Basically every single event changes the group icons in some way.
 	}
 	
 	//In case of there being no leader, as long as there are members, pick the strongest member as a new leader. Can be overriden.
@@ -323,10 +323,11 @@ Class KAI_NPCGroup Play
 			ForEach (Member : Members)
 			{
 				If (Member Is "KAI_Actor")
-					KAI_Actor(Member).HandleNPCGroupEvent (EventType, Affected);
+					KAI_Actor(Member).HandleNPCGroupEvent (EventType, Affected, Self);
 			}
 		}
 	}
+	
 	//Return the strongest member in the group based on the default AssessThreatLevel() virtual. Can be set to not count players as stronger based on not being NPCs.
 	Actor GetStrongestMember (Bool NoPlayers = False)
 	{
@@ -465,7 +466,8 @@ Class KAI_NPCGroup Play
 		HandleGroupEvent (GRPEVNT_NEWLEADER,NewLeader);
 		Actor OldLeader = Leader;
 		Leader = NewLeader;
-		If (KAI_DebugPrintGroupEvents) Console.Printf ("KAI_NPCGroup.ChangeLeader(), Group %p: Member %p took member %p's leader position", Self, NewLeader, OldLeader);
+		If (KAI_DebugPrintGroupEvents)
+			Console.Printf ("KAI_NPCGroup.ChangeLeader(), Group %p(%s): Member %p(%s) took member %p's(%s) leader position", Self, GetClassName(), NewLeader, NewLeader.GetClassName(), OldLeader, OldLeader.GetClassName());
 		
 		Return True;
 	}

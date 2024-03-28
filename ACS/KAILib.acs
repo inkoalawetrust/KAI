@@ -1,5 +1,11 @@
-#Library "KAIToken"
+#Library "KAILib"
 #Include "ZCommon.acs"
+
+//Flag names fro CreateGroupACS().
+#Define NPCGRP_EVERYONEDIED  1
+#Define NPCGRP_NOMEMBEREVENT 2
+#Define NPCGRP_NOICONS		 4
+
 /*HACK: For cleanliness and readability. KAI_DataToken uses custom variables to pass data for KAI NPCs to read,
 such as threat levels. But trying to access those variables from an actor that possibly may not exist directly
 through ZScript causes startup errors if that actor (The token) does not exist, like if your non-KAI mod is not

@@ -170,7 +170,7 @@ Class KAI_Actor : Actor Abstract
 	
 	//This is called by NPC groups (If NPCGRP_NOMEMBERALERT is false) when an event that has to do with the group, like a member dying, occurs.
 	//Can be used to do things like make NPCs individually react to events, like saying something, becoming more aggressive, etc.
-	Virtual Void HandleNPCGroupEvent (Int EventType, Actor Affected)
+	Virtual Void HandleNPCGroupEvent (Int EventType, Actor Affected, KAI_NPCGroup WhatGroup)
 	{
 		//NPCs do nothing by default when something happens to the group, but these basic conditions SHOULD be inherited with Super. !
 		If (EventType == KAI_NPCGroup.GRPEVNT_NONE || !Affected || IsDead(Self))
@@ -524,11 +524,11 @@ Class KAI_EventHandler : EventHandler
 			If (KAI_DebugPrintGroupEvents) //Print debug info on events caught by the built-in event handlers.
 			{
 				If (EventType == KAI_NPCGroup.GRPEVNT_DEATH)
-					Console.Printf ("HandleGroupEvent(), Group %p: Member %p died", CurGroup, Affected);
+					Console.Printf ("HandleGroupEvent(), Group %p(%s): Member %p(%s) died", CurGroup, CurGroup.GetClassName(), Affected, Affected.GetClassName());
 				Else If (EventType == KAI_NPCGroup.GRPEVNT_ERASED)
-					Console.Printf ("HandleGroupEvent(), Group %p: Member %p was removed", CurGroup, Affected);
+					Console.Printf ("HandleGroupEvent(), Group %p(%s): Member %p(%s) was removed", CurGroup, CurGroup.GetClassName(), Affected, Affected.GetClassName());
 				Else If (EventType == KAI_NPCGroup.GRPEVNT_REVIVAL)
-					Console.Printf ("HandleGroupEvent(), Group %p: Member %p was resurrected", CurGroup, Affected);
+					Console.Printf ("HandleGroupEvent(), Group %p(%s): Member %p(%s) was resurrected", CurGroup, CurGroup.GetClassName(), Affected, Affected.GetClassName());
 			}
 		}
 	}

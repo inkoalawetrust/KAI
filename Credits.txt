@@ -5,5 +5,6 @@ Written by inkoalawetrust. With help for a few miscellaneous tasks by RaveYard.
 |=|>-----<|Individual credits|>-----<|=|
 - Trail line spawning code for KAI_BaseProjectile written by Boondorl.
 - GetNearestCardinalAngle() written by Lewisk3.
-- Initial KAI_MoveTowards coden written by Custodian. However the original was basically just moving in a straight line.
-- Some A_Chase ZScript exports written by Kizoky
+- Initial KAI_MoveTowards coden written by Custodian. However the original was basically just moving in a straight line with smooth turning.
+- Some A_Chase ZScript exports written by Kizoky.
+- Default group icons also made by inkoalawetrust.

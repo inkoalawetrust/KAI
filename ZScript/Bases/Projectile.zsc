@@ -508,6 +508,28 @@ Class KAI_BaseProjectile : FastProjectile
 		Return FaceStraight;
 	}
 	
+	//HACK: Epic copy and paste because GetAngleToPos() is in KAI_Actor,
+	//and making KAI_BaseProjectile inherit from it would bloat this class too much !
+	Double GetAngleToPos (Vector3 Position, Double AngleLimit = 10)
+	{
+		Vector3 SCoords = Level.SphericalCoords (Pos,Position);
+		If (AngleLimit == 0) Return -SCoords.X;
+		Double AngleTo = -SCoords.X;
+		Double Delta = -DeltaAngle (Angle,AngleTo);
+		
+		If(Abs(Delta) <= AngleLimit)
+			Return AngleTo;
+		If (AngleLimit != 0)
+		{
+			If (Delta > 0)
+				Return Angle - AngleLimit;
+			Else
+				Return Angle + AngleLimit;
+		}
+		
+		Return 0;
+	}
+	
 	//Is the other actor hostile to the projectiles' shooter ? Useful for SpecialMissileHit checks.
 	Bool IsHostileToShooter(Actor Other)
 	{

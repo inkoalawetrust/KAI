@@ -49,6 +49,16 @@ Class KAI_Math
 		Return Level.Vec3Offset (Other.Pos,Dir * Offs,NoPortal);
 	}
 	
+	//Exactly like Vec3OffsetRelative, but only uses position vectors.
+    clearscope static vector3 Vec3OffsetRelative2 (vector3 OtherPos, vector3 Offs, vector3 Angles, bool NoPortal = false)
+    {
+		if (OtherPos != OtherPos)
+			return (Double.NaN,Double.NaN,Double.NaN);
+		
+		quat Dir = Quat.FromAngles(Angles.x, Angles.y, Angles.z);
+		return Level.Vec3Offset(OtherPos, Dir * Offs, NoPortal);
+    }
+	
 	//CREDIT: RicardoLuis0
 	ClearScope Static Vector3 AngleToVector3D(Double Angle, Double Pitch, Double Len = 1.0)
 	{

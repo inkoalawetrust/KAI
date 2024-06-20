@@ -40,6 +40,7 @@ Maybe also add an OnBodyPartHit callback for projectiles to use. Such as to make
 */
 /*Cacodemon345 exposed the native FScanner class to ZScript a few months ago, maybe I could retry my idea for
 NPC voice packs using ScriptScanner ? Hopefully it'll be a lot easier to use than manually reading and parsing files !*/
+/*Make some kind of target priority queue system, or something ? Like, for having NPCs optionally target multiple enemies.*/
 
 //DEBUG DEBUG DEBUG
 class TestPinky : KAI_Actor// Replaces Demon

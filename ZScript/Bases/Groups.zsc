@@ -7,6 +7,7 @@ semi-built-in code limbo.*/
 
 //Base data class for NPC groups, accessed by NPCs to find data like the group they're in, other members in it, its' leader, if a member died, etc.
 //All NPC groups are stored in an associative array in KAI_EventHandler for easy lookup.
+//$GZDB_SKIP
 Class KAI_NPCGroup Play
 {
 	Mixin KAI_CheckFunctions;
@@ -524,7 +525,7 @@ Class KAI_GroupIcon : VisualThinker
 		
 		If (IsFrozen()) Return;
 		
-		If (Group.GetNPCGroupFlags() & Group.NPCGRP_NOICONS) //Icons are disabled for this group, go invisible and stop.
+		If (Group && Group.GetNPCGroupFlags() & Group.NPCGRP_NOICONS) //Icons are disabled for this group, go invisible and stop.
 		{
 			Alpha = 0;
 			Return;
@@ -553,7 +554,7 @@ Class KAI_GroupPlayerIcon : KAI_GroupIcon
 		
 		If (IsFrozen()) Return;
 		
-		If (Group.GetNPCGroupFlags() & Group.NPCGRP_NOICONS)
+		If (Group && Group.GetNPCGroupFlags() & Group.NPCGRP_NOICONS)
 		{
 			Alpha = 0;
 			Return;

@@ -49,6 +49,7 @@ Class KAI_Actor : Actor Abstract
 		AttackStates.Clear(); //Clean the array before removal, because the GC can't: https://github.com/ZDoom/gzdoom/issues/2019
 		ForEach (Group : Groups) //Remove ourselves from any groups we're in.
 		{
+			If (!Group) Continue;
 			/*URGENT: HACK: KAI NPCs for some reason need to fire the ERASED group event on their own, because unlike non-KAI group members, whose membership is
 			handled by KAI_DataToken. Library NPC are instead somehow removed BEFORE the group event can be fired on it's on in KAI_EventHandler, so it needs to
 			manually be fired here !*/
@@ -513,6 +514,7 @@ Class KAI_EventHandler : EventHandler
 		
 		ForEach (CurGroup : AffectedGroups)
 		{
+			If (!CurGroup) Continue;
 			CurGroup.HandleGroupEvent (EventType, Affected);
 			If (EventType == CurGroup.GRPEVNT_DEATH)
 			{
@@ -568,7 +570,7 @@ Class KAI_DataToken : Inventory
 		{
 			ForEach (Group : Groups) //Remove the tokens' owner from any groups they may be in. To handle non-KAI NPCs being erased while in a group.
 			{
-				Group.RemoveNPCFromGroup (ErasedOwner,True);
+				If (Group) Group.RemoveNPCFromGroup (ErasedOwner,True);
 			}
 		}
 	}

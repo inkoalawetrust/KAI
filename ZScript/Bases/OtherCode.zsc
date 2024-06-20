@@ -693,13 +693,13 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 		
 		//The target is in the line of fire. Or the Mobj is an enemy. Shoot them anyway.
 		If (Other && Mobj == Other || !IsInanimateObject(Mobj) && IsHostile(Shooter,Mobj))
-			{/*console.printf("this is an enemy");*/Return Trace_Stop;}
+			{/*If (KAI_DebugPrintMessages)console.printf("this is an enemy");*/Return Trace_Stop;}
 		
 		//If friendly fire prevention is on, return false if an ally is in the way.
 		Bool WillHitOwnShooter = (Shooter && ProjInfo && (Mobj == Shooter && ProjInfo.HitOwner) ); //Make sure the projectile won't kill the shooter itself.
 		
 		If (FriendlyFire && (WillHitOwnShooter || (Mobj && Mobj != Shooter && !IsDead(Mobj) && IsCollidable (Mobj) && !IsInanimateObject(Mobj) && !IsHostile (Shooter,Mobj))) )
-		{//console.printf ("blue on blue ! will hit %p by accident",mobj);
+		{//If (KAI_DebugPrintMessages)console.printf ("blue on blue ! will hit %p by accident",mobj);
 			BadLOF = True;
 			Return Trace_Stop;
 		}
@@ -708,14 +708,14 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 		
 		//Indestructible prop in the way.
 		If (Mobj && !OtherInBlast && IsCollidable (Mobj) && IsIndestructible (Mobj) && IsInanimateObject (Mobj))
-		{//console.printf ("invincible object in the way");
+		{//If (KAI_DebugPrintMessages)console.printf ("invincible object in the way");
 			BadLOF = True;
 			Return Trace_Stop;
 		}
 		
 		//Destructible prop, but far too strong to shoot through in a timely manner.
 		If (Mobj && !OtherInBlast && IsCollidable (Mobj) && !IsIndestructible(Mobj) && IsInanimateObject (Mobj) && !CanShootAtProp(Mobj,PropHealthThreshold))
-		{//console.printf("vincible object in the way, but too durable");
+		{//If (KAI_DebugPrintMessages)console.printf("vincible object in the way, but too durable");
 			BadLOF = True;
 			Return Trace_Stop;
 		}
@@ -723,21 +723,21 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 		//Solid corpse in the way, attack can't go through.
 		Bool StopAtCorpse = !FriendlyFire ? IsHostile(Shooter,Mobj) : True;
 		If (Mobj && !OtherInBlast && IsSolidCorpse(Mobj) && StopAtCorpse)
-		{//console.printf ("dead actor in the way");
+		{//If (KAI_DebugPrintMessages)console.printf ("dead actor in the way");
 			BadLOF = True;
 			Return Trace_Stop;
 		}
 		
 		//A projectile class has been passed that is a ripper, but it can no longer rip the actor.
 		If (ProjInfo && ProjInfo.Projectile && ProjInfo.IsRipper && IsCollidable (Mobj) && !CanRipActor (Mobj))
-		{//console.printf ("epic ripping fail");
+		{//If (KAI_DebugPrintMessages)console.printf ("epic ripping fail");
 			BadLOF = True;
 			Return Trace_Stop;
 		}
 		
 		//The trace specifically hit a projectile blocking line. e.g a window linedef or a polyobject.
 		If (BlockingLineInTheWay (Results.HitLine,0))
-		{//console.printf ("blocking line in the way");
+		{//If (KAI_DebugPrintMessages)console.printf ("blocking line in the way");
 			BadLOF = True;
 			Return Trace_Stop;
 		}
@@ -751,16 +751,16 @@ Class KAI_ProjectileLOFCheck : KAI_LOFRaycast
 			{
 				Distance = Level.Vec3Diff (Other.Pos,Results.HitPos).Length();
 				If (CheckSightTo (Shooter,Other,Distance))
-					/*{console.printf ("splash damage check passed");*/Return Trace_Stop;//}
+					/*{If (KAI_DebugPrintMessages)console.printf ("splash damage check passed");*/Return Trace_Stop;//}
 				Else
-				{//console.printf ("splash damage check failed");
+				{//If (KAI_DebugPrintMessages)console.printf ("splash damage check failed");
 					BadLOF = True;
 					Return Trace_Stop;
 				}
 			}
 			Else
 				BadLOF = True;
-			//console.printf ("level geometry in the way");
+			//If (KAI_DebugPrintMessages)console.printf ("level geometry in the way");
 			Return Trace_Stop;
 		}
 		

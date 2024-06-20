@@ -34,8 +34,8 @@ Class KAI_Humanoid : KAI_Creature Abstract
 			
 			If (BlockingMobj && (BlockingMobj.Pos.Z < Pos.Z+Height && BlockingMobj.Pos.Z >= Pos.Z+CrouchHeight) ||
 			(SecHeight < Pos.Z+Height && SecHeight >= Pos.Z+CrouchHeight))
-			{if (BlockingMobj && (BlockingMobj.Pos.Z < Pos.Z+Height && BlockingMobj.Pos.Z >= Pos.Z+CrouchHeight)) console.printf ("Crouch handling: actor above the caller");
-				console.printf ("crouching %p down",self);If (ChangeHeight) Height = CrouchHeight;
+			{if (BlockingMobj && (BlockingMobj.Pos.Z < Pos.Z+Height && BlockingMobj.Pos.Z >= Pos.Z+CrouchHeight) && KAI_DebugPrintMessages) console.printf ("Crouch handling: actor above the caller");
+				If (KAI_DebugPrintMessages)console.printf ("crouching %p down",self);If (ChangeHeight) Height = CrouchHeight;
 				Return True;
 			}
 		}
@@ -77,11 +77,11 @@ Class KAI_Humanoid : KAI_Creature Abstract
 			//Check for 3D floors the actor can climb over separetely with a trace, since CheckPosition() won't cut it.
 			If (FFloor = KAI_FindClimbable3DFloor (Level.Vec2Diff(Pos.XY,CheckPos).Length()*3)) //There's actually a 3D floor in front of the actor.
 				ClimbZ = FFloor.Top.ZAtPoint(CheckPos); //Set the climbZ to the top of that 3D floor !
-			console.printf ("climb z after 3d floor check is %d",climbz); if (ffloor) console.printf ("found a 3D floor %p",ffloor);
+			If (KAI_DebugPrintMessages)console.printf ("climb z after 3d floor check is %d",climbz); if (ffloor && KAI_DebugPrintMessages) console.printf ("found a 3D floor %p",ffloor);
 			If (BlockingMobj)
 				ClimbZ = BlockingMobj.Pos.Z + BlockingMobj.Height;
 			
-			if ((FloorZ - Tm.DropoffZ > MaxDropOffHeight))
+			if ((FloorZ - Tm.DropoffZ > MaxDropOffHeight) && KAI_DebugPrintMessages)
 				console.printf ("the floor dropoff is over the max drop off height");
 			
 			//Double RealZ = Pos.Z;
@@ -92,7 +92,7 @@ Class KAI_Humanoid : KAI_Creature Abstract
 			SetXYZ (OldPos);
 			//SetXYZ ((Pos.XY,RealZ));
 			
-			if (!PosGood)
+			if (!PosGood && KAI_DebugPrintMessages)
 				console.printf ("checkposition failed");
 			//Ledge is just at around the actors' height.
 			If (PosGood && ClimbZ < Pos.Z+(Height*ClimbMul) && !(FloorZ - Tm.DropoffZ > MaxDropOffHeight))
@@ -161,11 +161,11 @@ Class KAI_Humanoid : KAI_Creature Abstract
 		Double HeightOffset = Height;
 		For (Int I = Iterations; I > 0; I--)
 		{
-			Console.Printf ("Ran a 3D floor check at %.2f, the spacing is %.2f",HeightOffset, Spacing);
+			If (KAI_DebugPrintMessages)Console.Printf ("Ran a 3D floor check at %.2f, the spacing is %.2f",HeightOffset, Spacing);
 			FFloorCheck.Trace (Pos.PlusZ(HeightOffset),CurSector, (AngleToVector(Angle, Cos(0)), -Sin(0)) ,Dist,0);
 			
 			If (FFloor = FFloorCheck.Results.FFloor)
-			{a_log ("3d floor check passed");
+			{If (KAI_DebugPrintMessages)a_log ("3d floor check passed");
 				FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 35; P.Size = 2; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
 				KAI_LOFRaycast.VisualizeTracePath(Pos.PlusZ(HeightOffset),FFloorCheck.Results.HitPos,FFloorCheck.Results.Distance,0.5,p);
 				FFloorCheck.Destroy();
@@ -271,7 +271,7 @@ Class KAI_Humanoid : KAI_Creature Abstract
 		if(dist >= aimDist)
 		{
 			double grav = 1.0 + ceil(self.GetGravity() * (level.gravity * 0.010769));
-			console.printf ("KAI_JumpTo(): Grav value is %.2f",grav);
+			If (KAI_DebugPrintMessages)console.printf ("KAI_JumpTo(): Grav value is %.2f",grav);
 			double ticsDist = diff.Length() / double(max(self.Speed,1.0));        
 			double fallDist = ticsDist * grav;
 			toPos.z += fallDist * aimSens;

@@ -339,7 +339,7 @@ Extend Class KAI_Actor
 	Void KAI_MoveAway (Actor Other, Int Attempts = 32, Double RunRad = 128, Int MaxSteps = 32, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0,
 	Int KMAFlags = 0, Vector3 TargPos = (Double.NaN, Double.NaN, Double.NaN))
 	{
-		If (!Other && KAI_Math.IsEmptyVector3(TargPos)) {console.printf ("KAI_MoveAway(): Premptively stopping execution");Return;}
+		If (!Other && KAI_Math.IsEmptyVector3(TargPos)) {If (KAI_DebugPrintMessages)console.printf ("KAI_MoveAway(): Premptively stopping execution");Return;}
 		
 		Vector3 RunPos = Other ? Other.Pos : TargPos;
 		
@@ -531,7 +531,7 @@ Extend Class KAI_Actor
 			}
 			//If one of them fails, then return false.
 			Else
-			{//console.printf ("i can't walk to %d %d %d",targetpos);
+			{//If (KAI_DebugPrintMessages)console.printf ("i can't walk to %d %d %d",targetpos);
 				bDontInterpolate = Interp;
 				bThruActors = ThruActs;
 				SetOrigin (OldPos,False);
@@ -558,10 +558,9 @@ Extend Class KAI_Actor
 			Actor Mobj = FindEnemies.Thing;
 			
 			//Skip this actor if it's dead, cannot be targeted, is not a monster nor a player, or is not even an enemy.
-			If (!Mobj || IsDead (Mobj) || IsInanimateObject(Mobj) || !CanBeTargeted (Self, Mobj) || !IsActorHostile (Mobj)) Continue;
+			If (!Mobj || IsDead (Mobj) || IsInanimateObject(Mobj) || Mobj.Health >= 10000 || !CanBeTargeted (Self, Mobj) || !IsActorHostile (Mobj)) Continue;
 			
 			If (!CheckSight (Mobj)) Continue; //And at last, check if the enemy is even visible.
-			
 			NearbyEnemies.Push(Mobj); //Add it to the list.
 		}
 		Return GetClosestActor (NearbyEnemies,Self.Pos,Range);

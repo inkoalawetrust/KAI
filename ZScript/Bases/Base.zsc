@@ -354,6 +354,7 @@ Class KAI_EventHandler : EventHandler
 				Int GroupNum = -1;
 				ForEach (CurGroup : GroupList)
 				{
+					If (!CurGroup) Continue;
 					GroupNum++;
 					Console.Printf ("\c[Green]KAI_GetTargetGroup: Printing info for group %d",GroupNum);
 					CurGroup.PrintGroupInfo(False,"Blue");
@@ -425,7 +426,7 @@ Class KAI_EventHandler : EventHandler
 		//Clean up map keys that don't lead to a pointer to a group.
 		If (!GroupJanitorTimer--)
 		{
-			Console.Printf ("KAI_EventHandler: Running Group map janitor...");
+			If (KAI_DebugPrintMessages) Console.Printf ("KAI_EventHandler: Running Group map janitor...");
 			Array<Int> DirtyKeys;
 			ForEach (K, V : NPCGroups)
 			{
@@ -442,7 +443,7 @@ Class KAI_EventHandler : EventHandler
 			ForEach (K : DirtyKeys)
 			{
 				If (K)
-				{console.printf ("removed group with no members");
+				{If (KAI_DebugPrintMessages)console.printf ("removed group with no members");
 					Let EmptyGroup = NPCGroups.GetIfExists(K);
 					If (EmptyGroup) EmptyGroup.Destroy(); //Destroy empty group.
 					NPCGroups.Remove(K);

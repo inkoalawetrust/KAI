@@ -353,7 +353,7 @@ Class KAI_NPCGroup Play
 				DaBiggestBird = V;
 			}
 		}
-		console.printf ("the strongest member of the group is %p",dabiggestbird);
+		If (KAI_DebugPrintMessages)console.printf ("the strongest member of the group is %p",dabiggestbird);
 		Return /*Im*/DaBiggestBird;
 	}
 	

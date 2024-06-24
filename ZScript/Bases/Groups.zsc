@@ -16,6 +16,7 @@ Class KAI_NPCGroup Play
 	String GroupName; //The name of the group. Doesn't do anything on its' own. IDEA: Maybe figure a way out to visually print the groups' name over its' members ?
 	Array<Actor> Members; //The groups' members. If the group is emtpy, the janitor in KAI_EventHandler removes it.
 	Actor Leader; //The head honcho of the group. Should be in the Members list too. Can be any actor, mainly in case a player is leading NPCs around or something.
+	Actor OldLeader; //The last leader the NPC group had. Useful for comparing the new and previous leader for example.
 	
 	Enum NPCGroupFlags
 	{
@@ -133,6 +134,11 @@ Class KAI_NPCGroup Play
 				DebugInfo.DeleteLastCharacter(); //Backspacing
 				DebugInfo.AppendFormat ("\c[%s] <= Group leader\n",ColorCode);
 			}
+			If (Member == OldLeader)
+			{
+				DebugInfo.DeleteLastCharacter();
+				DebugInfo.AppendFormat ("\c[%s] <= Previous group leader\n",ColorCode);
+			}
 			If (!(Member Is "KAI_Actor"))
 			{
 				DebugInfo.DeleteLastCharacter();
@@ -156,7 +162,7 @@ Class KAI_NPCGroup Play
 			DebugInfo.AppendFormat ("\c[%s]| NPCGRP_NOMEMBEREVENT ",ColorCode);
 		If (Flags & NPCGRP_NOICONS)
 			DebugInfo.AppendFormat ("\c[%s]| NPCGRP_NOICONS ",ColorCode);
-		DebugInfo.AppendFormat ("\c[%s]Group icon names:\n",ColorCode);
+		DebugInfo.AppendFormat ("\n\c[%s]Group icon names:\n",ColorCode);
 		DebugInfo.AppendFormat ("	\c[%s]Member icon: %s\n",ColorCode,TexMan.GetName(MemberIcon));
 		DebugInfo.AppendFormat ("	\c[%s]Dead member icon: %s\n",ColorCode,TexMan.GetName(DeadMemberIcon));
 		DebugInfo.AppendFormat ("	\c[%s]Leader icon: %s\n",ColorCode,TexMan.GetName(LeaderIcon));
@@ -190,6 +196,7 @@ Class KAI_NPCGroup Play
 		
 		ForEach (Member : Members) //Add members, after checking them one by one to make sure they aren't corpses or props.
 		{
+			If (Member == Leader) Continue; //Don't add the leader yet.
 			Group.AddNPCToGroup(Member);
 		}
 		
@@ -201,15 +208,16 @@ Class KAI_NPCGroup Play
 			Return Null;
 		}
 		
-		Group.Leader = Leader;
+		Group.ChangeLeader(Leader);
 		Group.GroupName = GroupName;
 		
-		//Add leader to the group separetely. If they they weren't added, abort group creation.
+		/*//Add leader to the group separetely. If they they weren't added, abort group creation.
 		If (!Group.AddNPCToGroup(Group.Leader))
 		{
+			Console.PrintfEx (PRINT_HIGH,"KAI_NPCGroup.CreateGroup(): Failed to create new instance of %s, couldn't add leader %p to group.",GroupClass.GetClassName(),Group.Leader);
 			Group.Destroy();
 			Return Null;
-		}		
+		}*/		
 		
 		Group.ChangeNPCGroupFlags (Flags,0); //Pass group flags.
 		
@@ -405,7 +413,7 @@ Class KAI_NPCGroup Play
 			If (KAI_DebugPrintGroupEvents) Console.Printf ("AddNPCToGroup(), Group %p: New member %p (%s) joined", Self, Recruit, Recruit.GetClassName());
 			Return True;
 		}
-		
+		If (KAI_DebugPrintMessages) console.printf ("addnpctogroup failed to add %p",recruit);
 		Return False;
 	}
 	
@@ -463,12 +471,17 @@ Class KAI_NPCGroup Play
 		If (FailNow) //Couldn't add the new leader to the group.
 			Return False;
 		
-		//The event is fired BEFORE the leader is changed, just in case the group or members want to compare the old and new leader.
-		HandleGroupEvent (GRPEVNT_NEWLEADER,NewLeader);
-		Actor OldLeader = Leader;
+		OldLeader = Leader;
 		Leader = NewLeader;
+		HandleGroupEvent (GRPEVNT_NEWLEADER,NewLeader);
+		
 		If (KAI_DebugPrintGroupEvents)
-			Console.Printf ("KAI_NPCGroup.ChangeLeader(), Group %p(%s): Member %p(%s) took member %p's(%s) leader position", Self, GetClassName(), NewLeader, NewLeader.GetClassName(), OldLeader, OldLeader.GetClassName());
+		{
+			If (OldLeader)
+				Console.Printf ("KAI_NPCGroup.ChangeLeader(), Group %p(%s): Member %p(%s) took member %p's(%s) leader position", Self, GetClassName(), NewLeader, NewLeader.GetClassName(), OldLeader, OldLeader.GetClassName());
+			Else
+				Console.Printf ("KAI_NPCGroup.ChangeLeader(), Group %p(%s): Member %p(%s) now leads this formerly leaderless group", Self, GetClassName(), NewLeader, NewLeader.GetClassName());
+		}
 		
 		Return True;
 	}
@@ -533,7 +546,7 @@ Class KAI_GroupIcon : VisualThinker
 		Else
 			Alpha = 1;
 		
-		If (Owner) //Move graphic relative to the member it's following.
+		If (Owner && Group) //Move graphic relative to the member it's following.
 		{
 			Pos.XY = Owner.Pos.XY;
 			Pos.Z = Owner.Pos.Z + TexMan.CheckRealHeight (Owner.CurState.GetSpriteTexture(0)) + 3;
@@ -562,7 +575,7 @@ Class KAI_GroupPlayerIcon : KAI_GroupIcon
 		Else
 			Alpha = 1;
 		
-		If (Master) //Player indicator is straight above the normal member icon.
+		If (Master && Group) //Player indicator is straight above the normal member icon.
 		{
 			Pos.XY = Master.Pos.XY;
 			Pos.Z = Master.Pos.Z + TexMan.CheckRealHeight (Master.Texture) + 3;

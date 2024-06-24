@@ -431,7 +431,7 @@ Class KAI_EventHandler : EventHandler
 			ForEach (K, V : NPCGroups)
 			{
 				//Console.printf ("Iterated through key %d, value %p",K,V);
-				NPCGroups.Get(K).PrintGroupInfo(); //DEBUG
+				//If (KAI_DebugPrintMessages) NPCGroups.Get(K).PrintGroupInfo(); //DEBUG
 				//This group has no members in it, remove it.
 				If (!NPCGroups.Get(K).Members.Size())
 				{

@@ -262,8 +262,7 @@ Mixin Class KAI_CheckFunctions
 		Return (Other.bIsMonster && !Other.Player);
 	}
 	
-	/*IDEA: I may add a generic group system for KAI_Actors in the future, similar to the squad system in the old Smart Marines.
-	If I do that, then this function should be able to return true if an actor in the callers' group is attacked, even for hostile monsters !*/
+	/*IDEA: Make this function able to return true if an actor in the callers' group is attacked, even for hostile monsters?*/
 	//Is the other actor targeting an ally of the caller ?
 	Static ClearScope Bool IsTargetingAllies (Actor Caller, Actor Other)
 	{

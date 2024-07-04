@@ -7,7 +7,7 @@ Class KAI_BaseProp : KAI_BaseVehicle Abstract
 		+CastSpriteShadow;
 		+DoHarmSpecies;
 		//+NeverTarget; //There should not be a reason to target a prop.
-		+KAI_BaseVehicle.NoOrders;
+		+KAI_Actor.IgnoreOrders;
 		-CountKill;
 		-ActivateMCross;
 		-IsMonster;
@@ -66,7 +66,7 @@ Class KAI_BaseTurretProp : KAI_BaseTurret
 		+NotAutoaimed;
 		+NoSpriteShadow;
 		//+NeverTarget; //There should not be a reason to target a prop.
-		+KAI_BaseVehicle.NoOrders;
+		+KAI_Actor.IgnoreOrders;
 		-CountKill;
 		-ActivateMCross;
 		-IsMonster;

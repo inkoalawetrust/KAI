@@ -1,7 +1,3 @@
-//IDEA: Here's my plan right now for how creating groups should work:
-/*I'll probably need to handle support for child classes, to allow for virtuals/events like MemberDied() to have custom behavior. So maybe also add a Class parameter
-to CreateGroup() (And a string parameter for the ACS version), that allows for specifying the child group class to create.*/
-
 /*IDEA: Maybe find a way to integrate the order system my marines and vehicles independently use - into this new group system, finally taking the feature out of its'
 semi-built-in code limbo.*/
 
@@ -532,6 +528,20 @@ Class KAI_GroupIcon : VisualThinker
 			Group.RemoveGroupIcon (Self);
 	}
 	
+	Float GetOwnerHeight ()
+	{
+		//Hacky way to check for moving the icon further up if a vehicle has a turret. I don't know how I could make a proper recursive check right now.
+		If (Owner Is "KAI_BaseVehicle" && KAI_BaseVehicle(Owner).Turret)
+		{
+			Float Height = Owner.Height + KAI_BaseVehicle(Owner).Turret.Height;
+			If (KAI_BaseVehicle(Owner).Turret && KAI_BaseVehicle(Owner).Turret.Turret)
+				Height += KAI_BaseVehicle(Owner).Turret.Turret.Height; //Now we codin'
+			
+			Return Height;
+		}
+		Return Owner.Height;
+	}
+	
 	Override Void Tick()
 	{
 		Super.Tick();
@@ -549,7 +559,7 @@ Class KAI_GroupIcon : VisualThinker
 		If (Owner && Group) //Move graphic relative to the member it's following.
 		{
 			Pos.XY = Owner.Pos.XY;
-			Pos.Z = Owner.Pos.Z + TexMan.CheckRealHeight (Owner.CurState.GetSpriteTexture(0)) + 3;
+			Pos.Z = Owner.Pos.Z + GetOwnerHeight() + 6;
 		}
 		Else
 			Destroy();

@@ -191,16 +191,6 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 		CHAN_MOVING = 23501
 	}
 	
-	//The vehicle order system will stay here
-	Enum VehicleCommands
-	{
-		ORDER_NONE = 0, //Null
-		ORDER_FOLLOW = 1, //Follow the player when having no target.
-		ORDER_STAY = 2, //Stay in place until a target appears or you are ordered to start moving again. Then stand around again once the chase timer is out.
-		ORDER_WANDER = 3, //Wander around when having no target, instead of following the player.
-		//ORDER_GOTOPOINT ? Perhaps, but maybe not, since I'm not sure how I could code the vehicles to head to a specified point.
-	};
-	
 	Mixin HumanoidAndVehicleCode; //Code shared between humanoids and vehicles. Usually stuff for smarter NPCs than KAI_Creature.
 	
 	Const MARINE_RECURSIONS = 32; //How many times marine dropping vehicles can try dropping in an invalid spot before giving up.
@@ -210,7 +200,6 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	//AI variables
 	Actor NearestEnemy; //The enemy closest to the vehicle, if any.
 	Int ChaseTimer; //Makes the vehicle only chase its' target for a certain amount of time after it goes out of sight. Is also used to determine how long turreted vehicles stay in one place.
-	Int CurrentOrder; //The current order the vehicle is following.
 	Int StayStillDelay; //How long before the vehicle can stand still to attack again.
 	State RetreatState; //The state the vehicle enters when retreating.
 	
@@ -228,10 +217,9 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	//Flag variables
 	Private Int VehicleFlags;
 	FlagDef Transport : VehicleFlags, 0; //The vehicle is marked as being able to transport soldiers.
-	FlagDef NoOrders : VehicleFlags, 1; //The vehicle ignores orders given to it by the radio item.
-	FlagDef NoHeadlights : VehicleFlags, 2; //The vehicle does not have working headlights. For vehicle props however, this is basically an on/off switch.
-	FlagDef PassThreatLevelToTurrets : VehicleFlags, 3; //Turrets will inherit the vehicles' threat level, unless they have a threat level defined.
-	FlagDef NoCrushing : VehicleFlags, 4; //The vehicle will never crush enemies and corpses.
+	FlagDef NoHeadlights : VehicleFlags, 1; //The vehicle does not have working headlights. For vehicle props however, this is basically an on/off switch.
+	FlagDef PassThreatLevelToTurrets : VehicleFlags, 2; //Turrets will inherit the vehicles' threat level, unless they have a threat level defined.
+	FlagDef NoCrushing : VehicleFlags, 3; //The vehicle will never crush enemies and corpses.
 	
 	//Properties
 	Class<KAI_BaseTurret> VehicleTurret; //The vehicles' turret, if any.
@@ -300,7 +288,7 @@ Class KAI_BaseTurret : KAI_BaseVehicle Abstract
 		+LookAllAround;
 		+DontFollowPlayers;
 		+NoSpriteShadow;
-		+KAI_BaseVehicle.NoOrders;
+		+KAI_Actor.IgnoreOrders;
 		+KAI_BaseVehicle.NoCrushing;
 		-AvoidHazards;
 		-AvoidMelee;

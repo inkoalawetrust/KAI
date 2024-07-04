@@ -544,6 +544,77 @@ Extend Class KAI_Actor
 		Return True; //No TryMove call returned false.
 	}
 	
+	//=====|Order system|=====\\
+	//Sets what order the NPC is currently following.
+	//Order: The order to follow from the NPCOrders enum.
+	//Increment: If true the NPC simply moves to the next order in the enum, and loops back around once reaching the end.
+	//Commander: The actor, if any, ordering the NPC to change orders. If the order is set to ORDER_FOLLOW, they'll become the NPC' master, unless hostile.
+	//IgnoreAllegiance: If true, the NPC will accept orders even from enemy actors, but still won't follow them if set to ORDER_FOLLOW.
+	//FromACS: Marks this particular call as having being made by ACS_SetMarineOrder(), or just generally called by ACS. DO NOT USE UNLESS YOU ARE CALLING FROM ACS.
+	Void SetNPCOrder (NPCOrders Order, Bool Increment = False, Actor Commander = Null, Bool IgnoreAllegiance = False, Bool FromACS = False)
+	{
+		If (bIgnoreOrders) Return;
+		Bool EnemyCommand = IsActorHostile (Commander); //The order is being barked by an enemy.
+		Bool LastOrder = CurrentOrder;
+		If (Commander && EnemyCommand && !IgnoreAllegiance)
+			Return;
+		
+		If (!OnOrderChange(Order, Increment, Commander, IgnoreAllegiance, FromACS)) //Run additional logic before changing orders.
+			Return;
+		
+		If (Increment)
+			CurrentOrder++;
+		Else
+			CurrentOrder = Order;
+		
+		If (CurrentOrder >= ALLORDERS) //If the NPCs' current order has reached the end of the list, loop back.
+			CurrentOrder = 1;
+		
+		//If we are set to follow, and we have a commander that is friendly, follow them.
+		If (CurrentOrder == ORDER_FOLLOW)
+		{//If (KAI_DebugPrintMessages)console.printf ("Okay jolly green retard (%p), is your current order ORDER_FOLLOW ?",self);
+			If (bFriendly && Commander == Players[KAI_GetFriendPlayer()].Mo) //If your commander is your friendplayer, remove your master pointer to follow friendplayer.
+				Master = Null;
+			
+			If (Commander && !EnemyCommand && Commander != Players[KAI_GetFriendPlayer()].Mo) //Only set master pointer for non-player commanders.
+			{If (KAI_DebugPrintMessages)console.printf ("set ORDER_FOLLOW and master for %p",self);
+				Master = Commander;
+				If (bFriendly)
+					bDontFollowPlayers = True; //Friendly marine needs to follow an actor that isn't the friendplayer, so turn off player following.
+			}
+			Else If (!Master && !bFriendly && (!Commander || !EnemyCommand)) //We are set to follow but we don't have a (friendly) commander or existing master.
+				{If (KAI_DebugPrintMessages)console.printf ("SETTING HOSTILE NPC %p TO ORDER_WANDER",self);CurrentOrder = ORDER_WANDER;}
+		}
+		
+		If (CurrentOrder == ORDER_WANDER && bFriendly) //Friendly wandering NPCs don't follow the player.
+			bDontFollowPlayers = True;
+		
+		//If we are set to follow and have no master or our master is our friend player.
+		If (CurrentOrder == ORDER_FOLLOW && bFriendly)
+		{
+			If (!Master || Master == Players[KAI_GetFriendPlayer()].Mo)
+				bDontFollowPlayers = False;
+		}
+		
+		AfterOrderChange(LastOrder, Increment, Commander, IgnoreAllegiance, FromACS);
+	}
+	
+	//This is for map script setups. Used to give orders to NPCS through ACS. For the ACS callback, the Commander is the activator.
+	Static Void ACS_SetNPCOrder (Actor Activator, Int NPCTID, NPCOrders Order, Bool Increment, Bool IgnoreAllegiance = False)
+	{
+		Let NPCSearch = Level.CreateActorIterator (NPCTID,"KAI_Actor"); 
+		
+		KAI_Actor NPC;
+		While ( (NPC = KAI_Actor(NPCSearch.Next())) )
+		{
+			If (!NPC || NPC.IsDead(NPC)) //Ignore nonexistent or dead NPCs.
+				Continue;
+			
+			If (KAI_DebugPrintMessages)console.printf ("SetNPCOrder() was called from ACS, setting order %d for %p",order,NPC);
+			NPC.SetNPCOrder (Order, Increment, Activator, IgnoreAllegiance, True);
+		}
+	}
+	
 	//=====|Search functions|=====\\
 	//Does exactly what it says, finds the nearest enemy that can be targeted and is visible, and returns a pointer to it.
 	Actor FindNearestEnemy (Double Range = 256)
@@ -617,6 +688,26 @@ Extend Class KAI_Actor
 		//All else failed, aim to the middle again and return false;
 		Return FAF_MIDDLE;
 	}
+	
+	//Get the first NPC group you're in that has a leader in it, otherwise, fall back to returning whatever the first group in the array is.
+	//IgnorePlayerLeaders: Ignore checking for the first player group leader and just return the first group.
+	KAI_NPCGroup GetFirstPlayerNPCGroup (Bool IgnorePlayerLeaders = False)
+	{
+		If (!Groups.Size())
+			Return Null;
+		
+		If (!IgnorePlayerLeaders)
+		{
+			ForEach (Group : Groups) //Focus on the first group you find whose leader is a player. AKA player groups take precedence.
+			{
+				If (Group && Group.Leader && Group.Leader.Player)
+					Return Group;
+			}
+		}
+		
+		Return Groups[0]; //Fallback to just following the first group in the list.
+	}
+	
 	//=====|Miscelleneous AI functions|=====\\
 	//A crude replica of the clusterfuck that makes monsters natively able to use push and use lines.
 	Bool KAI_NPCUseLines()

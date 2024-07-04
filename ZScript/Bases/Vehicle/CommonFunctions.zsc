@@ -303,7 +303,7 @@ Extend Class KAI_BaseVehicle
 	//Flags: The flags to use. Look above for a list.
 	//ChaseFlags: The A_Chase flags to use. Supports the same flags' KAI_MoveTowards does.
 	//TurnRadius: How wide the turns the vehicle takes are, the smaller the number the bigger the turn. Default is 10 degrees per step.
-	//FollowDist: The minimum distance the vehicle must have from its' friend player (If friendly) before it stops following them. To prevent dogpiling.
+	//FollowDist: The minimum distance the vehicle must have from its' friend player (If friendly) before it stops following them. To prevent dogpiling. Also works with vehicles following other actors.
 	//MoveParams: A struct that can pass detailed parameters for KAI_MoveTowards/Away. For the ChaseFlags and AngleLimit params, use the ChaseFlags and TurnRadius properties.
 	Void KAI_LandVehicleChase (StateLabel WaitState = Null, Int Flags = 0, Int ChaseFlags = 0, Double TurnRadius = 10, Double FollowDist = 384, MoveToParams MoveParams = Null)
 	{

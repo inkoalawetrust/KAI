@@ -22,6 +22,7 @@ Class KAI_Actor : Actor Abstract
 		Obituary "%o managed to be killed by an abstract class, congratulations %o, we are all very proud of you. Or maybe a modder forgot to define a custom obituary.";
 		KAI_Actor.AggressionMultiplier 1.0;
 		KAI_Actor.InaccuracyFrequency 0.1;
+		KAI_Actor.ActorFollowDist 64;
 		
 		//Flags
 		Monster; //Of course.
@@ -265,6 +266,54 @@ Class KAI_Actor : Actor Abstract
 		Return THREAT_NONE; //If it's none of the above, then it's probably not a problem, probably.
 	}
 	
+	//Handle which actor the NPC should follow, including accounting for NPC orders.
+	//This is of course just the default NPC behavior, and can be replaced with your own logic for your chase functions.
+	//BasePos: The position the function will fall back to returning if all conditions fail.
+	//IgnoreDontFollowPlayers: Used to make the function return a players' pawn pointer and position even if +DONTFOLLOWPLAYERS is on.
+	Virtual Vector3, Actor HandleFollowingActor (Vector3 BasePos, Bool IgnoreDontFollowPlayers = False)
+	{
+		If (CurrentOrder != ORDER_FOLLOW) //Only follow when ORDER_FOLLOW is true, duh.
+			Return BasePos, Null;
+		
+		//By default, NPCs will first check for any group leaders they can follow, then they'll check if they have a master to follow, and finally, a friendplayer.
+		If (!bFriendly) //Hostile NPC don't have any friendplayer to begin with, easy peasy.
+		{
+			If (Groups.Size())
+			{
+				Actor GroupLeader = GetFirstPlayerNPCGroup(True).Leader;
+				If (KAI_DebugPrintMessages && groupleader) console.printf ("HandleFollowingActor: %p is following %s",self,groupleader.getclassname());
+				Return GroupLeader.Pos, GroupLeader;
+			}
+			Vector3 MasterPos = Master ? Master.Pos : (Double.NaN, Double.NaN, Double.NaN);
+			Return MasterPos, Master;
+		}
+		Else
+		{
+			Bool IgnoringPlayers = (!IgnoreDontFollowPlayers && bDontFollowPlayers);
+			//Handle making marines follow group leaders, player-led groups take special precedence, such as the one players create when they order a marine to do something.
+			KAI_NPCGroup MainGroup;
+			If ((MainGroup = GetFirstPlayerNPCGroup(IgnoringPlayers)) && MainGroup)
+			{
+				Vector3 GroupPos = MainGroup.Leader ? MainGroup.Leader.Pos : (Double.NaN, Double.NaN, Double.NaN);
+				If (KAI_DebugPrintMessages && maingroup.leader) console.printf ("HandleFollowingActor: %p is following %s",self,maingroup.leader.getclassname());
+				Return GroupPos, MainGroup.Leader;
+			}
+			
+			If (IgnoringPlayers && Master && !IsDead(Master)) //We are ignoring the player, so just follow whoever the master is, unless it is set to your friendplayer for some reason.
+			{
+				If (KAI_DebugPrintMessages && master) console.printf ("HandleFollowingActor: %p is following his master, %s",self,master.getclassname());
+				Return Master.Pos, Master;
+			}
+			If (KAI_DebugPrintMessages) console.printf ("HandleFollowingActor: falling back to following the friendplayer");
+			Return Players[KAI_GetFriendPlayer()].Mo.Pos, Players[KAI_GetFriendPlayer()].Mo;
+		}
+		
+		Return BasePos, Null;
+	}
+	
+	Virtual Bool OnOrderChange (NPCOrders NewOrder, Bool Increment, Actor Commander, Bool IgnoreAllegiance, Bool FromACS) {Return True;}
+	Virtual Void AfterOrderChange (NPCOrders OldOrder, Bool Increment, Actor Commander, Bool IgnoreAllegiance, Bool FromACS){}
+	
 	//Actor properties and flags.
 	Double AggressionMultiplier; //Can be used to further increase the chance of KAI_CheckMissileRange returning true. The LOWER it is the more frequent the attacking.
 	Int ThreatLevelThreshold; //If another actors' threat level is at or over this threshold, then the NPC should do some action (Like run away, or be more likely to use stronger attacks).
@@ -280,6 +329,7 @@ Class KAI_Actor : Actor Abstract
 	Private Int NPCFlags;
 	FlagDef NoTargetPrediction : NPCFlags, 0; //The NPC will not calculate its' targets' movement and lead its' shots.
 	FlagDef MovesWithVelocity : NPCFlags, 1; //Specifies that the NPC moves using real momentum, like players. For the target prediction code, does nothing else on its' own.
+	FlagDef IgnoreOrders : NPCFlags, 2; //The NPC ignores orders.
 	
 	//Actor variables
 	Array <State> AttackStates; //Can be used to store all of the attack state labels an actor has. Such as for actors with multiple attacks besides a missile and melee attack, like vanilla monsters only have.
@@ -309,6 +359,21 @@ Class KAI_Actor : Actor Abstract
 		
 		THREAT_UNSTOPPABLE	= 666, //The actor is straight up unstoppable, like an NPC with NODAMAGE, or player with ultimate god mode, should probably run away.
 	}
+	
+	//Order and following system
+	Double FollowDist; //If the actor followed is within this range + their radius. Mostly useful to have a distance to check in which the NPC avoids dogpiling whoever they follow.
+	Property ActorFollowDist : FollowDist;
+	Int CurrentOrder; //What order is the NPC currently following ?
+	Enum NPCOrders
+	{
+		ORDER_NONE = 0, //Null
+		ORDER_FOLLOW = 1, //Follow the player when having no target. This one is handled automatically.
+		ORDER_STAY = 2, //Stay in place until a target appears or you are ordered to start moving again. Then stand around again once the chase timer is out. Must be handled on its' own, likely in OnWander()
+		ORDER_WANDER = 3, //Wander around when having no target, instead of following the player. Has to be handled on its' own.
+		//Idea: ORDER_GOTOPOINT ?
+		
+		ALLORDERS, //Used to get how many orders there are to loop around.
+	};
 	
 	//Constants
 	//Const NullVector = (Double.NaN,Double.NaN,Double.NaN);

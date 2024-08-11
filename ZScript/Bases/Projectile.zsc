@@ -279,10 +279,8 @@ Class KAI_BaseProjectile : FastProjectile
 					Trail.Pos = SpawnPos;
 					If (Trail Is "KAI_Tracer")
 					{
-						KAI_Tracer(Trail).SetProperties(); //Set default values.
 						KAI_Tracer(Trail).WarpOffsets = (-(Path*I).Length(),0,0);
 						KAI_Tracer(Trail).Owner = Self;
-						KAI_Tracer(Trail).Scaled = True;
 						KAI_Tracer(Trail).Scale = KAI_Tracer(Trail).DefaultScale;
 						Trail.PostBeginPlay(); //Scale the trail NOW.
 						KAI_Tracer(Trail).RanPostBeginPlayEarly = True;
@@ -673,7 +671,6 @@ Class KAI_Tracer : VisualThinker
 	//Flags
 	Bool NoWarp; //The thinker doesn't move relative to the Owner pointer every tick.
 	Bool DestroyIfNoOwner; //The thinker is removed if the Owner pointer is null.
-	Bool Scaled; //The thinker must be scaled by the trail line drawing code.
 	
 	Bool RanPostBeginPlayEarly; //Ran PostBeginPlay() already, right after the thinker spawned, like BeginPlay() on actors, no need to re-run it.
 	
@@ -686,6 +683,7 @@ Class KAI_Tracer : VisualThinker
 	Override Void PostBeginPlay()
 	{
 		If (RanPostBeginPlayEarly) Return;
+		SetProperties();
 		Super.PostBeginPlay();
 		
 		SpawnedWhen = Level.TotalTime;//ALWAYS KEEP THIS!

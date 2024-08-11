@@ -324,8 +324,7 @@ Extend Class KAI_Actor
 	
 	Enum MoveAwayFlags
 	{
-		KMA_STRAIGHT	= 1 << 0, //Move in a straight line away from the Other actor, like A_Chase, instead of using the further random position around you.
-		KMA_USECORNERS	= 1 << 1, //When running away, trying walking to places on your sides, where the Other actor has no line of sight to you.
+		KMA_STRAIGHT	= 1 << 0, //Move in a straight line away from the Other actor, like A_Chase, instead of using the furthest random position around you.
 	}
 	
 	//Moves the caller AWAY from another actor.
@@ -336,10 +335,23 @@ Extend Class KAI_Actor
 	//The rest are KAI_MoveTowards' parameters.
 	//KMAFlags: The flags unique to KAI_MoveAway.
 	//TargPos: If this is set to a non-NaN value. This position vector will be used directly instead of the Other pointer.
+	//ExtraParams: This is a KAIMoveParams struct, unlike it's supposed to be used by custom chase functions, here KAI_MoveAway() only cares for a few of the params.
 	Void KAI_MoveAway (Actor Other, Int Attempts = 32, Double RunRad = 128, Int MaxSteps = 32, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0,
-	Int KMAFlags = 0, Vector3 TargPos = (Double.NaN, Double.NaN, Double.NaN))
+	Int KMAFlags = 0, Vector3 TargPos = (Double.NaN, Double.NaN, Double.NaN), KAIMoveParams ExtraParams = Null)
 	{
 		If (!Other && KAI_Math.IsEmptyVector3(TargPos)) {If (KAI_DebugPrintMessages)console.printf ("KAI_MoveAway(): Premptively stopping execution");Return;}
+		
+		//HACK: Thanks GZDoom :D!
+		If (!ExtraParams)
+		{
+			KAIMoveParams Default_Params;
+			/*Default_Params.CornerDist = 0;
+			Default_Params.CornerDiv = 0;
+			Default_Params.ObstacleDist = 0.0;
+			Default_Params.ObstacleSlices = 0.0;*/
+			KAI_MoveAway (Other, Attempts, RunRad, MaxSteps, DetourFactor, AngleLimit, ChaseFlags, Flags, KMAFlags, TargPos, Default_Params);
+			Return;
+		}
 		
 		Vector3 RunPos = Other ? Other.Pos : TargPos;
 		
@@ -350,59 +362,163 @@ Extend Class KAI_Actor
 			Return;
 		}
 		
+		if (kai_debugprintmessages) console.printf ("KAI_MoveAway: NextMovePos starts as %d %d %d",nextmovepos);
+		Vector3 ObstacleAvoidPos; Bool UseObstacleAvoidPos;
+		[ObstacleAvoidPos, UseObstacleAvoidPos] = KAI_AvoidObstacles (ExtraParams.ObstacleDist, ExtraParams.ObstacleSlices, Speed);
+		If (UseObstacleAvoidPos && !KAI_Math.IsEmptyVector3(ObstacleAvoidPos))
+		{if (kai_debugprintmessages)console.printf ("KAI_MoveAway(): Going to ObstacleAvoidPos %d %d %d",ObstacleAvoidPos);
+			NextMovePos = ObstacleAvoidPos;
+			Return;
+		}
+		
 		//If there's already a prior position to move to, begin moving there instead. Until within melee range of that position.
 		If (!KAI_Math.IsEmptyVector3 (NextMovePos) && NewPosStepCount <= MaxSteps && Level.Vec3Diff (Pos,NextMovePos).Length() >= MeleeRange)
-		{
+		{if (kai_debugprintmessages)console.printf ("KAI_MoveAway(): Walking to NextMovePos %d %d %d",nextmovepos);
 			KAI_MoveTowards (NextMovePos, DetourFactor, AngleLimit, ChaseFlags, Flags);
 			NewPosStepCount++;
 			Return;
 		}
 		//Once the position is reached, empty the the NextMovePos vector;
 		Else
-		{
+		{if (kai_debugprintmessages)console.printf ("movepos reached, nulling");
 			NextMovePos = (Double.NaN,Double.NaN,Double.NaN);
 			NewPosStepCount = 0;
 		}
 		
 		Actor SightTarget = Other;
-		If (!SightTarget) SightTarget = Spawn ("KAI_DebugPoint",TargPos); //Spawn a debug point to check the sight of at TargPos instead for running from a coordinate.
+		Bool DoCornerCheck = (ExtraParams.CornerDist > 0 && (ExtraParams.CornerDiv > 0 || ExtraParams.CornerDiv == -1));
+		If (!SightTarget && DoCornerCheck) SightTarget = Spawn ("KAI_DebugPoint",TargPos); //Spawn a debug point to check the sight of a TargPos instead for running from a coordinate.
 		
+		//TODO: Wait hold on, I think the current way that the dummy debug point for TargPos movement is set doesn't ever remove the debug points it spawns.
+		//MAYDO: Add a boolean flag for ExtraParams that makes IsPosReachable() also qualify blocking actors as cover?
 		//Try to run behind corners.
-		If (KMAFlags & KMA_USECORNERS && CheckSight(SightTarget,SF_IGNOREWATERBOUNDARY))
+		If (DoCornerCheck && CheckSight(SightTarget,SF_IGNOREWATERBOUNDARY))
 		{
 			Vector3 RealPos = Pos;
-			Double CheckLength = (Radius*2)*8; //Check 8 diameters to your right or left for a corner.
+			Double CheckLength = ExtraParams.CornerDist;
 			
 			//Check your left.
-			Vector3 LeftPos = Vec3Angle (CheckLength,Angle-90);
-			SetOrigin (LeftPos,False);
-			//I think CheckSight() is literally cheaper than IsPosReachable() so run these checks first.
-			Bool LeftSight = SightTarget.CheckSight (Self,SF_IGNOREWATERBOUNDARY);
-			SetOrigin (RealPos, False);
-			If (!LeftSight && IsPosReachable (LeftPos,ignoreactors:True))
+			Vector3 LeftPos;
+			If (ExtraParams.CornerDiv == -1) //Use exact old behavior
 			{
-				NextMovePos = LeftPos; //Move to the left.
-				Return;
+				LeftPos = Vec3Angle (CheckLength,Angle-90);
+				SetOrigin (LeftPos,False);
+				//I think CheckSight() is literally cheaper than IsPosReachable() so run these checks first.
+				Bool LeftSight = SightTarget.CheckSight (Self,SF_IGNOREWATERBOUNDARY);
+				SetOrigin (RealPos, False);
+				If (!LeftSight && IsPosReachable (LeftPos,ignoreactors:True))
+				{
+					If (KAI_DebugPrintMessages) Console.Printf ("KAI_MoveAway(): KMA_USECORNERS: Running behind my left corner.");
+					NextMovePos = LeftPos; //Move to the left.
+					Return;
+				}
+			}
+			Else
+			{
+				//Project a line of checks from the origin of the calling actor all the way out to the maximum length of CornerDist. Finding the closest corner.
+				Double Division = (ExtraParams.CornerDist/ExtraParams.CornerDiv);
+				For (Double I = 0; I < ExtraParams.CornerDist; I += Division)
+				{
+					LeftPos = Vec3Angle (I,Angle-90);
+					SetOrigin (LeftPos,False);
+					//I think CheckSight() is literally cheaper than IsPosReachable() so run these checks first.
+					Bool LeftSight = SightTarget.CheckSight (Self,SF_IGNOREWATERBOUNDARY);
+					SetOrigin (RealPos, False);
+					If (!LeftSight && IsPosReachable (LeftPos,spacing:Speed,ignoreactors:True))
+					{
+						If (KAI_DebugPrintMessages) Console.Printf ("KAI_MoveAway(): KMA_USECORNERS: Running behind my left corner.");
+						NextMovePos = LeftPos; //Move to the left.
+						Return;
+					}
+				}
 			}
 			
 			//Check your right.
-			Vector3 RightPos = Vec3Angle (CheckLength,Angle+90);
-			SetOrigin (RightPos,False);
-			Bool RightSight = SightTarget.CheckSight (Self,SF_IGNOREWATERBOUNDARY);
-			SetOrigin (RealPos, False);
-			If (!RightSight && IsPosReachable (RightPos,ignoreactors:True))
+			Vector3 RightPos;
+			If (ExtraParams.CornerDiv == -1) //Use exact old behavior
 			{
-				NextMovePos = RightPos; //Move to the right.
-				Return;
+				RightPos = Vec3Angle (CheckLength,Angle+90);
+				SetOrigin (RightPos,False);
+				//I think CheckSight() is literally cheaper than IsPosReachable() so run these checks first.
+				Bool RightSight = SightTarget.CheckSight (Self,SF_IGNOREWATERBOUNDARY);
+				SetOrigin (RealPos, False);
+				If (!RightSight && IsPosReachable (RightPos,spacing:Speed,ignoreactors:True))
+				{
+					If (KAI_DebugPrintMessages) Console.Printf ("KAI_MoveAway(): KMA_USECORNERS: Running behind my right corner.");
+					NextMovePos = RightPos; //Move to the right.
+					Return;
+				}
+			}
+			Else
+			{
+				//Project a line of checks from the origin of the calling actor all the way out to the maximum length of CornerDist. Finding the closest corner.
+				Double Division = (ExtraParams.CornerDist/ExtraParams.CornerDiv);
+				For (Double I = 0; I < ExtraParams.CornerDist; I += Division)
+				{
+					LeftPos = Vec3Angle (I,Angle+90);
+					SetOrigin (LeftPos,False);
+					//I think CheckSight() is literally cheaper than IsPosReachable() so run these checks first.
+					Bool LeftSight = SightTarget.CheckSight (Self,SF_IGNOREWATERBOUNDARY);
+					SetOrigin (RealPos, False);
+					If (!LeftSight && IsPosReachable (LeftPos,spacing:Speed,ignoreactors:True))
+					{
+						If (KAI_DebugPrintMessages) Console.Printf ("KAI_MoveAway(): KMA_USECORNERS: Running behind my left corner.");
+						NextMovePos = LeftPos; //Move to the left.
+						Return;
+					}
+				}
 			}
 		}
+		
 		If (!(KMAFlags & KMA_STRAIGHT))
 			NextMovePos = FindRandomMovePos (RunPos,Attempts,RunRad,FRMP_FURTHEST); //Pick whichever position is the furthest from Runpos.
 		Else
 		{
-			NextMovePos.XY = Vec2Angle (RunRad,GetAngleToPos(RunPos)-180);
+			NextMovePos.XY = Vec2Angle (RunRad,GetAngleToPos(RunPos,0)-180);
+			KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(Height/2),RunPos.PlusZ(Height/2),Level.Vec3Diff (Pos.PlusZ(Height/2),RunPos.PlusZ(Height/2)).Length());
 			NextMovePos.Z = GetZAt (NextMovePos.X,NextMovePos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
 		}
+	}
+	
+	Vector3, Bool KAI_AvoidObstacles (Double CheckDist, Double CheckSlices, Double CheckSpacing)
+	{
+		If (CheckDist <= 0 || CheckSlices <= 0) Return (Double.NaN, Double.NaN, Double.NaN), False;
+		Bool UseObstacleAvoidPos; //If on, the position passed in CheckPos will be used.
+		Double CheckAngle = (GetAngleToPos(NextMovePos,0)); //Try at the NextMovePos, unless blocked.
+		Vector3 CheckPos = (Vec2Angle (Radius+CheckDist,CheckAngle),0);
+		CheckPos.Z = GetZAt (CheckPos.X,CheckPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
+		kai_lofraycast.visualizetracepath (pos.plusz(height/2),checkpos,level.vec3diff(pos.plusz(height/2),checkpos).length());
+		if (kai_debugprintmessages) console.printf ("KAI_AvoidObstacles: NextMovePos %d %d %d, CheckPos %d %d %d",nextmovepos,checkpos);
+		//MAYDO: Make the code somehow ignore actors a vehicle can push away ? This would require reverting to using line traces.
+		If (CheckDist > 0 && CheckSlices > 0)
+		{
+			If (KAI_DebugPrintMessages) Console.Printf ("KAI_AvoidObstacles: Using basic obstacle avoiding algorithm with a distance of %.2f and %d slices",CheckDist,CheckSlices);
+			//FLineTraceData PathCheck;
+			//Check an arbitrary angles around the vehicle for a valid path. Ooga booga caveman pathfinding.
+			For (Int I = 0; I < CheckSlices; I++)
+			{
+				//LineTrace (CheckAngle,Radius+(Distance*4),0,TRF_SOLIDACTORS|TRF_BLOCKSELF,1,data:PathCheck);
+				//Int Type = PathCheck.HitType;
+				//If (Type != Trace_HitWall && Type != Trace_HitFloor && Type != Trace_HitCeiling && Type != Trace_HitActor)
+				If (IsPosReachable (CheckPos,spacing:CheckSpacing))
+					Break;
+				If (KAI_DebugPrintMessages) Console.Printf ("%d %d %d isn't reachable, adjusting movepos",checkpos);
+				UseObstacleAvoidPos = True;
+				CheckAngle += 360/CheckSlices; //There's an obstacle in front of this path, try another angle.
+				CheckPos.XY = (Vec2Angle (Radius+CheckDist,CheckAngle));
+				CheckPos.Z = GetZAt (CheckPos.X,CheckPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
+			}
+			If (UseObstacleAvoidPos)
+			{
+				//Subtract the extra distance to check ahead off from the final move position.
+				CheckPos.XY = Vec2Angle (CheckDist,CheckAngle);
+				CheckPos.Z = GetZAt (CheckPos.X,CheckPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
+			}
+			Else
+				CheckPos = (Double.NaN, Double.NaN, Double.NaN);
+		}
+		
+		Return CheckPos, UseObstacleAvoidPos;
 	}
 	
 	Enum FindMovePosFilters
@@ -433,7 +549,7 @@ Extend Class KAI_Actor
 			Xs.Push (CurPos.X); Ys.Push (CurPos.Y); Zs.Push (CurPos.Z); //Epic GZDoom fail.
 		}
 		
-		Actor SightTarget = Spawn ("KAI_Tracer",Pos);
+		Actor SightTarget = Spawn ("KAI_DebugPoint",Pos);
 		For (Int I = Attempts-1; I >= 0; I--)
 		{
 			CurPos = (Xs[I],Ys[I],Zs[I]); //Reconstruct each vector.
@@ -510,9 +626,10 @@ Extend Class KAI_Actor
 		Bool Interp = bDontInterpolate;
 		Bool ThruActs = bThruActors;
 		Vector2 Path = Level.Vec2Diff( Pos.XY, TargetPos.XY );
-		Double Distance = Path.Length()-DistCutoff;
+		Double Distance = (Path.Length()-DistCutoff);
 		If (Spacing == 0)
 			Spacing = Radius*2;
+		Distance += Spacing; //HACK: According to RaveYard, apparently the last check in the row might be getting ignored, so this is a simple hack fix.
 		If (Distance <= 1) Return False;
 		Path /= Distance;
 		
@@ -525,7 +642,7 @@ Extend Class KAI_Actor
 			FCheckPosition Data;
 			If (TryMove (Level.Vec2Offset(OldPos.XY, Path*I), 1, tm:Data))
 			{
-				SetZ (GetZAt (Pos.X,Pos.Y,flags:GZF_ABSOLUTEPOS)); //Update the actors' Z position. TryMove should do that internally, but it doesn't. GZDoom moment.
+				SetZ (GetZAt (Pos.X,Pos.Y,flags:GZF_ABSOLUTEPOS)); //HACK: Update the actors' Z position. TryMove should do that internally, but it doesn't. GZDoom moment.
 				//actor debug = spawn ("kai_debugpoint",(Level.Vec2Offset(OldPos.XY, Path*I),Pos.Z));
 				//debug.scale *= 0.5;
 			}
@@ -559,7 +676,14 @@ Extend Class KAI_Actor
 		If (Commander && EnemyCommand && !IgnoreAllegiance)
 			Return;
 		
-		If (!OnOrderChange(Order, Increment, Commander, IgnoreAllegiance, FromACS)) //Run additional logic before changing orders.
+		Int NewOrder = !Increment ? Order : 0;
+		If (Increment)
+		{
+			NewOrder = CurrentOrder++;
+			If (CurrentOrder >= ALLORDERS)
+				CurrentOrder = 1;
+		}
+		If (!OnOrderChange(NewOrder, Increment, Commander, IgnoreAllegiance, FromACS)) //Run additional logic before changing orders.
 			Return;
 		
 		If (Increment)
@@ -1000,19 +1124,29 @@ Extend Class KAI_Actor
 }
 
 //This struct stores parameters passed to KAI_MoveTowards/Away. Used as a simple way to pass all params the functions support from another function that calls them.
-//Without cluttering up the other function.
-Struct MoveToParams
+//Without cluttering up the other function. i.e for passing additional more detailed parameters for a custom chase function like KAI_LandVehicleChase() does.
+//Also used by KAI_MoveAway() to enable and pass custom parameters for the obstacle avoiding and running behind corners.
+Struct KAIMoveParams
 {
-	//KAI_MoveTowards parameters
+	//KAI_MoveTowards() parameters
 	Vector3 TargetPos; //The position to actually move to.
 	Double DetourFactor; //A multiplier for how many steps the caller can take around an obstacle before heading straight to the TargetPos again.
 	Double AngleLimit; //How much the caller can turn to face their TargetPos per step.
-	Int ChaseFlags; //The A_Chase flags KAI_MoveTowards supports, which are CHF_DONTMOVE, CHF_NODIRECTIONTURN, CHF_NORANDOMTURN, and CHF_STOPIFBLOCKED.
+	Int ChaseFlags; //The A_Chase flags KAI_MoveTowards() supports, which are CHF_DONTMOVE, CHF_NODIRECTIONTURN, CHF_NORANDOMTURN, and CHF_STOPIFBLOCKED.
 	Int Flags; //The functions' own flags, check the KAIMoveTowardsFlags enum for a list of them and what they do.
 	
-	//KAI_MoveAway parameters, the function also supports KAI_MoveTowards parameters, as it's effectivelly a wrapper for it.
+	//KAI_MoveAway() parameters, the function also supports KAI_MoveTowards() parameters, as it's effectivelly a wrapper for it.
 	Actor Other; //The actor to run away from.
 	Int Attempts; //How many potential points to run to should the function generate. The more you generate the more performance heavy it becomes !
 	Double RunRad; //The radius around which additional points should be generated.
-	Int StepThreshold; //How many steps trying to move to the current retreat position can the caller take before it picks a new location to run to.
+	Int MaxSteps; //How many steps trying to move to the current retreat position can the caller take before it picks a new location to run to.
+	Int KMAFlags; //The functions' own flags, check the MoveAwayFlags enum for a list of them and what they do.
+	
+	//Additional parameters that need to be passed through this struct to KAI_MoveAway().
+	Double CornerDist; //How far away on the left and right sides should the corner running code check around the caller? If this is 0 or less, this is disabled.
+	Int CornerDiv;	//How many additional fractional checks should the corner running code do? i.e divinding a CornerDist of 100 by 10 to check every 10 MU.
+					/*If this set to 0, the mechanic isn't used by the function at all, if set to -1, it only checks the end point that is CornerDist MU to the
+					left or right of the caller. Which is how the check used to work when I had first coded it, for some fucking reason.*/
+	Double ObstacleDist; //How far ahead should the actor check for obstacles to try moving around from? If set to 0 or less, no obstacle avoidance occurs.
+	Int ObstacleSlices; //How many reachability checks should be done around a 360 degree circle? i.e setting this to 16 checks in increments of 22.5 degrees around.
 }

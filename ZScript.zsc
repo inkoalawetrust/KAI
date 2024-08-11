@@ -82,7 +82,13 @@ Default
 			//if (target) KAI_MoveTowards(target.Pos,detourfactor:0.5,flags:KMT_ZIGZAG);
 			
 			//KAI_Wander(32,1024,256);
-			if (target) KAI_MoveAway(target,runrad:256,detourfactor:0.5,KMAFlags:KMA_USECORNERS|KMA_STRAIGHT);
+			KAIMoveParams data;
+			data.cornerdist = 384;
+			data.cornerdiv = 16;
+			data.obstacledist = 256;
+			data.obstacleslices = 16;
+			
+			if (target) KAI_MoveAway(target,runrad:256,maxsteps:64,detourfactor:0.5,flags:0,kmaflags:KMA_STRAIGHT,extraparams:data);
 			//A_Chase ("Melee",Null);
 		}
 		Loop;

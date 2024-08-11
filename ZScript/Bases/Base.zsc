@@ -32,6 +32,7 @@ Class KAI_Actor : Actor Abstract
 	}
 	
 	Mixin KAI_CheckFunctions; //Of course all KAI NPCs have access to the library's check functions.
+	Actor DebugPoint; //A pointer to the debug point that shows where NextMovePos is when KAI_DebugNextMovePos is enabled.
 	
 	//=====|Virtual functions|=====\\
 	//NOTE: The code on these virtuals is basically just the default. Different base classes will likely add on this base code or replace it entirely.
@@ -40,13 +41,18 @@ Class KAI_Actor : Actor Abstract
 		Super.PostBeginPlay ();
 		UserVariableDefaults(); //User variables cannot be handled in BeginPlay().
 		KAIHandler = KAI_EventHandler(EventHandler.Find("KAI_EventHandler")); //Store permanent pointer to the mods' event handler.
-		NextMovePos = LastEnemyPosition = CurrentEnemyPosition = (Double.NaN,Double.NaN,Double.NaN); //These should be empty.
+		//These should be empty.
+		NextMovePos = (Double.NaN, Double.NaN, Double.NaN);
+		LastEnemyPosition = (Double.NaN, Double.NaN, Double.NaN);
+		CurrentEnemyPosition = (Double.NaN,Double.NaN,Double.NaN); 
+		If (KAI_DebugNextMovePos) DebugPoint = Spawn ("KAI_DebugPoint",Pos);
 		//Initialize inaccuracy.
 		NextInaccuracyOffset = (FRandom (Inaccuracy.X,-Inaccuracy.X),FRandom (Inaccuracy.Y,-Inaccuracy.Y),FRandom (Inaccuracy.Z,-Inaccuracy.Z));
 	}
 	Override Void OnDestroy()
 	{
 		Super.OnDestroy();
+		If (DebugPoint) DebugPoint.Destroy();
 		AttackStates.Clear(); //Clean the array before removal, because the GC can't: https://github.com/ZDoom/gzdoom/issues/2019
 		ForEach (Group : Groups) //Remove ourselves from any groups we're in.
 		{
@@ -99,6 +105,9 @@ Class KAI_Actor : Actor Abstract
 		//TODO: Probably add a flag that disables the updating, so that people can add their own logic, without making an expensive virtual.
 		If (!IsDead(Self) && GetAge() % (GameTicRate/2) == 0)
 		{
+			//In the meantime though, at least until I make such a flag, the NextMovePos will be handled here too.
+			If (DebugPoint)
+				DebugPoint.SetOrigin (KAI_Math.IsEmptyVector3(NextMovePos) ? Pos : NextMovePos,True);
 			For (Int I = Hazards.Size()-1; I >= 0; I--)
 			{
 				HazardInfo CurHaz = Hazards[I];
@@ -167,7 +176,7 @@ Class KAI_Actor : Actor Abstract
 	//Returns if the other actor should be considered hostile, can be used to define different criteria for hostility. Like if the other actor is targeting the callers' allies, or a specific actor.
 	ClearScope Virtual Bool IsActorHostile (Actor Other)
 	{
-		Return IsHostile(Other);
+		Return (Other && IsHostile(Other));
 	}
 	
 	//This is called by NPC groups (If NPCGRP_NOMEMBERALERT is false) when an event that has to do with the group, like a member dying, occurs.

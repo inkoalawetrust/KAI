@@ -258,7 +258,7 @@ Class KAI_BaseProjectile : FastProjectile
 		}
 		
 		//CREDIT: Boondorl wrote the original code that draws a line of tracers between the current and previous position.
-		If (TrailActor && !TrailSpawned)
+		If (TrailSprite && !TrailSpawned)
 		{
 			Vector3 Path = Level.Vec3Diff( Pos, OldPos );
 			Double Distance = Path.Length();
@@ -271,12 +271,23 @@ Class KAI_BaseProjectile : FastProjectile
 			
 			For( Double I = InitialTrailsSkipped; I < Distance; I += TrailLineSpacing )
 			{
-				If (MaxTrails != 0 && MaxTrails <= I) Break; //Too many trail actors.
+				If (MaxTrails != 0 && MaxTrails <= I) Break; //Too many trail thinkers.
 				Vector3 SpawnPos = level.Vec3Offset(pos, Path*i);
-				Let Trail = Spawn(TrailActor,SpawnPos);
+				Let Trail = Level.SpawnVisualThinker(TrailSprite);
 				If (Trail)
 				{
-					If (Trail Is "KAI_Tracer") KAI_Tracer(Trail).WarpOffsets = (-(Path*I).Length(),0,0);
+					Trail.Pos = SpawnPos;
+					If (Trail Is "KAI_Tracer")
+					{
+						KAI_Tracer(Trail).SetProperties(); //Set default values.
+						KAI_Tracer(Trail).WarpOffsets = (-(Path*I).Length(),0,0);
+						KAI_Tracer(Trail).Owner = Self;
+						KAI_Tracer(Trail).Scaled = True;
+						KAI_Tracer(Trail).Scale = KAI_Tracer(Trail).DefaultScale;
+						Trail.PostBeginPlay(); //Scale the trail NOW.
+						KAI_Tracer(Trail).RanPostBeginPlayEarly = True;
+					}
+					
 					//If it's time to begin scaling and fading the trail.
 					If (I >= TrailFadeAndScaleStart)
 					{
@@ -315,7 +326,7 @@ Class KAI_BaseProjectile : FastProjectile
 			Act = Spawn (Trail, (Pos.XY, HitZ), ALLOW_REPLACE);
 			If (Act != Null)
 			{
-				TrailSpawn (Act);
+				ActorTrailSpawn (Act);
 				//These are handled by TrailSpawn().
 				/*If (bGetOwner && Target != Null)
 					Act.Target = Target;
@@ -328,8 +339,11 @@ Class KAI_BaseProjectile : FastProjectile
 		}
 	}
 	
+	//Returns each trail thinker spawned, allowing you to perform per-trail modifications.
+	Virtual Void TrailSpawn (VisualThinker Trail){}
+	
 	//Returns each trail actor spawned, allowing you to perform per-trail modifications.
-	Virtual Void TrailSpawn (Actor Trail)
+	Virtual Void ActorTrailSpawn (Actor Trail)
 	{
 		If (!Trail) Return;
 		
@@ -629,8 +643,8 @@ Class KAI_BaseProjectile : FastProjectile
 	FlagDef NoTrailLine : ProjectileFlags, 0; //The projectile uses the normal FastProjectile trail spawning code.
 	FlagDef NoFriendlyFire : ProjectileFlags, 1; //The projectile should not collide with actors friendly to its' shooter.
 	FlagDef RipOnce : ProjectileFlags, 2; //If the projectile is a ripper, it will only rip a victim once, instead of multiple times.
-	Class <KAI_Tracer> TrailActor;
-	Property TrailActor : TrailActor;
+	Class <KAI_Tracer> TrailSprite;
+	Property TrailSprite : TrailSprite;
 	
 	Int TrailDelay, MaxTrails, InitialTrailsSkipped, TrailFadeAndScaleStart;
 	Property TrailDelay : TrailDelay;
@@ -651,10 +665,59 @@ Class KAI_BaseProjectile : FastProjectile
 }
 
 //A generic tracer effect particle.
+Class KAI_Tracer : VisualThinker
+{
+	TextureID DefaultSprite; //The default graphic to use, as a quasi-property.
+	FVector2 DefaultScale;
+	
+	//Flags
+	Bool NoWarp; //The thinker doesn't move relative to the Owner pointer every tick.
+	Bool DestroyIfNoOwner; //The thinker is removed if the Owner pointer is null.
+	Bool Scaled; //The thinker must be scaled by the trail line drawing code.
+	
+	Bool RanPostBeginPlayEarly; //Ran PostBeginPlay() already, right after the thinker spawned, like BeginPlay() on actors, no need to re-run it.
+	
+	//Used to set the property variables of the trail thinker, also to set the render style.
+	Virtual Void SetProperties()
+	{
+		DefaultScale = (0.5,0.5);
+		SetRenderStyle (STYLE_ADD);
+	}
+	Override Void PostBeginPlay()
+	{
+		If (RanPostBeginPlayEarly) Return;
+		Super.PostBeginPlay();
+		
+		SpawnedWhen = Level.TotalTime;//ALWAYS KEEP THIS!
+		Texture = DefaultSprite;
+		Scale = DefaultScale;
+	}
+	
+	Override Void Tick()
+	{
+		If (IsFrozen()) Return;
+		
+		If (DestroyIfNoOwner && (!Owner || Owner.Default.bMissile && !Owner.bMissile))
+			Destroy();
+		
+		If (Owner && !NoWarp) Pos = KAI_Math.Vec3OffsetRelative (Owner,WarpOffsets,True);
+		Super.Tick();
+	}
+	
+	Int GetAge()
+	{
+		Return Level.TotalTime - SpawnedWhen;
+	}
+	
+	FVector3 WarpOffsets;
+	Int SpawnedWhen;
+	Actor Owner;
+}
+//Old actor version of KAI_Tracer
 //ReactionTime: The tracer code uses this as a timer for how long the trail should last before vanishing.
 //bNeverRespawn: Turning on this flag causes the trail to automatically vanish if it has no master or its' master is dead.
 //bStandStill: The trail will not warp relative to its' target.
-Class KAI_Tracer : Actor
+Class KAI_TracerActor : Actor
 {
 	Default {RenderStyle "Add"; Scale 0.5; ReactionTime INT.MAX; +NoBlockmap; +NoInteraction;}
 	

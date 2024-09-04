@@ -365,7 +365,8 @@ Extend Class KAI_Actor
 		if (kai_debugprintmessages) console.printf ("KAI_MoveAway: NextMovePos starts as %d %d %d",nextmovepos);
 		Vector3 ObstacleAvoidPos; Bool UseObstacleAvoidPos;
 		[ObstacleAvoidPos, UseObstacleAvoidPos] = KAI_AvoidObstacles (ExtraParams.ObstacleDist, ExtraParams.ObstacleSlices, Speed);
-		If (UseObstacleAvoidPos && !KAI_Math.IsEmptyVector3(ObstacleAvoidPos))
+		//Use the obstacle avoid pos if it's valid, and also not basically your current position, to prevent walking in place.
+		If (UseObstacleAvoidPos && !KAI_Math.IsEmptyVector3(ObstacleAvoidPos) && Level.Vec3Diff (ObstacleAvoidPos,Pos).Length() >= MeleeRange)
 		{if (kai_debugprintmessages)console.printf ("KAI_MoveAway(): Going to ObstacleAvoidPos %d %d %d",ObstacleAvoidPos);
 			NextMovePos = ObstacleAvoidPos;
 			Return;
@@ -417,14 +418,17 @@ Extend Class KAI_Actor
 			{
 				//Project a line of checks from the origin of the calling actor all the way out to the maximum length of CornerDist. Finding the closest corner.
 				Double Division = (ExtraParams.CornerDist/ExtraParams.CornerDiv);
-				For (Double I = 0; I < ExtraParams.CornerDist; I += Division)
+				/*Note: If I = 0 and I < ExtraParams.CornerDist. Then the first check is ran at the current NPC position instead of Division MU away,
+				and the max distance away is skipped (i.e if the ckeck is set to check 394 MU on each side with a division of 12, it checks only 352MU away, AKA 384-32)*/
+				For (Double I = Division; I < ExtraParams.CornerDist+Division; I += Division)
 				{
 					LeftPos = Vec3Angle (I,Angle-90);
+					If (KAI_DebugPrintMessages) console.printf ("left corner check is %.2f MU away from actual pos",level.vec3diff (leftpos,pos).length());
 					SetOrigin (LeftPos,False);
 					//I think CheckSight() is literally cheaper than IsPosReachable() so run these checks first.
 					Bool LeftSight = SightTarget.CheckSight (Self,SF_IGNOREWATERBOUNDARY);
 					SetOrigin (RealPos, False);
-					If (!LeftSight && IsPosReachable (LeftPos,spacing:Speed,ignoreactors:True))
+					If (!LeftSight && Level.Vec3Diff (Pos,LeftPos).Length() >= MeleeRange && IsPosReachable (LeftPos,spacing:Speed,ignoreactors:True))
 					{
 						If (KAI_DebugPrintMessages) Console.Printf ("KAI_MoveAway(): KMA_USECORNERS: Running behind my left corner.");
 						NextMovePos = LeftPos; //Move to the left.
@@ -453,17 +457,18 @@ Extend Class KAI_Actor
 			{
 				//Project a line of checks from the origin of the calling actor all the way out to the maximum length of CornerDist. Finding the closest corner.
 				Double Division = (ExtraParams.CornerDist/ExtraParams.CornerDiv);
-				For (Double I = 0; I < ExtraParams.CornerDist; I += Division)
+				For (Double I = Division; I < ExtraParams.CornerDist+Division; I += Division)
 				{
-					LeftPos = Vec3Angle (I,Angle+90);
-					SetOrigin (LeftPos,False);
+					RightPos = Vec3Angle (I,Angle+90);
+					If (KAI_DebugPrintMessages) console.printf ("right corner check is %.2f MU away from actual pos",level.vec3diff (rightpos,pos).length());
+					SetOrigin (RightPos,False);
 					//I think CheckSight() is literally cheaper than IsPosReachable() so run these checks first.
-					Bool LeftSight = SightTarget.CheckSight (Self,SF_IGNOREWATERBOUNDARY);
+					Bool RightSight = SightTarget.CheckSight (Self,SF_IGNOREWATERBOUNDARY);
 					SetOrigin (RealPos, False);
-					If (!LeftSight && IsPosReachable (LeftPos,spacing:Speed,ignoreactors:True))
+					If (!RightSight && Level.Vec3Diff (Pos,RightPos).Length() > MeleeRange && IsPosReachable (RightPos,spacing:Speed,ignoreactors:True))
 					{
-						If (KAI_DebugPrintMessages) Console.Printf ("KAI_MoveAway(): KMA_USECORNERS: Running behind my left corner.");
-						NextMovePos = LeftPos; //Move to the left.
+						If (KAI_DebugPrintMessages) Console.Printf ("KAI_MoveAway(): KMA_USECORNERS: Running behind my right corner.");
+						NextMovePos = RightPos; //Move to the left.
 						Return;
 					}
 				}
@@ -497,9 +502,6 @@ Extend Class KAI_Actor
 			//Check an arbitrary angles around the vehicle for a valid path. Ooga booga caveman pathfinding.
 			For (Int I = 0; I < CheckSlices; I++)
 			{
-				//LineTrace (CheckAngle,Radius+(Distance*4),0,TRF_SOLIDACTORS|TRF_BLOCKSELF,1,data:PathCheck);
-				//Int Type = PathCheck.HitType;
-				//If (Type != Trace_HitWall && Type != Trace_HitFloor && Type != Trace_HitCeiling && Type != Trace_HitActor)
 				If (IsPosReachable (CheckPos,spacing:CheckSpacing))
 					Break;
 				If (KAI_DebugPrintMessages) Console.Printf ("%d %d %d isn't reachable, adjusting movepos",checkpos);
@@ -833,6 +835,24 @@ Extend Class KAI_Actor
 	}
 	
 	//=====|Miscelleneous AI functions|=====\\
+	//Makes the caller change their target to NewTarget, also passes which actor shared the target. Also does the needed status changes. Returns true if shared successfully.
+	//Sharee: The actor sharing the target.
+	//NewTarget: The potential target to have.
+	//IgnoreAllegience: If on, the target will be set even if the Sharee is hostile and/or the NewTarget is friendly.
+	Bool KAI_ShareTarget (Actor Sharee, Actor NewTarget, Bool IgnoreAllegience = False)
+	{
+		If (NewTarget != Null && !bDormant && !(IsPatrolling (Self) && bChaseGoal) && CanBeTargeted(Self,NewTarget))
+		{
+			If (!IgnoreAllegience && (IsActorHostile(Sharee) || !IsActorHostile(NewTarget)))
+				Return False;
+			
+			LastHeard = Target = NewTarget;
+			Return True;
+		}
+		
+		Return False;
+	}
+	
 	//A crude replica of the clusterfuck that makes monsters natively able to use push and use lines.
 	Bool KAI_NPCUseLines()
 	{

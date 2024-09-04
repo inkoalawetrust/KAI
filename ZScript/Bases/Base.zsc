@@ -287,10 +287,10 @@ Class KAI_Actor : Actor Abstract
 		//By default, NPCs will first check for any group leaders they can follow, then they'll check if they have a master to follow, and finally, a friendplayer.
 		If (!bFriendly) //Hostile NPC don't have any friendplayer to begin with, easy peasy.
 		{
-			If (Groups.Size())
+			Actor GroupLeader;
+			If (Groups.Size() && (GroupLeader = GetFirstPlayerNPCGroup(True).Leader) != Self)
 			{
-				Actor GroupLeader = GetFirstPlayerNPCGroup(True).Leader;
-				If (KAI_DebugPrintMessages && groupleader) console.printf ("HandleFollowingActor: %p is following %s",self,groupleader.getclassname());
+				If (KAI_DebugPrintMessages && groupleader) console.printf ("HandleFollowingActor: %p is following %s (%p)",self,groupleader.getclassname(),groupleader);
 				Return GroupLeader.Pos, GroupLeader;
 			}
 			Vector3 MasterPos = Master ? Master.Pos : (Double.NaN, Double.NaN, Double.NaN);
@@ -301,16 +301,16 @@ Class KAI_Actor : Actor Abstract
 			Bool IgnoringPlayers = (!IgnoreDontFollowPlayers && bDontFollowPlayers);
 			//Handle making marines follow group leaders, player-led groups take special precedence, such as the one players create when they order a marine to do something.
 			KAI_NPCGroup MainGroup;
-			If ((MainGroup = GetFirstPlayerNPCGroup(IgnoringPlayers)) && MainGroup)
+			If ((MainGroup = GetFirstPlayerNPCGroup(IgnoringPlayers)) && MainGroup && MainGroup.Leader != Self)
 			{
 				Vector3 GroupPos = MainGroup.Leader ? MainGroup.Leader.Pos : (Double.NaN, Double.NaN, Double.NaN);
-				If (KAI_DebugPrintMessages && maingroup.leader) console.printf ("HandleFollowingActor: %p is following %s",self,maingroup.leader.getclassname());
+				If (KAI_DebugPrintMessages && maingroup.leader) console.printf ("HandleFollowingActor: %p is following %s (%p)",self,maingroup.leader.getclassname(),maingroup.leader);
 				Return GroupPos, MainGroup.Leader;
 			}
 			
 			If (IgnoringPlayers && Master && !IsDead(Master)) //We are ignoring the player, so just follow whoever the master is, unless it is set to your friendplayer for some reason.
 			{
-				If (KAI_DebugPrintMessages && master) console.printf ("HandleFollowingActor: %p is following his master, %s",self,master.getclassname());
+				If (KAI_DebugPrintMessages && master) console.printf ("HandleFollowingActor: %p is following his master, %s (%p)",self,master.getclassname(),master);
 				Return Master.Pos, Master;
 			}
 			If (KAI_DebugPrintMessages) console.printf ("HandleFollowingActor: falling back to following the friendplayer");

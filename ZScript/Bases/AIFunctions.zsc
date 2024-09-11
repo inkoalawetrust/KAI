@@ -838,12 +838,12 @@ Extend Class KAI_Actor
 	//Makes the caller change their target to NewTarget, also passes which actor shared the target. Also does the needed status changes. Returns true if shared successfully.
 	//Sharee: The actor sharing the target.
 	//NewTarget: The potential target to have.
-	//IgnoreAllegience: If on, the target will be set even if the Sharee is hostile and/or the NewTarget is friendly.
-	Bool KAI_ShareTarget (Actor Sharee, Actor NewTarget, Bool IgnoreAllegience = False)
+	//IgnoreAllegiance: If on, the target will be set even if the Sharee is hostile and/or the NewTarget is friendly.
+	Bool KAI_ShareTarget (Actor Sharee, Actor NewTarget, Bool IgnoreAllegiance = False)
 	{
 		If (NewTarget != Null && !bDormant && !(IsPatrolling (Self) && bChaseGoal) && CanBeTargeted(Self,NewTarget))
 		{
-			If (!IgnoreAllegience && (IsActorHostile(Sharee) || !IsActorHostile(NewTarget)))
+			If (!IgnoreAllegiance && (IsActorHostile(Sharee) || !IsActorHostile(NewTarget)))
 				Return False;
 			
 			LastHeard = Target = NewTarget;

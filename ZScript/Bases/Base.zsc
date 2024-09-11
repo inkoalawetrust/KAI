@@ -313,7 +313,7 @@ Class KAI_Actor : Actor Abstract
 				If (KAI_DebugPrintMessages && master) console.printf ("HandleFollowingActor: %p is following his master, %s (%p)",self,master.getclassname(),master);
 				Return Master.Pos, Master;
 			}
-			If (KAI_DebugPrintMessages) console.printf ("HandleFollowingActor: falling back to following the friendplayer");
+			
 			Return Players[KAI_GetFriendPlayer()].Mo.Pos, Players[KAI_GetFriendPlayer()].Mo;
 		}
 		

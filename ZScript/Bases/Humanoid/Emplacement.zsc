@@ -1,0 +1,78 @@
+//TODO: Uh, I am JUST getting started with this new major feature, very unsure how ANYTHING should look like.
+//- I guess KAI_Emplacement probably doesn't need to be based on KAI_Actor, it's basically an interactive prop.
+//- Figure out the minor (Huge) design issue of how to map an NPC using an emplacement to the proper morph. And also the same problem but with player skins. Fun!!!!!
+	//- Will probably need an associative map, at least for mapping NPC operators to the correct morphs. i.e KAI_HellKnight = HellKnightMorph, KAI_Imp = ImpMorph etc
+
+//The base emplacement class for the library. Emplacements can be used by both players and KAI_Humanoid NPCs by default.
+Class KAI_Emplacement : Actor Abstract
+{
+	Default
+	{
+		Radius 16;
+		Height 48;
+		Mass 50;
+		Obituary "%o managed to die from an interactive inanimate object";
+		
+		+FloorClip;
+		+Solid;
+		//+Shootable; //NOTE: If you want, it should also be perfectly possible to make an emplacement that can be destroyed! BUT, you'll have to do it yourself.
+	}
+	
+	Mixin KAI_CheckFunctions;
+	
+	Private Int EmplacementFlags;
+	FlagDef NoPlayerUse : EmplacementFlags, 0; //Emplacement can't be manned by players, NPC-only.
+	FlagDef NoNPCUse : EmplacementFlags, 1; //Emplacement can't be manned by NPCs, player-only.
+	
+	Actor Operator; //Who is currently using this emplacement? If null, this emplacement is not in use. Points to the unmorphed original actor.
+	Actor OperatorMorph; //A pointer to the morph the Operator was turned into to use the emplacement.
+	
+	Override Bool Used (Actor User)
+	{
+		Super.Used(User);
+		
+		If (Operator) //The emplacement is supposed to be intangible and invisible when in use. Returning it to normal and making the operator exit is handled on the morphs.
+			Return False;
+		
+		If (!User || bDormant || IsDead(Self) || IsDead(User) || IsInanimateObject(User)) //Can't use dormant or destroyed emplacements. Also can't be used by inanimate objects.
+			Return False;
+		
+		If (bNoPlayerUse && User.Player || bNoNPCUse && User.bIsMonster) //Custom flag disqualifiers.
+			Return False;
+		
+		OnEnter (User); //Run conditions for when an actor can succesfully operate the emplacement.
+		Return True;
+	}
+	
+	Virtual Void OnEnter (Actor User)
+	{
+		//Morb the user into the specified - wait. How can I figure out which actor morphs into what emplaced one? Oh shit. Fuck
+		//Morph (Self,PLACEHOLDER,PLACEHOLDER,INT.MAX,MRF_UNDOBYDEATH|MRF_LOSEACTUALWEAPON|MRF_FULLHEALTH);
+	}
+	
+	Virtual Void OnExit (Actor User)
+	{
+		
+	}
+}
+
+//NOTE: Boondorl's morphing rewrite means that MorphMonster isn't NEEDED. But I use it so emplaced NPCs can easily and universally be detectable as morphs.
+Class KAI_EmplacementNPC : MorphedMonster Abstract
+{
+	Default //Pretty much every other property and flag is up to the modder.
+	{
+		+DontMorph; //Probably not a good idea to have nested morphs. Even the original Hexen animal morphs use this flag sooooo.
+	}
+	Mixin KAI_CheckFunctions;
+}
+
+Class KAI_EmplacementPlayer : PlayerPawn
+{
+	Default //Pretty much every other property and flag is up to the modder.
+	{
+		+DontMorph; //The Hexen animal player classes used for morphing don't disallow morphing. But I do by default just to be safe.
+		+NoSkin; //They do disallow skins though and for good reason I'm pretty sure.
+	}
+	Mixin KAI_CheckFunctions;
+	//NOTE: For emplacement players using skins, modders should likely use PlayerInfo.GetSkin(), to get the original pawns' skin. And add custom support for each skin.
+}

@@ -133,6 +133,5 @@ So, the code that is meant to be shared by all NPCs also goes here.*/
 	//The base creature class, for living NPCs like demons and animals.
 	#Include "ZScript/Bases/Creature/Base.zsc"
 		//The base class for more intelligent creatures, based on KAI_Creature.
-		/*This will stay empty until I get around to remaking the Smart Marines. Once the rewrite starts,
-		I will begin moving any generic code to this base.*/
 		#Include "ZScript/Bases/Humanoid/Base.zsc"
+		#Include "ZScript/Bases/Humanoid/Emplacement.zsc" //Player and KAI_Humanoid-usable emplacements, like turrets.

@@ -10,6 +10,35 @@ Class KAI_Humanoid : KAI_Creature Abstract
 {
 	Mixin HumanoidAndVehicleCode; //Code shared between humanoids and vehicles. Usually stuff for smarter NPCs than KAI_Creature.
 	
+	KAI_Emplacement Emplacement; //The emplacement the NPC is currently in, if any. When they're in it, they're shooed of, and replaced with the emplacements' OperatorMorph pointer.
+	
+	Override Void PostMorph (Actor Mo, Bool Current)
+	{
+		Super.PostMorph(Mo, Current);
+		If (Emplacement)
+			Console.Printf ("KAI_HUMANOIND EMPLACEMENT HANDLING: EMPLACEMENT POINTER EXISTS (%p)",emplacement);
+		If (Mo)
+			Console.Printf ("KAI_HUMANOIND EMPLACEMENT HANDLING: MO POINTER EXISTS (%p)",mo);
+		If (Current)
+			Console.Printf ("KAI_HUMANOIND EMPLACEMENT HANDLING: GETTING CALLED FROM THE MORPH ITSELF");
+		If (Mo Is "KAI_EmplacementNPC")
+			Console.Printf ("KAI_HUMANOIND EMPLACEMENT HANDLING: MO IS CHILD OF KAI_EMPLACEMENTNPC (%s)",mo.getclassname());
+		If (Emplacement && Mo && Mo Is "KAI_EmplacementNPC") //Morphed into an emplacement for the emplacement we're entering.
+		{
+			Console.Printf ("KAI_HUMANOIND EMPLACEMENT HANDLING: SET THE OPERATORMORPH (%p) AND OPERATOR (%p) POINTERS IN POSTMORPH",mo,mo.alternative);
+			Emplacement.OperatorMorph = Mo; //Pass pointers to the emplacement, both the original actor, and the morph they turn into.
+			Emplacement.Operator = Mo.Alternative;
+		}
+		Console.Printf ("KAI_HUMANOIND EMPLACEMENT HANDLING: POINTER SETTING CODE SHOULD'VE RAN!");
+	}
+	
+	Override Void Tick()
+	{
+		If (Emplacement) //HACK: Apparently morphed actors are still fucking active, cool!
+			Return;
+		
+		Super.Tick();
+	}
 	/*NOTE: I'm not sure if the movement functions like crouching should be here, or moved down the inheritence chain to the Creature class.
 	Since these are technically pretty simple movements like crouching and jumping, but I'll eventually be adding features like dodging and taking
 	cover to my Smart Marine NPCs, and if that code is ported to the library, it's definitely staying exclusive to this class.*/

@@ -2,6 +2,7 @@
 //- I guess KAI_Emplacement probably doesn't need to be based on KAI_Actor, it's basically an interactive prop.
 //- Figure out the minor (Huge) design issue of how to map an NPC using an emplacement to the proper morph. And also the same problem but with player skins. Fun!!!!!
 	//- Will probably need an associative map, at least for mapping NPC operators to the correct morphs. i.e KAI_HellKnight = HellKnightMorph, KAI_Imp = ImpMorph etc
+//- Maybe add a basic player morph class? Or rather the handling for a purely visual pseudo-player that can move relative to the emplacement, for basic morph classes.
 
 //The base emplacement class for the library. Emplacements can be used by both players and KAI_Humanoid NPCs by default.
 Class KAI_Emplacement : Actor Abstract
@@ -24,46 +25,158 @@ Class KAI_Emplacement : Actor Abstract
 	FlagDef NoPlayerUse : EmplacementFlags, 0; //Emplacement can't be manned by players, NPC-only.
 	FlagDef NoNPCUse : EmplacementFlags, 1; //Emplacement can't be manned by NPCs, player-only.
 	
+	//Variables and properties for handling actually morphing NPCs and players to the right classes.
+	Map <String, Class <KAI_EmplacementNPC> > NPCMap; //The map used to assign NPCs that may use the emplacement, to what emplacement they should specifically turn into.
+	Class <KAI_EmplacementNPC> NPCFallback; //The morph class to fall back if the NPC that's getting on the emplacement isn't in the NPCMap.
+	Class <KAI_EmplacementPlayer> PlayerMorph; //The morph all players will turn to, for stuff like class specific morphs and skin-specific sprites, you have to handle it yourself.
+	Property NPCFallback : NPCFallback;
+	Property PlayerMorph : PlayerMorph;
+	//Class <KAI_EmplacementPlayer> PlayerFallback; //Ditto, but for players using the- nevermind, this kind of thing should just be handled by modders I think.
+	
 	Actor Operator; //Who is currently using this emplacement? If null, this emplacement is not in use. Points to the unmorphed original actor.
 	Actor OperatorMorph; //A pointer to the morph the Operator was turned into to use the emplacement.
+	Vector3 EnterPos; //The position relative to the emplacement that the operator entered it from.
+	
+	Override Void PostBeginPlay ()
+	{
+		Super.PostBeginPlay();
+		
+		EnterPos = (Double.NaN, Double.NaN, Double.NaN);
+	}
 	
 	Override Bool Used (Actor User)
 	{
 		Super.Used(User);
 		
-		If (Operator) //The emplacement is supposed to be intangible and invisible when in use. Returning it to normal and making the operator exit is handled on the morphs.
+		If (User.bIsMonster && !(User Is "KAI_Humanoid") || User.bIsMonster && KAI_Humanoid(User).Emplacement) //Can only be used by KAI_Humanoid monsters specifically. Also can't enter if already in another emplacement.
 			Return False;
 		
 		If (!User || bDormant || IsDead(Self) || IsDead(User) || IsInanimateObject(User)) //Can't use dormant or destroyed emplacements. Also can't be used by inanimate objects.
 			Return False;
 		
-		If (bNoPlayerUse && User.Player || bNoNPCUse && User.bIsMonster) //Custom flag disqualifiers.
-			Return False;
-		
-		OnEnter (User); //Run conditions for when an actor can succesfully operate the emplacement.
+		EnterEmplacement (User); //Run conditions for when an actor can succesfully operate the emplacement.
 		Return True;
 	}
 	
-	Virtual Void OnEnter (Actor User)
+	//Handle the logic for an NPC or player "entering" an emplacement.
+	Virtual Bool EnterEmplacement (Actor User)
 	{
-		//Morb the user into the specified - wait. How can I figure out which actor morphs into what emplaced one? Oh shit. Fuck
-		//Morph (Self,PLACEHOLDER,PLACEHOLDER,INT.MAX,MRF_UNDOBYDEATH|MRF_LOSEACTUALWEAPON|MRF_FULLHEALTH);
+		If (Operator) //Fuck off we're full.
+			Return False;
+		
+		If (bNoPlayerUse && User.Player || bNoNPCUse && User.bIsMonster) //Custom flag disqualifiers.
+			Return False;
+		
+		If (User Is "KAI_Humanoid")
+			KAI_Humanoid(User).Emplacement = Self; //Needs to be set before Morph() so the PostMorph() override in KAI_Humanoid can pass the operator pointers.
+		
+		Vector3 CachedPos = User.Pos; //I think the User pointer gets lost once the User morphs? Since User.Pos will create a null pointer VM abort.
+		
+		Bool Morbed = User.Morph (Self,PlayerMorph,GetNPCMorph(User.GetClassName()),INT.MAX/2,MRF_UNDOBYDEATH|MRF_LOSEACTUALWEAPON|MRF_FULLHEALTH|MRF_KEEPARMOR,Null,Null);
+		If (Morbed) //We "entered" the emplacement (Morphed into it)
+		{
+			EnterPos = Level.Vec3Diff (Pos,CachedPos); //Get position of operator relative to emplacement, to warp them back there upon exiting.
+			OperatorMorph.SetOrigin (Pos,True); //Put the operator on the turrets' pitch, angle, and position.
+			OperatorMorph.Angle = Angle;
+			OperatorMorph.Pitch = Pitch;
+			If (OperatorMorph Is "KAI_EmplacementNPC")
+				KAI_EmplacementNPC(OperatorMorph).Emplacement = Self; //So doing "KAI_Humanoid(Alternative).Emplacement" when checking from the NPC morph isn't needed.
+			//Else If (OperatorMorph Is "KAI_EmplacementPlayer")
+			//	KAI_EmplacementPlayer(OperatorMorph).Emplacement = Self; 
+			A_ChangeLinkFlags (True, True); //Become intangible.
+			console.printf ("%s entered %p",user.getclassname(),self);
+			Return True;
+		}
+		If (User Is "KAI_Humanoid")
+			KAI_Humanoid(User).Emplacement = Null;
+		Return False;
 	}
 	
-	Virtual Void OnExit (Actor User)
+	//Handle the logic for an NPC or player "leaving" an emplacement.
+	Virtual Void ExitEmplacement ()
 	{
+		If (!Operator) Return; //There's nobody that needs to leave.
+		Bool UnMorb = OperatorMorph.UnMorph (Self,0,True); //DoExitEmplacement() is handled on KAI_EmplacementNPC and KAI_EmplacementPlayer directly.
+		//If (UnMorb)
+			//DoExitEmplacement();
+		Return;
+	}
+	
+	//Runs the status changes to properly exit an emplacement. Like if the operator unmorphs on their own by the morph tics running out somehow, or them dying.
+	Void DoExitEmplacement ()
+	{
+		//If (!Operator)
+		//	Return;
+		Operator.SetOrigin (KAI_Math.Vec3OffsetRelative(Self,EnterPos,flags:KAI_Math.V3R_ANGLEONLY),True); //Revert position to where the operator was before getting in.
+		EnterPos = (Double.NaN, Double.NaN, Double.NaN);
+		If (Operator.bIsMonster)
+			KAI_Humanoid(Operator).Emplacement = Null;
+		Operator = OperatorMorph = Null;
+		A_ChangeLinkFlags (False, False);
+	}
+	
+	//Add an explicitly supported NPC class, and the emplacement morph they turn to.
+	Bool AddNPCMorph (String NPCClass, Class<KAI_EmplacementNPC> MorphClass)
+	{
+		If (NPCMap.CheckKey(NPCClass)) //Already have an NPC-Morph association.
+		{
+			Console.Printf ("\c[Yellow]KAI_Emplacement: NPC Class %s is already mapped to KAI_EmplacementNPC %s",NPCClass,MorphClass.GetClassName());
+			Return False;
+		}
 		
+		NPCMap.Insert (NPCClass, MorphClass);
+		
+		Return True;
+	}
+	
+	//Find the morph class associated with that particular NPC, if any. Otherwise it returns the fallback NPC morph, if there's any.
+	Class <KAI_EmplacementNPC> GetNPCMorph (String NPCClass)
+	{
+		Class <KAI_EmplacementNPC> Morph;
+		Bool Found;
+		[Morph, Found] = NPCMap.CheckValue (NPCClass);
+		If (KAI_DebugPrintMessages) Console.Printf ("KAI_Emplacement.GetNPCMorph(): Checking for NPC of class %s, actor is assigned to morph %s",NPCClass,Morph.GetClassName());
+		If (Found)
+			Return Morph;
+		Return NPCFallback;
 	}
 }
 
-//NOTE: Boondorl's morphing rewrite means that MorphMonster isn't NEEDED. But I use it so emplaced NPCs can easily and universally be detectable as morphs.
-Class KAI_EmplacementNPC : MorphedMonster Abstract
+Class KAI_EmplacementNPC : KAI_Actor Abstract
 {
 	Default //Pretty much every other property and flag is up to the modder.
 	{
 		+DontMorph; //Probably not a good idea to have nested morphs. Even the original Hexen animal morphs use this flag sooooo.
+		-AvoidHazards;
 	}
 	Mixin KAI_CheckFunctions;
+	Mixin HumanoidAndVehicleCode;
+	KAI_Emplacement Emplacement; //The emplacement this morph is part of.
+	
+	Override Void PostUnmorph (Actor Mo, Bool Current)
+	{
+		Super.PostUnmorph (Mo, Current);
+		if (!emplacement) console.printf ("what the fuck do you mean the emplacement pointer is null?");
+		If (Mo && Emplacement)
+		{
+			Console.Printf ("KAI_EMPLACEMENTNPC: RUNNING EMPLACEMENT EXITING CODE ON POSTUNMORPH()");
+			Emplacement.DoExitEmplacement();
+		}
+	}
+	
+	Override Void Tick()
+	{
+		Super.Tick();
+		
+		If (IsFrozen())
+			Return;
+		
+		If (Emplacement) //Update the hidden emplacement every tick with the pitch and angle you're supposed to be moving it at.
+		{
+			Emplacement.Angle = Angle;
+			Emplacement.Pitch = Pitch;
+		}
+	}
 }
 
 Class KAI_EmplacementPlayer : PlayerPawn

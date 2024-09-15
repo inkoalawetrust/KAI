@@ -32,6 +32,9 @@ Class KAI_Humanoid : KAI_Creature Abstract
 		Console.Printf ("KAI_HUMANOIND EMPLACEMENT HANDLING: POINTER SETTING CODE SHOULD'VE RAN!");
 	}
 	
+	Virtual Void OnEmplacementEnter() {}
+	Virtual Void OnEmplacementExit() {}
+	
 	Override Void Tick()
 	{
 		If (Emplacement) //HACK: Apparently morphed actors are still fucking active, cool!

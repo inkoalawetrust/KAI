@@ -49,10 +49,10 @@ Class KAI_Emplacement : Actor Abstract
 		Super.Used(User);
 		
 		If (User.bIsMonster && !(User Is "KAI_Humanoid") || User.bIsMonster && KAI_Humanoid(User).Emplacement) //Can only be used by KAI_Humanoid monsters specifically. Also can't enter if already in another emplacement.
-			Return False;
+			{console.printf ("fail 1");Return False;}
 		
 		If (!User || bDormant || IsDead(Self) || IsDead(User) || IsInanimateObject(User)) //Can't use dormant or destroyed emplacements. Also can't be used by inanimate objects.
-			Return False;
+			{console.printf ("fail 2");Return False;}
 		
 		EnterEmplacement (User); //Run conditions for when an actor can succesfully operate the emplacement.
 		Return True;
@@ -84,9 +84,10 @@ Class KAI_Emplacement : Actor Abstract
 			//Else If (OperatorMorph Is "KAI_EmplacementPlayer")
 			//	KAI_EmplacementPlayer(OperatorMorph).Emplacement = Self; 
 			A_ChangeLinkFlags (True, True); //Become intangible.
+			KAI_Humanoid(Operator).OnEmplacementEnter();
 			console.printf ("%s entered %p",user.getclassname(),self);
 			Return True;
-		}
+		}else {console.printf ("morbius flopped");}
 		If (User Is "KAI_Humanoid")
 			KAI_Humanoid(User).Emplacement = Null;
 		Return False;
@@ -109,6 +110,7 @@ Class KAI_Emplacement : Actor Abstract
 		//	Return;
 		Operator.SetOrigin (KAI_Math.Vec3OffsetRelative(Self,EnterPos,flags:KAI_Math.V3R_ANGLEONLY),True); //Revert position to where the operator was before getting in.
 		EnterPos = (Double.NaN, Double.NaN, Double.NaN);
+		KAI_Humanoid(Operator).OnEmplacementExit();
 		If (Operator.bIsMonster)
 			KAI_Humanoid(Operator).Emplacement = Null;
 		Operator = OperatorMorph = Null;
@@ -135,9 +137,10 @@ Class KAI_Emplacement : Actor Abstract
 		Class <KAI_EmplacementNPC> Morph;
 		Bool Found;
 		[Morph, Found] = NPCMap.CheckValue (NPCClass);
-		If (KAI_DebugPrintMessages) Console.Printf ("KAI_Emplacement.GetNPCMorph(): Checking for NPC of class %s, actor is assigned to morph %s",NPCClass,Morph.GetClassName());
+		If (KAI_DebugPrintMessages && Found) Console.Printf ("KAI_Emplacement.GetNPCMorph(): Checking for NPC of class %s, actor is assigned to morph %s",NPCClass,Morph.GetClassName());
 		If (Found)
 			Return Morph;
+		If (KAI_DebugPrintMessages) Console.Printf ("KAI_Emplacement.GetNPCMorph(): Couldn't find morph for NPC class, using NPCFallback class");
 		Return NPCFallback;
 	}
 }
@@ -153,6 +156,7 @@ Class KAI_EmplacementNPC : KAI_Actor Abstract
 	Mixin HumanoidAndVehicleCode;
 	KAI_Emplacement Emplacement; //The emplacement this morph is part of.
 	
+	//Handle the NPC exiting the emplacement.
 	Override Void PostUnmorph (Actor Mo, Bool Current)
 	{
 		Super.PostUnmorph (Mo, Current);
@@ -176,6 +180,84 @@ Class KAI_EmplacementNPC : KAI_Actor Abstract
 			Emplacement.Angle = Angle;
 			Emplacement.Pitch = Pitch;
 		}
+	}
+}
+
+Class KAI_EmplacementFakeOperator : VisualThinker
+{
+	Vector3 Offsets;
+	Actor Operator;
+	Actor Emplacement;
+	Mixin KAI_CheckFunctions;
+	State SpriteState; //The state which we get the sprite to use.
+	Int PlayerSkinID; //The number of the players' skin. Only relevant if the operator is both a player, and of course, is using a skin.
+	
+	//Cut down version of GetSpriteAngleFromPos(). 
+	Int FakeOpGetSpriteAngle (Vector3 CamPos, Bool SixteenAngles)
+	{
+		Vector3 Coords = Level.SphericalCoords (Pos,CamPos);
+		Double Ang = -Coords.X;
+		
+		Double Angle = Emplacement.Angle + 180;
+		Double SprAng = Angle - Ang;
+		Double Result;
+		If (!SixteenAngles)
+		{
+			Result = BAM (SprAng - (Angle/* + SpriteRotation*/) + 45.0 / 2 * 9) >> 28;
+		}
+		Else
+		{
+			Result = BAM (SprAng - (Angle/* + SpriteRotation*/) + 45.0 / 2 * 9 - 180.0 / 16) >> 28;
+		}
+		Return Int(Result);
+	}
+	
+	Override Void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		
+		//Set the first idle frame of the operator as the texture.
+		//TODO: Need to also make the sprites have working rotations, fuck...
+		If (Operator)
+		{
+			//If (!Texture)
+			//Acquire the first valid see state sprite of the operator to use as the fallback graphic. If the graphic is TNT1A0, look for the next state's sprite.
+			{
+				Int SkinNum = Operator.Player ? Operator.Player.GetSkin() : 0;
+				State LeState = GetDefaultByType(Operator.GetClass()).SeeState;
+				TextureID Graphic = LeState.GetSpriteTexture (0,SkinNum);
+				For (Int I; I < 32; I++)
+				{
+					If (Graphic.IsValid() && !(Texman.GetName(Graphic) ~== "TNT1A0")) //This is NOT a valid graphic, look for a valid graphic in the next state!
+						Break;
+					LeState = LeState.NextState;
+					Graphic = LeState.GetSpriteTexture (FakeOpGetSpriteAngle(Players[ConsolePlayer].Camera.Pos,True),SkinNum);
+				}
+				SpriteState = LeState;
+				Texture = Graphic;
+				PlayerSkinID = SkinNum;
+				console.printf ("fake operator: took actors' idle sprite (%s)",texman.getname(texture));
+			}
+		}
+		Else
+			{console.printf ("fake operator: no actual operator");Destroy();}
+	}
+	override void ondestroy(){console.printf ("fake operator: we got removed for some other reason");if (!Texture) console.printf ("cuz we got no texture");}
+	Override Void Tick()
+	{
+		Super.Tick();
+		
+		If (!Operator || !Emplacement || !KAI_Emplacement(Emplacement).Operator)
+		{console.printf ("fake operator: no operator or emplacement");
+			Destroy();
+			Return;
+		}
+		
+		Texture = SpriteState.GetSpriteTexture (FakeOpGetSpriteAngle(Players[ConsolePlayer].Camera.Pos,True),PlayerSkinID);
+		If (IsFrozen())
+			Return;
+		
+		Pos = KAI_Math.Vec3OffsetRelative (Emplacement, Offsets);
 	}
 }
 

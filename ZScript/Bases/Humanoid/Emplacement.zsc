@@ -79,6 +79,7 @@ Class KAI_Emplacement : Actor Abstract
 			OperatorMorph.SetOrigin (Pos,True); //Put the operator on the turrets' pitch, angle, and position.
 			OperatorMorph.Angle = Angle;
 			OperatorMorph.Pitch = Pitch;
+			OperatorMorph.A_SetHealth (Operator.Health);
 			If (OperatorMorph Is "KAI_EmplacementNPC")
 				KAI_EmplacementNPC(OperatorMorph).Emplacement = Self; //So doing "KAI_Humanoid(Alternative).Emplacement" when checking from the NPC morph isn't needed.
 			//Else If (OperatorMorph Is "KAI_EmplacementPlayer")
@@ -86,6 +87,7 @@ Class KAI_Emplacement : Actor Abstract
 			A_ChangeLinkFlags (True, True); //Become intangible.
 			KAI_Humanoid(Operator).OnEmplacementEnter();
 			console.printf ("%s entered %p",user.getclassname(),self);
+			CONSOLE.PRINTF ("OPERATOR MORPH STARTS WITH %d HEALTH",OPERATORMORPH.HEALTH);
 			Return True;
 		}else {console.printf ("morbius flopped");}
 		If (User Is "KAI_Humanoid")
@@ -111,6 +113,7 @@ Class KAI_Emplacement : Actor Abstract
 		Operator.SetOrigin (KAI_Math.Vec3OffsetRelative(Self,EnterPos,flags:KAI_Math.V3R_ANGLEONLY),True); //Revert position to where the operator was before getting in.
 		EnterPos = (Double.NaN, Double.NaN, Double.NaN);
 		KAI_Humanoid(Operator).OnEmplacementExit();
+		//Operator.A_SetHealth (OperatorMorph.Health); //HACK: Has to be handled in the emplacements' morphs' morph virtuals because of how the stock unmorph works.
 		If (Operator.bIsMonster)
 			KAI_Humanoid(Operator).Emplacement = Null;
 		Operator = OperatorMorph = Null;
@@ -143,6 +146,23 @@ Class KAI_Emplacement : Actor Abstract
 		If (KAI_DebugPrintMessages) Console.Printf ("KAI_Emplacement.GetNPCMorph(): Couldn't find morph for NPC class, using NPCFallback class");
 		Return NPCFallback;
 	}
+	
+	//Create a fake operator visual effect to serve as a placeholder for NPC and player operators if you have no unique emplacement sprites.
+	Actor CreateFakeOperator (Vector3 Position)
+	{
+		Let FakeOp = KAI_EmplacementFakeOperator(Spawn ("KAI_EmplacementFakeOperator",Level.Vec3Offset(Pos,Position)));
+		
+		If (FakeOp)
+		{
+			//FakeOp.Pos = Emplacement.Vec3Offset (-32,0,0);
+			FakeOp.Offsets = Level.Vec3Diff (Pos, FakeOp.Pos);
+			FakeOp.Operator = Operator;
+			FakeOp.Emplacement = Self;
+			//FakeOp.Texture = CurState.GetSpriteTexture (0); //Just get some placeholder graphic for now so the thinker will spawn.
+		}
+		
+		Return FakeOp;
+	}
 }
 
 Class KAI_EmplacementNPC : KAI_Actor Abstract
@@ -155,16 +175,29 @@ Class KAI_EmplacementNPC : KAI_Actor Abstract
 	Mixin KAI_CheckFunctions;
 	Mixin HumanoidAndVehicleCode;
 	KAI_Emplacement Emplacement; //The emplacement this morph is part of.
+	Actor OperatorHack;
 	
 	//Handle the NPC exiting the emplacement.
+	Override Void PreUnmorph (Actor Mo, Bool Current)
+	{
+		Super.PreUnmorph (Mo, Current);
+		if (!emplacement) console.printf ("what the fuck do you mean the emplacement pointer is null?");
+		If (Mo && Emplacement && Emplacement.Operator)
+		{
+			Console.Printf ("KAI_EMPLACEMENTNPC: RUNNING EMPLACEMENT EXITING CODE ON PREUNMORPH()");
+			OperatorHack = Emplacement.Operator;
+			Emplacement.DoExitEmplacement();
+		}
+	}
+	
 	Override Void PostUnmorph (Actor Mo, Bool Current)
 	{
 		Super.PostUnmorph (Mo, Current);
-		if (!emplacement) console.printf ("what the fuck do you mean the emplacement pointer is null?");
-		If (Mo && Emplacement)
+		
+		If (OperatorHack)
 		{
-			Console.Printf ("KAI_EMPLACEMENTNPC: RUNNING EMPLACEMENT EXITING CODE ON POSTUNMORPH()");
-			Emplacement.DoExitEmplacement();
+			OperatorHack.A_SetHealth(Health);
+			console.printf ("OPERATOR HEALTH %d, MORPH HEALTH %d",operatorhack.health,health);
 		}
 	}
 	
@@ -183,7 +216,88 @@ Class KAI_EmplacementNPC : KAI_Actor Abstract
 	}
 }
 
-Class KAI_EmplacementFakeOperator : VisualThinker
+//HACK: I can't get the sprite rotation math right on the intended VisualThinker version. And nobody can help me with it. So this serves as a placeholder class.
+Class KAI_EmplacementFakeOperator : Actor
+{
+	Vector3 Offsets;
+	Actor Operator;
+	Actor Emplacement;
+	Mixin KAI_CheckFunctions;
+	State SpriteState; //The state which we get the sprite to use.
+	//Int PlayerSkinID; //The number of the players' skin. Only relevant if the operator is both a player, and of course, is using a skin.
+	
+	TextureID Texture;
+	
+	Override Void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		
+		//Set the first idle frame of the operator as the texture.
+		//TODO: Need to also make the sprites have working rotations, fuck...
+		If (Operator)
+		{
+			//If (!Texture)
+			//Acquire the first valid see state sprite of the operator to use as the fallback graphic. If the graphic is TNT1A0, look for the next state's sprite.
+			{
+				//Int SkinNum = Operator.Player ? Operator.Player.GetSkin() : 0;
+				State LeState = GetDefaultByType(Operator.GetClass()).SeeState;
+				For (Int I; I < 32; I++)
+				{
+					LeState = LeState.NextState;
+				}
+				SpriteState = LeState;
+				//PlayerSkinID = SkinNum;
+				console.printf ("fake operator: took actors' idle sprite (%s)",texman.getname(texture));
+			}
+		}
+		Else
+			{console.printf ("fake operator: no actual operator");Destroy();}
+	}
+	override void ondestroy(){console.printf ("fake operator: we got removed for some other reason");if (!Texture) console.printf ("cuz we got no texture");}
+	Override Void Tick()
+	{
+		If (!Operator || !Emplacement || !KAI_Emplacement(Emplacement).Operator)
+		{console.printf ("fake operator: no operator or emplacement");
+			Destroy();
+			Return;
+		}
+		
+		If (IsFrozen())
+			Return;
+		
+		SetOrigin(KAI_Math.Vec3OffsetRelative (Emplacement, Offsets),True);
+		A_Face (Emplacement);
+		
+		// Advance the state
+		if (tics != -1)
+		{
+			if (tics > 0) tics--;
+			while (!tics)
+			{
+				if (!SetState (CurState.NextState))
+				{ // mobj was removed
+					return;
+				}
+			}
+		}
+	}
+	
+	States
+	{
+		Spawn:
+			TNT1 A 1
+			{
+				If (SpriteState)
+				{
+					Sprite = SpriteState.Sprite;
+					Frame = SpriteState.Frame;
+				}
+				//console.printf ("fake operator: took actors' idle sprite (%s%d)",sprite,frame);
+			}
+			Loop;
+	}
+}
+/*Class KAI_EmplacementFakeOperator : VisualThinker
 {
 	Vector3 Offsets;
 	Actor Operator;
@@ -203,11 +317,11 @@ Class KAI_EmplacementFakeOperator : VisualThinker
 		Double Result;
 		If (!SixteenAngles)
 		{
-			Result = BAM (SprAng - (Angle/* + SpriteRotation*/) + 45.0 / 2 * 9) >> 28;
+			Result = BAM (SprAng - (Angle/* + SpriteRotation/) + 45.0 / 2 * 9) >> 28;
 		}
 		Else
 		{
-			Result = BAM (SprAng - (Angle/* + SpriteRotation*/) + 45.0 / 2 * 9 - 180.0 / 16) >> 28;
+			Result = BAM (SprAng - (Angle/* + SpriteRotation/) + 45.0 / 2 * 9 - 180.0 / 16) >> 28;
 		}
 		Return Int(Result);
 	}
@@ -259,7 +373,7 @@ Class KAI_EmplacementFakeOperator : VisualThinker
 		
 		Pos = KAI_Math.Vec3OffsetRelative (Emplacement, Offsets);
 	}
-}
+}*/
 
 Class KAI_EmplacementPlayer : PlayerPawn
 {

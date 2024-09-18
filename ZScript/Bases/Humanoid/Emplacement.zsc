@@ -31,7 +31,8 @@ Class KAI_Emplacement : Actor Abstract
 	Class <KAI_EmplacementPlayer> PlayerMorph; //The morph all players will turn to, for stuff like class specific morphs and skin-specific sprites, you have to handle it yourself.
 	Property NPCFallback : NPCFallback;
 	Property PlayerMorph : PlayerMorph;
-	//Class <KAI_EmplacementPlayer> PlayerFallback; //Ditto, but for players using the- nevermind, this kind of thing should just be handled by modders I think.
+	Sound EnterSound; //The sound that plays, if any, when an actor enters the turret.
+	Property EnterSound : EnterSound;
 	
 	Actor Operator; //Who is currently using this emplacement? If null, this emplacement is not in use. Points to the unmorphed original actor.
 	Actor OperatorMorph; //A pointer to the morph the Operator was turned into to use the emplacement.
@@ -49,10 +50,10 @@ Class KAI_Emplacement : Actor Abstract
 		Super.Used(User);
 		
 		If (User.bIsMonster && !(User Is "KAI_Humanoid") || User.bIsMonster && KAI_Humanoid(User).Emplacement) //Can only be used by KAI_Humanoid monsters specifically. Also can't enter if already in another emplacement.
-			{console.printf ("fail 1");Return False;}
+			Return False;
 		
 		If (!User || bDormant || IsDead(Self) || IsDead(User) || IsInanimateObject(User)) //Can't use dormant or destroyed emplacements. Also can't be used by inanimate objects.
-			{console.printf ("fail 2");Return False;}
+			Return False;
 		
 		EnterEmplacement (User); //Run conditions for when an actor can succesfully operate the emplacement.
 		Return True;
@@ -70,28 +71,30 @@ Class KAI_Emplacement : Actor Abstract
 		If (User Is "KAI_Humanoid")
 			KAI_Humanoid(User).Emplacement = Self; //Needs to be set before Morph() so the PostMorph() override in KAI_Humanoid can pass the operator pointers.
 		
-		Vector3 CachedPos = User.Pos; //I think the User pointer gets lost once the User morphs? Since User.Pos will create a null pointer VM abort.
-		
 		Bool Morbed = User.Morph (Self,PlayerMorph,GetNPCMorph(User.GetClassName()),INT.MAX/2,MRF_UNDOBYDEATH|MRF_LOSEACTUALWEAPON|MRF_FULLHEALTH|MRF_KEEPARMOR,Null,Null);
 		If (Morbed) //We "entered" the emplacement (Morphed into it)
 		{
-			EnterPos = Level.Vec3Diff (Pos,CachedPos); //Get position of operator relative to emplacement, to warp them back there upon exiting.
+			EnterPos = Level.Vec3Diff (Pos,User.Pos); //Get position of operator relative to emplacement, to warp them back there upon exiting.
+			OperatorMorph = User.Alternative;
+			Operator = User;
 			OperatorMorph.SetOrigin (Pos,True); //Put the operator on the turrets' pitch, angle, and position.
 			OperatorMorph.Angle = Angle;
 			OperatorMorph.Pitch = Pitch;
 			OperatorMorph.A_SetHealth (Operator.Health);
 			If (OperatorMorph Is "KAI_EmplacementNPC")
 				KAI_EmplacementNPC(OperatorMorph).Emplacement = Self; //So doing "KAI_Humanoid(Alternative).Emplacement" when checking from the NPC morph isn't needed.
-			//Else If (OperatorMorph Is "KAI_EmplacementPlayer")
-			//	KAI_EmplacementPlayer(OperatorMorph).Emplacement = Self; 
+			If (OperatorMorph Is "KAI_EmplacementPlayer")
+				KAI_EmplacementPlayer(OperatorMorph).Emplacement = Self;
+			A_StartSound (EnterSound);
 			A_ChangeLinkFlags (True, True); //Become intangible.
-			KAI_Humanoid(Operator).OnEmplacementEnter();
-			console.printf ("%s entered %p",user.getclassname(),self);
-			CONSOLE.PRINTF ("OPERATOR MORPH STARTS WITH %d HEALTH",OPERATORMORPH.HEALTH);
+			If (Operator Is "KAI_Humanoid") KAI_Humanoid(Operator).OnEmplacementEnter();
+			If (Operator.Player) Operator.Player.Uncrouch(); //Uncrouch before entering to not instantly exit.
 			Return True;
-		}else {console.printf ("morbius flopped");}
+		}
 		If (User Is "KAI_Humanoid")
 			KAI_Humanoid(User).Emplacement = Null;
+		If (User Is "KAI_EmplacementPlayer")
+			KAI_EmplacementPlayer(User).Emplacement = Null;
 		Return False;
 	}
 	
@@ -108,14 +111,20 @@ Class KAI_Emplacement : Actor Abstract
 	//Runs the status changes to properly exit an emplacement. Like if the operator unmorphs on their own by the morph tics running out somehow, or them dying.
 	Void DoExitEmplacement ()
 	{
-		//If (!Operator)
-		//	Return;
-		Operator.SetOrigin (KAI_Math.Vec3OffsetRelative(Self,EnterPos,flags:KAI_Math.V3R_ANGLEONLY),True); //Revert position to where the operator was before getting in.
+		If (!Operator)
+			Return;
+		
+		Let Input = (RotateVector(EnterPos.XY,Angle),EnterPos.Z);
+		Operator.SetOrigin (Level.Vec3Offset(Pos,Input),True); //Revert position to where the operator was before getting in.
 		EnterPos = (Double.NaN, Double.NaN, Double.NaN);
-		KAI_Humanoid(Operator).OnEmplacementExit();
-		//Operator.A_SetHealth (OperatorMorph.Health); //HACK: Has to be handled in the emplacements' morphs' morph virtuals because of how the stock unmorph works.
-		If (Operator.bIsMonster)
+		
+		If (Operator Is "KAI_Humanoid")
+		{
+			KAI_Humanoid(Operator).OnEmplacementExit();
 			KAI_Humanoid(Operator).Emplacement = Null;
+		}
+		If (Operator.Player) Operator.Player.Uncrouch();
+		If (OperatorMorph.Player) OperatorMorph.Player.Uncrouch();
 		Operator = OperatorMorph = Null;
 		A_ChangeLinkFlags (False, False);
 	}
@@ -158,7 +167,6 @@ Class KAI_Emplacement : Actor Abstract
 			FakeOp.Offsets = Level.Vec3Diff (Pos, FakeOp.Pos);
 			FakeOp.Operator = Operator;
 			FakeOp.Emplacement = Self;
-			//FakeOp.Texture = CurState.GetSpriteTexture (0); //Just get some placeholder graphic for now so the thinker will spawn.
 		}
 		
 		Return FakeOp;
@@ -169,7 +177,9 @@ Class KAI_EmplacementNPC : KAI_Actor Abstract
 {
 	Default //Pretty much every other property and flag is up to the modder.
 	{
+		Speed 0;
 		+DontMorph; //Probably not a good idea to have nested morphs. Even the original Hexen animal morphs use this flag sooooo.
+		+DontThrust;
 		-AvoidHazards;
 	}
 	Mixin KAI_CheckFunctions;
@@ -184,7 +194,6 @@ Class KAI_EmplacementNPC : KAI_Actor Abstract
 		if (!emplacement) console.printf ("what the fuck do you mean the emplacement pointer is null?");
 		If (Mo && Emplacement && Emplacement.Operator)
 		{
-			Console.Printf ("KAI_EMPLACEMENTNPC: RUNNING EMPLACEMENT EXITING CODE ON PREUNMORPH()");
 			OperatorHack = Emplacement.Operator;
 			Emplacement.DoExitEmplacement();
 		}
@@ -195,10 +204,7 @@ Class KAI_EmplacementNPC : KAI_Actor Abstract
 		Super.PostUnmorph (Mo, Current);
 		
 		If (OperatorHack)
-		{
 			OperatorHack.A_SetHealth(Health);
-			console.printf ("OPERATOR HEALTH %d, MORPH HEALTH %d",operatorhack.health,health);
-		}
 	}
 	
 	Override Void Tick()
@@ -216,48 +222,88 @@ Class KAI_EmplacementNPC : KAI_Actor Abstract
 	}
 }
 
+Class KAI_EmplacementPlayer : PlayerPawn
+{
+	Default //Pretty much every other property and flag is up to the modder.
+	{
+		Speed 0;
+		Player.ForwardMove 0,0;
+		Player.SideMove 0,0;
+		Player.JumpZ 0;
+		+DontMorph; //The Hexen animal player classes used for morphing don't disallow morphing. But I do by default just to be safe.
+		+DontThrust;
+		//+NoSkin; //They do disallow skins though and for good reason I'm pretty sure.
+	}
+	Mixin KAI_CheckFunctions;
+	
+	KAI_Emplacement Emplacement;
+	Override Void PostUnMorph (Actor Mo, Bool Current)
+	{
+		Super.PostUnMorph(Mo, Current);
+		If (Emplacement) Emplacement.DoExitEmplacement();
+	}
+	
+	Override Void PlayerThink()
+	{
+		Super.PlayerThink();
+		
+		If (IsFrozen())
+			Return;
+		
+		If (Self && Emplacement && Player && (Player.Cmd.Buttons & BT_USE) && !(Player.OldButtons & BT_USE))
+			Emplacement.ExitEmplacement();
+		
+		If (Player) Player.Uncrouch();
+		
+		If (Emplacement) //Update the hidden emplacement every tick with the pitch and angle you're supposed to be moving it at.
+		{
+			Emplacement.Angle = Angle;
+			Emplacement.Pitch = Pitch;
+		}
+	}
+}
+
 //HACK: I can't get the sprite rotation math right on the intended VisualThinker version. And nobody can help me with it. So this serves as a placeholder class.
 Class KAI_EmplacementFakeOperator : Actor
 {
 	Vector3 Offsets;
 	Actor Operator;
-	Actor Emplacement;
+	KAI_Emplacement Emplacement;
 	Mixin KAI_CheckFunctions;
 	State SpriteState; //The state which we get the sprite to use.
 	//Int PlayerSkinID; //The number of the players' skin. Only relevant if the operator is both a player, and of course, is using a skin.
 	
-	TextureID Texture;
+	Name SpriteName;
 	
 	Override Void PostBeginPlay()
 	{
 		Super.PostBeginPlay();
 		
 		//Set the first idle frame of the operator as the texture.
-		//TODO: Need to also make the sprites have working rotations, fuck...
 		If (Operator)
 		{
-			//If (!Texture)
 			//Acquire the first valid see state sprite of the operator to use as the fallback graphic. If the graphic is TNT1A0, look for the next state's sprite.
 			{
-				//Int SkinNum = Operator.Player ? Operator.Player.GetSkin() : 0;
+				Int SkinNum = Emplacement.OperatorMorph.Player ? Emplacement.OperatorMorph.Player.GetSkin() : 0;
 				State LeState = GetDefaultByType(Operator.GetClass()).SeeState;
+				TextureID Graphic;
 				For (Int I; I < 32; I++)
 				{
 					LeState = LeState.NextState;
+					Graphic = LeState.GetSpriteTexture (0,SkinNum);
 				}
+				String SpriteString;
+				SpriteString = TexMan.GetName(Graphic);
+				SpriteString.Truncate (4);
+				SpriteName = SpriteString;
 				SpriteState = LeState;
-				//PlayerSkinID = SkinNum;
-				console.printf ("fake operator: took actors' idle sprite (%s)",texman.getname(texture));
 			}
 		}
-		Else
-			{console.printf ("fake operator: no actual operator");Destroy();}
 	}
-	override void ondestroy(){console.printf ("fake operator: we got removed for some other reason");if (!Texture) console.printf ("cuz we got no texture");}
 	Override Void Tick()
 	{
 		If (!Operator || !Emplacement || !KAI_Emplacement(Emplacement).Operator)
-		{console.printf ("fake operator: no operator or emplacement");
+		{
 			Destroy();
 			Return;
 		}
@@ -285,18 +331,18 @@ Class KAI_EmplacementFakeOperator : Actor
 	States
 	{
 		Spawn:
-			TNT1 A 1
+			#### A 1
 			{
 				If (SpriteState)
 				{
-					Sprite = SpriteState.Sprite;
+					Sprite = GetSpriteIndex(SpriteName);
 					Frame = SpriteState.Frame;
 				}
-				//console.printf ("fake operator: took actors' idle sprite (%s%d)",sprite,frame);
 			}
 			Loop;
 	}
 }
+
 /*Class KAI_EmplacementFakeOperator : VisualThinker
 {
 	Vector3 Offsets;
@@ -374,14 +420,3 @@ Class KAI_EmplacementFakeOperator : Actor
 		Pos = KAI_Math.Vec3OffsetRelative (Emplacement, Offsets);
 	}
 }*/
-
-Class KAI_EmplacementPlayer : PlayerPawn
-{
-	Default //Pretty much every other property and flag is up to the modder.
-	{
-		+DontMorph; //The Hexen animal player classes used for morphing don't disallow morphing. But I do by default just to be safe.
-		+NoSkin; //They do disallow skins though and for good reason I'm pretty sure.
-	}
-	Mixin KAI_CheckFunctions;
-	//NOTE: For emplacement players using skins, modders should likely use PlayerInfo.GetSkin(), to get the original pawns' skin. And add custom support for each skin.
-}

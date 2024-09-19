@@ -5,7 +5,77 @@ Class KAI_MixinActor : Actor Abstract
 	Mixin KAI_UniversalFunctions;
 	Mixin KAI_CheckFunctions;
 }
+Class emit : Actor
+{
+	TextureID tex;
+	Default
+	{
+		+NOINTERACTION
+		+NOBLOCKMAP
+		+BRIGHT
+		Scale 0.25;
+	}
+	
+	override void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		tex = TexMan.CheckForTexture("TRCHA1");
+	}
+	
+	States
+	{
+	Spawn:
+		MISL A 1;
+	Looping:
+		MISL A 1
+		{
+			angle = random(0,359);
+			pitch = random(-90,90);
+			Vel3DFromAngle(random(2,6), angle, pitch);
+			let p = Level.SpawnVisualThinker("ZRocketBoom");
+			if (p)
+			{
+				p.Texture = tex;
+				p.pos = pos;
+				p.vel = vel;
+				p.scolor = "FF0000";
+				p.SetRenderStyle(STYLE_Add);
+				p.flags = SPF_ROLL|SPF_FULLBRIGHT;
+				p.roll = random(0,359);
+				p.alpha = 1.0;
+				p.Scale = (1,1);
+			}
+			vel = (0,0,0);
+			
+		}
+		Loop;
+	}
+}
 
+Class ZRocketBoom : VisualThinker
+{
+	double	RollVel;
+			
+	override void PostBeginPlay()
+	{
+		Super.PostBeginPlay();
+		RollVel = frandom(-10.0, 10.0);
+		Alpha = 1.0;
+	}
+	
+	override void Tick()
+	{
+		if (bDESTROYED || IsFrozen())
+			return;
+	
+		Super.Tick();
+		Roll += RollVel;
+		Alpha -= 0.05;
+		if (Alpha <= 0.0)
+			Destroy();
+		
+	}
+}
 Class KAI_Actor : Actor Abstract
 {
 	Default

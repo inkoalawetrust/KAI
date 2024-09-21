@@ -43,12 +43,6 @@ Class KAI_Emplacement : Actor Abstract
 	{
 		Super.Used(User);
 		
-		If (User.bIsMonster && !(User Is "KAI_Humanoid") || User.bIsMonster && KAI_Humanoid(User).Emplacement) //Can only be used by KAI_Humanoid monsters specifically. Also can't enter if already in another emplacement.
-			Return False;
-		
-		If (!User || bDormant || IsDead(Self) || IsDead(User) || IsInanimateObject(User)) //Can't use dormant or destroyed emplacements. Also can't be used by inanimate objects.
-			Return False;
-		
 		EnterEmplacement (User); //Run conditions for when an actor can succesfully operate the emplacement.
 		Return True;
 	}
@@ -56,7 +50,13 @@ Class KAI_Emplacement : Actor Abstract
 	//Handle the logic for an NPC or player "entering" an emplacement.
 	Virtual Bool EnterEmplacement (Actor User)
 	{
-		If (Operator) //Fuck off we're full.
+		If (Operator || !User) //Fuck off we're full. Or there's no user.
+			Return False;
+		
+		If (User.bIsMonster && !(User Is "KAI_Humanoid") || User.bIsMonster && KAI_Humanoid(User).Emplacement) //Can only be used by KAI_Humanoid monsters specifically. Also can't enter if already in another emplacement.
+			Return False;
+		
+		If (bDormant || IsDead(Self) || IsDead(User) || IsInanimateObject(User)) //Can't use dormant or destroyed emplacements. Also can't be used by inanimate objects.
 			Return False;
 		
 		If (bNoPlayerUse && User.Player || bNoNPCUse && User.bIsMonster) //Custom flag disqualifiers.
@@ -185,10 +185,10 @@ Class KAI_EmplacementNPC : KAI_Actor Abstract
 	Override Void PreUnmorph (Actor Mo, Bool Current)
 	{
 		Super.PreUnmorph (Mo, Current);
-		if (!emplacement) console.printf ("what the fuck do you mean the emplacement pointer is null?");
+		
 		If (Mo && Emplacement && Emplacement.Operator)
 		{
-			OperatorHack = Emplacement.Operator;
+			If (!IsDead(Emplacement.Operator.Alternative)) OperatorHack = Emplacement.Operator;
 			Emplacement.DoExitEmplacement();
 		}
 	}
@@ -231,10 +231,25 @@ Class KAI_EmplacementPlayer : PlayerPawn
 	Mixin KAI_CheckFunctions;
 	
 	KAI_Emplacement Emplacement;
-	Override Void PostUnMorph (Actor Mo, Bool Current)
+	Actor OperatorHack;
+	Bool HackNoHealthChange;
+	Override Void PreUnmorph (Actor Mo, Bool Current)
 	{
-		Super.PostUnMorph(Mo, Current);
-		If (Emplacement) Emplacement.DoExitEmplacement();
+		Super.PreUnmorph (Mo, Current);
+		
+		If (Mo && Emplacement && Emplacement.Operator)
+		{
+			OperatorHack = Emplacement.Operator;
+			Emplacement.DoExitEmplacement();
+		}
+	}
+	
+	Override Void PostUnmorph (Actor Mo, Bool Current)
+	{
+		Super.PostUnmorph (Mo, Current);
+		
+		If (!IsDead(Self))
+			OperatorHack.A_SetHealth(Health);
 	}
 	
 	Override Void PlayerThink()
@@ -263,7 +278,7 @@ Class KAI_EmplacementFakeOperator : VisualThinker
 	Actor Operator;
 	KAI_Emplacement Emplacement;
 	Mixin KAI_CheckFunctions;
-	State SpriteState; //The state which we get the sprite to use.
+	State SpriteState; //The state which we get the sprite to use from.
 	Int PlayerSkinID; //The number of the players' skin. Only relevant if the operator is both a player, and of course, is using a skin.
 	
 	//Cut down version of GetSpriteAngleFromPos().
@@ -314,7 +329,7 @@ Class KAI_EmplacementFakeOperator : VisualThinker
 			}
 		}
 	}
-	override void ondestroy(){console.printf ("fake operator: we got removed for some other reason");if (!Texture) console.printf ("cuz we got no texture");}
+	
 	Override Void Tick()
 	{
 		Super.Tick();

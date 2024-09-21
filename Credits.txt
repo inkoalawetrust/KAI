@@ -1,6 +1,6 @@
 For more detailed credits, you can do a codebase-wide search for the CREDIT code tag.
 
-Written by inkoalawetrust. With help for a few miscellaneous tasks by RaveYard.
+Written by inkoalawetrust. With help for some tasks and code snippets here and there by RaveYard and Lewisk3.
 
 |=|>-----<|Individual credits|>-----<|=|
 - Trail line spawning code for KAI_BaseProjectile written by Boondorl.

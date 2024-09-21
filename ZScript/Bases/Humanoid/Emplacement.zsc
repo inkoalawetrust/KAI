@@ -165,21 +165,6 @@ Class KAI_Emplacement : Actor Abstract
 		}
 		Return Null;
 	}
-	//Create a fake operator visual effect to serve as a placeholder for NPC and player operators if you have no unique emplacement sprites.
-	/*Actor CreateFakeOperator (Vector3 Position)
-	{
-		Let FakeOp = KAI_EmplacementFakeOperator(Spawn ("KAI_EmplacementFakeOperator",Level.Vec3Offset(Pos,Position)));
-		
-		If (FakeOp)
-		{
-			//FakeOp.Pos = Emplacement.Vec3Offset (-32,0,0);
-			FakeOp.Offsets = Level.Vec3Diff (Pos, FakeOp.Pos);
-			FakeOp.Operator = Operator;
-			FakeOp.Emplacement = Self;
-		}
-		
-		Return FakeOp;
-	}*/
 }
 
 Class KAI_EmplacementNPC : KAI_Actor Abstract
@@ -241,7 +226,7 @@ Class KAI_EmplacementPlayer : PlayerPawn
 		Player.JumpZ 0;
 		+DontMorph; //The Hexen animal player classes used for morphing don't disallow morphing. But I do by default just to be safe.
 		+DontThrust;
-		//+NoSkin; //They do disallow skins though and for good reason I'm pretty sure.
+		+NoSkin; //No skins allowed, helps prevent problems like the player-on-emplacement sprites copying the players' current skin scale!
 	}
 	Mixin KAI_CheckFunctions;
 	

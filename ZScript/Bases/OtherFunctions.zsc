@@ -83,13 +83,14 @@ Extend Class KAI_Actor
 		Tics = Clamp (Tics,1,INT.MAX); //Needs at least 1 tic.
 		FloatTics = Tics; //Finer precision on multiplier the extrapolated velocity, for extra accuracy.
 		Vector3 OldPos = Target.Pos;
-		//BUG: When there's no LastEnemyPosition, or the values are the same I guess ? The actor will instantly face the target.
 		Vector3 Diff = Level.Vec3Diff (LastEnemyPosition,Target.Pos);
 		If (IsTeleportingMonster(Target))
 		{
 			Vector3 TPOnly = Level.Vec3Diff (Diff,Target.Vel); //Get the teleport movement, sans velocity.
+			//console.printf ("%p: tponly for %s (%p) is %.3f %.3f %.3f",self,target.getclassname(),target,tponly.x,tponly.y,tponly.z);
 			TPOnly = GetTeleportMoveDivision();
-			//console.printf ("tponly is %.3f %.3f %.3f",tponly.x,tponly.y,tponly.z);
+			If (KAI_Math.IsEmptyVector3 (TPOnly)) TPOnly = (0,0,0);
+			//console.printf ("%p: tponly for %s (%p) is now %.3f %.3f %.3f, because move div is %.2f",self,target.getclassname(),target,tponly.x,tponly.y,tponly.z,GetTeleportMoveDivision());
 			Diff = Level.Vec3Offset (TPOnly,Target.Vel);
 		}
 		Diff *= FloatTics; //Factor in travel time.
@@ -260,7 +261,7 @@ Extend Class KAI_Actor
 		For (Int I = TempList.Size()-1; I >= 0; I--)
 		{
 			Double CurrentDistance = Level.Vec3Diff(Pos,TempList[I].Pos).LengthSquared();
-			If (NearestDistance > CurrentDistance && CurrentDistance <= MaxRange*MaxRange)
+			If (NearestDistance > CurrentDistance && (MaxRange == 0 || CurrentDistance <= MaxRange*MaxRange))
 			{
 				NearestDistance = CurrentDistance;
 				ClosestActor = TempList[I];
@@ -285,7 +286,7 @@ Extend Class KAI_Actor
 		For (Int I = TempList.Size()-1; I >= 0; I--)
 		{
 			Double CurrentDistance = Level.Vec3Diff(Pos,TempList[I].Pos).LengthSquared();
-			If (FurthestDistance < CurrentDistance && CurrentDistance > MinDist*MinDist)
+			If (FurthestDistance < CurrentDistance && (MinDist == 0 || CurrentDistance > MinDist*MinDist))
 			{
 				FurthestDistance = CurrentDistance;
 				FurthestActor = TempList[I];

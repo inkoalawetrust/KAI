@@ -65,25 +65,55 @@ Class HazardInfo
 		{
 			Actor Mobj = Finder.Thing;
 			
-			If (!Mobj || !(Mobj Is "KAI_Actor") || IsDead (Mobj))
+			If (!Mobj || IsDead (Mobj))
+				Continue;
+			
+			KAI_DataToken Token; //If this isn't null, we're dealing with a non-KAI_Actor that has a token we can give the hazard to.
+			If (!(Mobj Is "KAI_Actor") &&
+			//AND you also don't have a KAI_DataToken.
+			! (Token = KAI_DataToken(Mobj.FindInventory ("KAI_DataToken"))) ) //Note: Unreadable arcane magic.
+				Continue;
+			
+			If (Token && !Token.bAvoidHazards)
 				Continue;
 			
 			If (Level.Vec3Diff (Source.Pos,Mobj.Pos).Length() > Range || !(Flags & HAZ_NOSIGHT) && !Mobj.CheckSight (Source,SF_IGNOREWATERBOUNDARY))
 				Continue;
 			
 			Bool Skip;
-			//Don't give duplicate hazard entries if the NPC already got this one.
-			ForEach (CurHaz : KAI_Actor(Mobj).Hazards)
+			If (!Token)
 			{
-				If (AreHazardsIdentical (Hazard, CurHaz))
-					Skip = True;
+				//Don't give duplicate hazard entries if the NPC already got this one.
+				ForEach (CurHaz : KAI_Actor(Mobj).Hazards)
+				{
+					If (AreHazardsIdentical (Hazard, CurHaz))
+						Skip = True;
+				}
+			}
+			Else
+			{
+				//Ditto, but for KAI_DataTokens
+				ForEach (CurHaz : KAI_DataToken(Token).Hazards)
+				{
+					If (AreHazardsIdentical (Hazard, CurHaz))
+						Skip = True;
+				}
 			}
 			
 			If (Skip)
 				Continue;
 			
-			KAI_Actor(Mobj).Hazards.Push(Hazard);
-			console.printf ("alerted %s, now they have %d hazards stored",mobj.getclassname(),KAI_Actor(Mobj).Hazards.size());
+			If (!Token)
+			{
+				KAI_Actor(Mobj).Hazards.Push(Hazard);
+				console.printf ("alerted %s, now they have %d hazards stored",mobj.getclassname(),KAI_Actor(Mobj).Hazards.size());
+			}
+			Else
+			{
+				Token.Hazards.Push(Hazard);
+				Console.Printf ("Alerted token %p, whose owner is %p (%s), of this hazard:",Token,Token.Owner,Token.Owner.GetClassName());
+				Hazard.PrintHazardInfo();
+			}
 		}
 	}
 	
@@ -334,7 +364,7 @@ Class KAI_SectorHazard : Actor
 		//$Arg0Tooltip "The severity of the hazard"
 		//$Arg0Enum {1 = "Very Low"; 2 = "Low"; 3 = "Medium"; 4 = "Large"; 5 = "Huge"; 6 = "Apollyon";}
 		//$Arg0Default 2
-		//$Arg1 Flags (Does nothing currently)
+		//$Arg1 Flags
 		//$Arg1Type 12
 		//$Arg1Tooltip "The attributes of the hazard"
 		//$Arg1Enum {1 = "Ignore sight checks";}
@@ -346,7 +376,7 @@ Class KAI_SectorHazard : Actor
 		+NoInteraction;
 	}
 	
-	String User_Tags; //Custom tag attributes, this is a spaceless, coma separated list where its' word becomes an element in the hazards' CustomTags array.
+	String User_Tags; //Custom tag attributes, this is a spaceless, coma separated list where each word becomes an element in the hazards' CustomTags array.
 	Array <String> Tags;
 	
 	Override Void PostBeginPlay()
@@ -396,24 +426,52 @@ Class KAI_SectorHazard : Actor
 			int i;
 			For (Actor CurMo = CurSector.ThingList; CurMo != Null; CurMo = CurMo.SNext)
 			{
-				If (!CurMo || !(CurMo Is "KAI_Actor") || IsDead (CurMo))
+				If (!CurMo || IsDead (CurMo))
 					Continue;
+				
+				KAI_DataToken Token; //If this isn't null, we're dealing with a non-KAI_Actor that has a token we can give the hazard to.
+				If (!(CurMo Is "KAI_Actor") &&
+				//AND you also don't have a KAI_DataToken.
+				! (Token = KAI_DataToken(CurMo.FindInventory ("KAI_DataToken"))) ) //Note: Unreadable arcane magic.
+					Continue;
+				
+				If (Token && !Token.bAvoidHazards)
+					Continue;
+				
+				If (Token) //We didn't find a KAI_Actor, but they have a token.
+					CurMo = Token.Owner;
 				
 				If (Flags & SECHAZ_NOAIR && IsFlying (CurMo) || Flags & SECHAZ_NOGROUND && !IsFlying (CurMo))
 					Continue;
 				
 				Bool Skip;
-				//Don't give duplicate hazard entries if the NPC already got this one.
-				ForEach (CurHaz : KAI_Actor(CurMo).Hazards)
+				If (!Token)
 				{
-					If (HazardInfo.AreHazardsIdentical (Hazard, CurHaz))
-						{console.printf ("prevented passing identical hazard to %s",CurMo.getclassname());Skip = True;}
+					//Don't give duplicate hazard entries if the NPC already got this one.
+					ForEach (CurHaz : KAI_Actor(CurMo).Hazards)
+					{
+						If (HazardInfo.AreHazardsIdentical (Hazard, CurHaz))
+							Skip = True;
+					}
+				}
+				Else
+				{
+					//Ditto, but for KAI_DataTokens
+					ForEach (CurHaz : KAI_DataToken(Token).Hazards)
+					{
+						If (HazardInfo.AreHazardsIdentical (Hazard, CurHaz))
+							Skip = True;
+					}
 				}
 				
 				If (Skip)
 					Continue;
 				
-				KAI_Actor(CurMo).Hazards.Push (Hazard);
+				If (CurMo Is "KAI_Actor") KAI_Actor(CurMo).Hazards.Push (Hazard);
+				Else {Token.Hazards.Push(Hazard);
+				Console.Printf ("Alerted token %p, whose owner is %p (%s), of this hazard:",Token,Token.Owner,Token.Owner.GetClassName());
+				Hazard.PrintHazardInfo();
+				}
 				CurMo = CurMo.SNext;
 			}
 		}

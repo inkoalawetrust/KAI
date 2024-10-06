@@ -1,3 +1,4 @@
+//MAYDO: Add power levels for emplacements probably. Such as for determining how powerful an emplacement is or some shit?
 //The base emplacement class for the library. Emplacements can be used by both players and KAI_Humanoid NPCs by default.
 Class KAI_Emplacement : Actor Abstract
 {
@@ -31,12 +32,15 @@ Class KAI_Emplacement : Actor Abstract
 	Actor Operator; //Who is currently using this emplacement? If null, this emplacement is not in use. Points to the unmorphed original actor.
 	Actor OperatorMorph; //A pointer to the morph the Operator was turned into to use the emplacement.
 	Vector3 EnterPos; //The position relative to the emplacement that the operator entered it from.
+	KAI_DataToken HazardList; //A KAI_DataToken that the emplacement uses to listen in on hazards, in case an NPC wants to check what hazards are around the emplacement.
 	
 	Override Void PostBeginPlay ()
 	{
 		Super.PostBeginPlay();
 		
 		EnterPos = (Double.NaN, Double.NaN, Double.NaN);
+		HazardList = KAI_DataToken(GiveInventoryType ("KAI_DataToken"));
+		If (HazardList) HazardList.bAvoidHazards = True;
 	}
 	
 	Override Bool Used (Actor User)
@@ -65,7 +69,9 @@ Class KAI_Emplacement : Actor Abstract
 		If (User Is "KAI_Humanoid")
 			KAI_Humanoid(User).Emplacement = Self; //Needs to be set before Morph() so the PostMorph() override in KAI_Humanoid can pass the operator pointers.
 		
-		Bool Morbed = User.Morph (Self,PlayerMorph,GetNPCMorph(User.GetClassName()),INT.MAX/2,MRF_UNDOBYDEATH|MRF_LOSEACTUALWEAPON|MRF_FULLHEALTH|MRF_KEEPARMOR,Null,Null);
+		Class <KAI_EmplacementNPC> NPCMorph;
+		If (!User.Player) NPCMorph = GetNPCMorph(User.GetClassName());
+		Bool Morbed = User.Morph (Self,PlayerMorph,NPCMorph,INT.MAX/2,MRF_UNDOBYDEATH|MRF_LOSEACTUALWEAPON|MRF_FULLHEALTH|MRF_KEEPARMOR|MRF_NEWTIDBEHAVIOUR,Null,Null);
 		If (Morbed) //We "entered" the emplacement (Morphed into it)
 		{
 			EnterPos = Level.Vec3Diff (Pos,User.Pos); //Get position of operator relative to emplacement, to warp them back there upon exiting.
@@ -75,6 +81,7 @@ Class KAI_Emplacement : Actor Abstract
 			OperatorMorph.Angle = Angle;
 			OperatorMorph.Pitch = Pitch;
 			OperatorMorph.A_SetHealth (Operator.Health);
+			OperatorMorph.StartHealth = Operator.GetMaxHealth();
 			If (OperatorMorph Is "KAI_EmplacementNPC")
 				KAI_EmplacementNPC(OperatorMorph).Emplacement = Self; //So doing "KAI_Humanoid(Alternative).Emplacement" when checking from the NPC morph isn't needed.
 			If (OperatorMorph Is "KAI_EmplacementPlayer")
@@ -232,7 +239,7 @@ Class KAI_EmplacementPlayer : PlayerPawn
 	
 	KAI_Emplacement Emplacement;
 	Actor OperatorHack;
-	Bool HackNoHealthChange;
+	
 	Override Void PreUnmorph (Actor Mo, Bool Current)
 	{
 		Super.PreUnmorph (Mo, Current);
@@ -315,6 +322,12 @@ Class KAI_EmplacementFakeOperator : VisualThinker
 				Translation = Operator.Translation;
 				Int SkinNum = Emplacement.OperatorMorph.Player ? Emplacement.OperatorMorph.Player.GetSkin() : 0;
 				State LeState = GetDefaultByType(Operator.GetClass()).SeeState;
+				If (!LeState)
+				{
+					Console.PrintfEx (PRINT_HIGH,"\c[Red]WARNING: Tried to create fake operator for operator %p(%s), but that NPC has no see state!",Operator,Operator.GetClassName());
+					Destroy();
+					Return;
+				}
 				TextureID Graphic = LeState.GetSpriteTexture (0,SkinNum);
 				For (Int I; I < 32; I++)
 				{

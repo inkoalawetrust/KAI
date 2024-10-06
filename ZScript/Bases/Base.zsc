@@ -5,77 +5,6 @@ Class KAI_MixinActor : Actor Abstract
 	Mixin KAI_UniversalFunctions;
 	Mixin KAI_CheckFunctions;
 }
-Class emit : Actor
-{
-	TextureID tex;
-	Default
-	{
-		+NOINTERACTION
-		+NOBLOCKMAP
-		+BRIGHT
-		Scale 0.25;
-	}
-	
-	override void PostBeginPlay()
-	{
-		Super.PostBeginPlay();
-		tex = TexMan.CheckForTexture("TRCHA1");
-	}
-	
-	States
-	{
-	Spawn:
-		MISL A 1;
-	Looping:
-		MISL A 1
-		{
-			angle = random(0,359);
-			pitch = random(-90,90);
-			Vel3DFromAngle(random(2,6), angle, pitch);
-			let p = Level.SpawnVisualThinker("ZRocketBoom");
-			if (p)
-			{
-				p.Texture = tex;
-				p.pos = pos;
-				p.vel = vel;
-				p.scolor = "FF0000";
-				p.SetRenderStyle(STYLE_Add);
-				p.flags = SPF_ROLL|SPF_FULLBRIGHT;
-				p.roll = random(0,359);
-				p.alpha = 1.0;
-				p.Scale = (1,1);
-			}
-			vel = (0,0,0);
-			
-		}
-		Loop;
-	}
-}
-
-Class ZRocketBoom : VisualThinker
-{
-	double	RollVel;
-			
-	override void PostBeginPlay()
-	{
-		Super.PostBeginPlay();
-		RollVel = frandom(-10.0, 10.0);
-		Alpha = 1.0;
-	}
-	
-	override void Tick()
-	{
-		if (bDESTROYED || IsFrozen())
-			return;
-	
-		Super.Tick();
-		Roll += RollVel;
-		Alpha -= 0.05;
-		if (Alpha <= 0.0)
-			Destroy();
-		
-	}
-}
 Class KAI_Actor : Actor Abstract
 {
 	Default
@@ -160,20 +89,21 @@ Class KAI_Actor : Actor Abstract
 		}
 		
 		//Keeps track of the current targets' position for the target prediction code.
-		If (Target && Target.Tics != 0 && Target.Tics == Target.CurState.Tics || Target && !IsTeleportingMonster(Target))
+		If (Target && Target.Tics != 0 && Target.Tics == Target.CurState.Tics || Target && Target.Tics == 1 || Target && !IsTeleportingMonster(Target))
 		{
 			If (KAI_Math.IsEmptyVector3(CurrentEnemyPosition))
 				CurrentEnemyPosition = Target.Pos;
 			
 			LastEnemyPosition = CurrentEnemyPosition;
 			CurrentEnemyPosition = Target.Pos;
+			console.printf ("%p: UPDATING TARGET POSITIONS",self);
 		}
 		Else If (!Target)
 			LastEnemyPosition = CurrentEnemyPosition = (Double.NaN,Double.NaN,Double.NaN);
 		
 		//Update hazard list, removing entries that are by now out of range.
 		//TODO: Probably add a flag that disables the updating, so that people can add their own logic, without making an expensive virtual.
-		If (!IsDead(Self) && GetAge() % (GameTicRate/2) == 0)
+		If (bAvoidHazards && !IsDead(Self) && GetAge() % (GameTicRate/2) == 0)
 		{
 			//In the meantime though, at least until I make such a flag, the NextMovePos will be handled here too.
 			If (DebugPoint)
@@ -265,6 +195,7 @@ Class KAI_Actor : Actor Abstract
 	//Tries to heuristically determine how dangerous another actor is. This is pretty hard to do universally. Since stuff like attacks can't be checked.
 	//Other: The actor to check.
 	//CheckPlayers: Should the checks factor in players too ? e.g counting players with god or buddha mode as THREAT_UNSTOPPABLE. Useful for say not having NPCs just run away from cheating players.
+	//ForceAssess: Force an assessment of the actor, even if they've got a set threat level.
 	Virtual Int AssessThreatLevel (Actor Other, Bool CheckPlayers = True, Bool ForceAssess = False)
 	{
 		If (!Other || IsDead (Other)) Return THREAT_NONE; //Nonexistent or dead actors aren't a problem.
@@ -507,6 +438,48 @@ Class KAI_EventHandler : EventHandler
 					Console.Printf ("\c[Green]KAI_GetTargetGroup: %p is in no NPC groups",MoFind.HitActor);
 			}
 		}
+		Else If (Command[0] ~== "KAI_GetTargetHazards")
+		{
+			FLineTraceData MoFind;
+			Double PlrHeight = PlrMo.Height * 0.5 - PlrMo.Floorclip + PlrMo.AttackZOffset*Players[E.Player].CrouchFactor;
+			PlrMo.LineTrace (PlrMo.Angle,PLAYERMISSILERANGE,PlrMo.Pitch,TRF_THRUHITSCAN|TRF_SOLIDACTORS,PlrHeight,data:MoFind);
+			If (MoFind.HitActor)	
+			{
+				Console.Printf ("\c[Green]KAI_GetTargetGroup: Printing info of all the hazards %p (%s) is in range of:",MoFind.HitActor,MoFind.HitActor.GetClassName());
+				Int HazardCount;
+				
+				//Found KAI actor to print the hazards of
+				If (MoFind.HitActor Is "KAI_Actor")
+				{
+					ForEach (Hazard : KAI_Actor(MoFind.HitActor).Hazards)
+					{
+						Hazard.PrintHazardInfo();
+						HazardCount++;
+					}
+				}
+				//Or we found a KAI_DataToken that is marked as being able to listen in on hazards for us to print out.
+				Else If (MoFind.HitActor.FindInventory ("KAI_DataToken") && MoFind.HitActor.FindInventory ("KAI_DataToken").bAvoidHazards)
+				{
+					Console.Printf ("\c[Green]KAI_GetTargetGroup: %s isn't a KAI_Actor, but has a KAI_DataToken",MoFind.HitActor.GetClassName());
+					KAI_DataToken Token = KAI_DataToken(MoFind.HitActor.FindInventory ("KAI_DataToken"));
+					ForEach (Hazard : Token.Hazards)
+					{
+						Hazard.PrintHazardInfo();
+						HazardCount++;
+					}
+				}
+				Else
+				{
+					Console.Printf ("\c[Red]KAI_GetTargetGroup: %s isn't even a KAI_Actor or KAI_DataToken, it's a %s",MoFind.HitActor.GetClassName(),MoFind.HitActor.GetParentClass().GetClassName());
+					Return;
+				}
+				
+				If (HazardCount)
+					Console.Printf ("\c[Green]KAI_GetTargetGroup: The actor has %d hazards.",HazardCount);
+				Else
+					Console.Printf ("\c[Red]KAI_GetTargetGroup: The actor has no hazards!");
+			}
+		}
 	}
 	
 	//Actor lists
@@ -698,9 +671,38 @@ Class KAI_DataToken : Inventory
 		+Inventory.Untossable;
 		+Inventory.HubPower;
 		+Inventory.NoScreenFlash;
+		//+AvoidHazards; //Token listens in on and takes hazards if this flag is on.
 	}
 	
 	Actor ErasedOwner; //A pointer to the owner before they were erased.
+	
+	//HACK: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+	//Check if the  ̶N̶P̶C̶ TOKEN OWNER is in range of the specified hazard. Either the origin actor, position, or sector.
+	Bool InHazardRange (HazardInfo Hazard)
+	{
+		//No hazard.
+		If (!Hazard)
+			Return False;
+		
+		//No range specified for point hazard, or there's no valid position, or a sector hazard is not on any sector.
+		If (!(Hazard.Flags & HazardInfo.HAZ_SECTOR) && Hazard.Range <= 0 || !Hazard.Origin && Hazard.Position != Hazard.Position)
+			Return False;
+		
+		Sector PointSec = Level.PointInSector (Hazard.Position.XY);
+		
+		//Sector hazard not actually on a sector.
+		If (Hazard.Flags & HazardInfo.HAZ_SECTOR && !PointSec)
+			Return False;
+		
+		If (Hazard.Flags & HazardInfo.HAZ_SECTOR && CurSector == PointSec)
+			 Return True;
+		
+		If (Hazard.Origin && Distance3DSquared (Hazard.Origin) < Hazard.Range*Hazard.Range || Level.Vec3Diff (Hazard.Position,Owner.Pos).Length() < Hazard.Range) //In range.
+			Return True;
+		
+		Return False;
+	}
+	
 	//The token is getting ditched by the owner, either because they are removing it for some reason, or because the owner was erased.
 	Override Void DoEffect()
 	{
@@ -708,6 +710,18 @@ Class KAI_DataToken : Inventory
 
 		If (Owner)
 			ErasedOwner = Owner;
+		
+		//Update hazard list, removing entries that are by now out of range.
+		If (bAvoidHazards && Owner && GetAge() % (GameTicRate/2) == 0)
+		{console.printf ("token owned by %s (%p) is running hazard janitor loop",owner.getclassname(),owner);
+			For (Int I = Hazards.Size()-1; I >= 0; I--)
+			{
+				HazardInfo CurHaz = Hazards[I];
+				//Remove hazards that are out of range, or that are actor-type hazards but have no actual source actor.
+				If (!InHazardRange(CurHaz) || CurHaz.Type == HazardInfo.HAZARD_ACTOR && !CurHaz.Origin)
+					{curhaz.printhazardinfo();Hazards.Delete(I);}
+			}
+		}
 	}
 	Override Void OnDestroy()
 	{
@@ -725,6 +739,7 @@ Class KAI_DataToken : Inventory
 							//Non-KAI actors that genuinely move need to mark themselves with this to be detected
 							//as moving with momentum by the target prediction code.
 	Array <KAI_NPCGroup> Groups; //The groups this non-KAI NPC is in.
+	Array <HazardInfo> Hazards; //The hazards that are in range of the tokens' owner.
 }
 //DEBUG: Assesses the threat level of an actor in front of it, to see if the system works as intended.
 Class ThreatAssess : KAI_Actor// replaces gibbedmarineextra

@@ -1,4 +1,5 @@
 //IDEA: Make the deflection chance increase the more a shoot grazes the other actor, target wise.
+//TODO: Like, totally refactor the projectile deflection system, it fucking sucks right now. Very hardcoded and hacky.
 //NOTE: This code is kinda mostly made for bullets and other such projectiles, hence the bullet tracer-like code and deflection system. But can be used for fireballs and the likes just fine !
 //The base projectile for KAI actors, it's not necessary to really use this. But it does have some advantages:
 //It's based on FastProjectile, so it can properly move both with fast and slow velocities.

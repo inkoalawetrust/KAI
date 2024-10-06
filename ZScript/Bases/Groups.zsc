@@ -357,7 +357,7 @@ Class KAI_NPCGroup Play
 				DaBiggestBird = V;
 			}
 		}
-		If (KAI_DebugPrintMessages)console.printf ("the strongest member of the group is %p",dabiggestbird);
+		If (KAI_DebugPrintMessages) Console.Printf ("GetStrongestMember(): The strongest member of the group is %p",DaBiggestBird);
 		Return /*Im*/DaBiggestBird;
 	}
 	
@@ -530,7 +530,7 @@ Class KAI_GroupIcon : VisualThinker
 	
 	Float GetOwnerHeight ()
 	{
-		//Hacky way to check for moving the icon further up if a vehicle has a turret. I don't know how I could make a proper recursive check right now.
+		//HACK: Hacky way to check for moving the icon further up if a vehicle has a turret. I don't know how I could make a proper recursive check right now.
 		If (Owner Is "KAI_BaseVehicle" && KAI_BaseVehicle(Owner).Turret)
 		{
 			Float Height = Owner.Height + KAI_BaseVehicle(Owner).Turret.Height;

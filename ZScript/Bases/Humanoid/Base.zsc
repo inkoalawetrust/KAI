@@ -1,10 +1,6 @@
 //TODO:
 //Once I take a long enough break from writing movement code. Add the ability for NPCs to swim, as in, be able to walk on land but also jump in water to swim.
 //Start moving the functions to their own files eventually.
-/*Add an emplacement system, with properties like what threat level to set to the NPC when it's sitting on the
-emplacement. This will be a more flexible version of the MG turret the Smart Marines used hopefully.
-Maybe I should instead make a creature base, from which BaseHumanoid stems from. So only BaseHumanoid
-will have access to the emplacement system.*/
 
 Class KAI_Humanoid : KAI_Creature Abstract
 {
@@ -71,7 +67,7 @@ Class KAI_Humanoid : KAI_Creature Abstract
 		//MAYDO: Make a flag to disable the living actor check ?
 		&& (!BlockingMobj || (IsInanimateObject (BlockingMobj) || IsDead(BlockingMobj) && BlockingMobj.bDontCorpse)  ))
 		{
-			//KLUDGE: Why does CheckPosition() have a flag to only check actors but not one only for level geo ? So that I have to do this stupid hack.
+			//KLUDGE: Why does CheckPosition() have a flag to only check actors but not one only for level geo ? So that I have to do this stupid hack, of course!
 			Bool MobjBlock = bThruActors;
 			bThruActors = True;
 			
@@ -85,20 +81,25 @@ Class KAI_Humanoid : KAI_Creature Abstract
 			If (KAI_DebugPrintMessages)console.printf ("climb z after 3d floor check is %d",climbz); if (ffloor && KAI_DebugPrintMessages) console.printf ("found a 3D floor %p",ffloor);
 			If (BlockingMobj)
 				ClimbZ = BlockingMobj.Pos.Z + BlockingMobj.Height;
+			//We can and should be able to climb over 3D middle textures too, such as fences.
+			If (BlockingLine && BlockingLine.Flags & Line.ML_3DMIDTEX)
+			{
+				Bool NotAVoidLine;
+				Vector2 LineBounds;
+				[NotAVoidLine,LineBounds.X,LineBounds.Y] = BlockingLine.GetMidTexturePosition(Clamp(Level.ActorOnLineSide(Self,BlockingLine),0,1));
+				If (NotAVoidLine)
+					ClimbZ = LineBounds.X; //Get ClimbZ we need to reach to climb the 3D midtex.
+				Else //This is a void line apparently, that should already be handled by KAI_LineBlocksClimb(), but we have this here too just in case, I guess?
+				{
+					bThruActors = MobjBlock;
+					Return False;
+				}
+			}
 			
-			if ((FloorZ - Tm.DropoffZ > MaxDropOffHeight) && KAI_DebugPrintMessages)
-				console.printf ("the floor dropoff is over the max drop off height");
-			
-			//Double RealZ = Pos.Z;
-			//SetXYZ ((Pos.XY,ClimbZ));
 			Vector3 OldPos = Pos;
 			SetXYZ ((CheckPos,ClimbZ));
 			Bool PosGood = TestMobjLocation ();
 			SetXYZ (OldPos);
-			//SetXYZ ((Pos.XY,RealZ));
-			
-			if (!PosGood && KAI_DebugPrintMessages)
-				console.printf ("checkposition failed");
 			//Ledge is just at around the actors' height.
 			If (PosGood && ClimbZ < Pos.Z+(Height*ClimbMul) && !(FloorZ - Tm.DropoffZ > MaxDropOffHeight))
 			{
@@ -148,10 +149,6 @@ Class KAI_Humanoid : KAI_Creature Abstract
 			If (Flags2 & Line.ML2_BLOCKLANDMONSTERS && !(Level.CompatFlags2 & COMPATF2_NOMBF21) && !bFloat)
 				Return True;
 		}
-		
-		//TODO: Use P_GetMidTexPosition() once my PR is merged !
-		If (Flags & Line.ML_3DMIDTEX)
-			Return True;
 		
 		Return False;
 	}

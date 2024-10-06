@@ -1,3 +1,4 @@
 //Basically just here to give proper "names" (Aliases) to netevent commands.
 
 alias KAI_GetTargetGroup "netevent KAI_GetTargetGroup"
+alias KAI_GetTargetHazards "netevent KAI_GetTargetHazards"

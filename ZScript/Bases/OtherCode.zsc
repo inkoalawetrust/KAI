@@ -503,6 +503,17 @@ Class KAI_LOFRaycast : LineTracer
 			//Hit a raised floor or lowered ceiling wall.
 			If (Result.Tier != TIER_Middle)
 				Return True;
+			
+			//Projectile blocking middle texture. Check if we are crossing within the vertical bounds of the texture.
+			If (Result.HitLine.Flags & Line.ML_3DMIDTEX && !(Result.HitLine.Flags & Line.ML_3DMIDTEX_IMPASS))
+			{
+				Bool NotAVoidLine;
+				Vector2 LineBounds;
+				[NotAVoidLine,LineBounds.X,LineBounds.Y] = Result.HitLine.GetMidTexturePosition(Level.PointOnLineSide(Result.HitPos.XY,Result.HitLine,True));
+				//We're gonna hit the line here.
+				If (Result.HitPos.Z >= LineBounds.Y && Result.HitPos.Z <= LineBounds.X)
+					Return True;
+			}
 		}
 		
 		Return False;

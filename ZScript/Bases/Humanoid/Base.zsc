@@ -53,7 +53,6 @@ Class KAI_Humanoid : KAI_Creature Abstract
 	//JumpState: The state the NPC should enter for ledges that are just a tad too tall to reach, presumably, so you make them jump up and THEN grab.
 	//ClimbMul: If the ledge is within the NPCs' height * ClimbMul, go to ClimbState.
 	//JumpClimbMul: Ditto, but for the alternate jump climb state.
-	//TODO: I need to wait for my PR exposing P_GetMidTexturePosition() to ZScript for 3D midtex handling (Scaling fences and railings).
 	Bool KAI_HandleClimbing (Out Vector3 ClimbToPos, Out Vector3 JumpToPos, StateLabel ClimbState = "Climb", StateLabel JumpState = Null, Double ClimbMul = 1.1, Double JumpClimbMul = 1.75)
 	{
 		FCheckPosition Tm;

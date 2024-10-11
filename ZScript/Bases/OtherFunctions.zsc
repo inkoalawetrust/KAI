@@ -267,7 +267,6 @@ Extend Class KAI_Actor
 				ClosestActor = TempList[I];
 			}
 		}
-		
 		Return ClosestActor;
 	}
 	

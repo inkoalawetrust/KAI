@@ -96,7 +96,6 @@ Class KAI_Actor : Actor Abstract
 			
 			LastEnemyPosition = CurrentEnemyPosition;
 			CurrentEnemyPosition = Target.Pos;
-			console.printf ("%p: UPDATING TARGET POSITIONS",self);
 		}
 		Else If (!Target)
 			LastEnemyPosition = CurrentEnemyPosition = (Double.NaN,Double.NaN,Double.NaN);
@@ -713,13 +712,13 @@ Class KAI_DataToken : Inventory
 		
 		//Update hazard list, removing entries that are by now out of range.
 		If (bAvoidHazards && Owner && GetAge() % (GameTicRate/2) == 0)
-		{console.printf ("token owned by %s (%p) is running hazard janitor loop",owner.getclassname(),owner);
+		{
 			For (Int I = Hazards.Size()-1; I >= 0; I--)
 			{
 				HazardInfo CurHaz = Hazards[I];
 				//Remove hazards that are out of range, or that are actor-type hazards but have no actual source actor.
 				If (!InHazardRange(CurHaz) || CurHaz.Type == HazardInfo.HAZARD_ACTOR && !CurHaz.Origin)
-					{curhaz.printhazardinfo();Hazards.Delete(I);}
+					Hazards.Delete(I);
 			}
 		}
 	}

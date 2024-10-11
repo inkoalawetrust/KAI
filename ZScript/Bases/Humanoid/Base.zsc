@@ -95,14 +95,30 @@ Class KAI_Humanoid : KAI_Creature Abstract
 				}
 			}
 			
+			//Make sure that the space you're trying to climb at is unobstructed.
 			Vector3 OldPos = Pos;
 			SetXYZ ((CheckPos,ClimbZ));
+			FindFloorCeiling (FFCF_ONLYSPAWNPOS); //DO. NOT. CHECK. UNDER. THE. WORLD.
 			Bool PosGood = TestMobjLocation ();
 			SetXYZ (OldPos);
+			FindFloorCeiling (FFCF_ONLYSPAWNPOS); //DO. NOT. CHECK. UNDER. THE. WORLD.
+			
+			//Filter out climbing maneuvers that are obstructed by another actor being in the way.
+			bThruActors = MobjBlock;
+			Double ActualHeight = Height;
+			Height += ClimbZ-Pos.Z;
+			Bool UnobstructedClimb = TestMobjZ ();
+			//Height = ActualHeight;
+			
+			If (!UnobstructedClimb)
+			{
+				If (KAI_DebugPrintMessages) Console.Printf ("KAI_HandleClimbing(): Hit a blocking actor or level geometry");
+				Return False;
+			}
+			
 			//Ledge is just at around the actors' height.
 			If (PosGood && ClimbZ < Pos.Z+(Height*ClimbMul) && !(FloorZ - Tm.DropoffZ > MaxDropOffHeight))
 			{
-				bThruActors = MobjBlock;
 				ClimbPos = (CheckPos,ClimbZ);
 				If (ClimbPos == ClimbPos)
 					ClimbToPos = ClimbPos;	
@@ -111,10 +127,8 @@ Class KAI_Humanoid : KAI_Creature Abstract
 			}
 			//Ledge is just a bit too tall for the caller, but could be still reached by jumping and grabbing it.
 			Else If (JumpState && PosGood && ClimbZ < Pos.Z+(Height*JumpClimbMul) && !(FloorZ - Tm.DropoffZ > MaxDropOffHeight))
-			{
-				bThruActors = MobjBlock;
-				//TODO: This magic number of 56 concerns me, hopefully I won't have to add yet another parameter until I turn this into A_SpawnItemEx().
-				JumpToPos = (CheckPos,ClimbZ-56); //Jump to the position we need to climb.
+			(
+				JumpToPos = (CheckPos,ClimbZ-Height); //Jump to the position we need to climb.
 				If (ClimbPos == ClimbPos)
 					ClimbToPos = ClimbPos;				
 				SetStateLabel (JumpState);
@@ -127,7 +141,6 @@ Class KAI_Humanoid : KAI_Creature Abstract
 	}
 	
 	//Check if the calling actor can climb over this linedef.
-	//TODO: For now this ignores all two sided blocking lines, in the future, it should work with 3D middle textures.
 	//Mostly copied from the native P_IsBlockedByLine(), maybe I should expose that to ZScript too, seems useful.
 	Bool KAI_LineBlocksClimb (Line Which)
 	{
@@ -188,7 +201,6 @@ Class KAI_Humanoid : KAI_Creature Abstract
 	{
 		Vector2 PosOffset = Vec2Angle (Radius*2.01,CheckAngle);
 		
-		vector3 oldpos = pos;
 		Vector2 Path = Level.Vec2Diff( PosOffset, Vec2Angle (CheckDistance,CheckAngle));
 		Double Distance = Path.Length();
 		Double Spacing = Radius*2.01;
@@ -218,6 +230,10 @@ Class KAI_Humanoid : KAI_Creature Abstract
 			FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 2; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
 			KAI_LOFRaycast.VisualizeTracePath((MovePos,Pos.Z),Jump.HitLocation,Jump.Distance,8,p);
 			
+			//We should NOT be getting a position that is out of bounds!!!!
+			If (!Level.IsPointInLevel((MovePos,Jump.HitLocation.Z)))
+				Return (Double.NaN,Double.NaN);
+			
 			//Get the real height, used by GetZAt to handle ledges.
 			RealHeight = CurSector.NextLowestFloorAt (Pos.X,Pos.Y,Pos.Z,FFCF_3DRESTRICT,MaxStepHeight);
 			//This position has a dropoff larger than the actors' dropoff height.
@@ -238,7 +254,7 @@ Class KAI_Humanoid : KAI_Creature Abstract
 		If ((REALFloorZ - Jump.HitLocation.Z) > RealDropHeight/2)// && (RealHeight - Jump.HitLocation.Z) > RealDropHeight/2)
 			MovePos = (Double.NaN,Double.NaN);
 		
-		If (MovePos == MovePos) //Only run this if MovePos isn't null.
+		If (MovePos == MovePos) //Only run this if MovePos isn't null. Check if the straight line from point A to B is clear.
 		{
 			FLineTraceData JumpClear;
 			LineTrace (CheckAngle,distance,0,TRF_SOLIDACTORS|TRF_THRUHITSCAN,Height/2,Radius*2,data:JumpClear);
@@ -246,6 +262,7 @@ Class KAI_Humanoid : KAI_Creature Abstract
 			If (JumpClear.HitType != TRACE_HitNone)
 				Return (Double.NaN,Double.NaN);
 		}
+		
 		Return MovePos;
 	}
 	

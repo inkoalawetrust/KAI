@@ -542,7 +542,6 @@ Class KAI_EventHandler : EventHandler
 		//Clean up map keys that don't lead to a pointer to a group.
 		If (!GroupJanitorTimer--)
 		{
-			If (KAI_DebugPrintMessages) Console.Printf ("KAI_EventHandler: Running Group map janitor...");
 			Array<Int> DirtyKeys;
 			ForEach (K, V : NPCGroups)
 			{

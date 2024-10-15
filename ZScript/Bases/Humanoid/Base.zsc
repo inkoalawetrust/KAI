@@ -1,6 +1,6 @@
 //TODO:
 //Once I take a long enough break from writing movement code. Add the ability for NPCs to swim, as in, be able to walk on land but also jump in water to swim.
-//Start moving the functions to their own files eventually.
+//Start moving the functions to their own files eventually. Once there's significantly more than pure movement functions in KAI_Humanoid.
 
 Class KAI_Humanoid : KAI_Creature Abstract
 {
@@ -60,7 +60,7 @@ Class KAI_Humanoid : KAI_Creature Abstract
 		Vector2 CheckPos = Vec2Angle(Speed,Angle);
 		Vector3 ClimbPos;
 		//Handle climbing up ledges above the callers' height.
-		//BUG: The code causes the marine to climb over invisible ledges if it crosses from normal geometric ground to bridge things.
+		//BUG: The code causes the NPC to climb over invisible ledges if it crosses from normal geometric ground to bridge things.
 		If (!CheckMove (CheckPos,0,Tm) && !KAI_LineBlocksClimb (BlockingLine)
 		//NPCs can climb over actors, but shouldn't do it on LIVING ones, since it looks stupid, especially if they start climbing over the player.
 		//MAYDO: Make a flag to disable the living actor check ?
@@ -108,7 +108,7 @@ Class KAI_Humanoid : KAI_Creature Abstract
 			Double ActualHeight = Height;
 			Height += ClimbZ-Pos.Z;
 			Bool UnobstructedClimb = TestMobjZ ();
-			//Height = ActualHeight;
+			Height = ActualHeight;
 			
 			If (!UnobstructedClimb)
 			{
@@ -127,7 +127,7 @@ Class KAI_Humanoid : KAI_Creature Abstract
 			}
 			//Ledge is just a bit too tall for the caller, but could be still reached by jumping and grabbing it.
 			Else If (JumpState && PosGood && ClimbZ < Pos.Z+(Height*JumpClimbMul) && !(FloorZ - Tm.DropoffZ > MaxDropOffHeight))
-			(
+			{
 				JumpToPos = (CheckPos,ClimbZ-Height); //Jump to the position we need to climb.
 				If (ClimbPos == ClimbPos)
 					ClimbToPos = ClimbPos;				

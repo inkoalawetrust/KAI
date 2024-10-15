@@ -61,60 +61,66 @@ Class HazardInfo
 		
 		Let Finder = BlockThingsIterator.Create (Source,Range);
 		
+		Actor Other;
 		While (Finder.Next())
 		{
-			Actor Mobj = Finder.Thing;
-			
-			If (!Mobj || IsDead (Mobj))
+			Other = Finder.Thing;
+			If (Level.Vec3Diff (Source.Pos,Other.Pos).Length() > Range || !(Flags & HAZ_NOSIGHT) && !Other.CheckSight (Source,SF_IGNOREWATERBOUNDARY))
 				Continue;
 			
-			KAI_DataToken Token; //If this isn't null, we're dealing with a non-KAI_Actor that has a token we can give the hazard to.
-			If (!(Mobj Is "KAI_Actor") &&
-			//AND you also don't have a KAI_DataToken.
-			! (Token = KAI_DataToken(Mobj.FindInventory ("KAI_DataToken"))) ) //Note: Unreadable arcane magic.
-				Continue;
-			
-			If (Token && !Token.bAvoidHazards)
-				Continue;
-			
-			If (Level.Vec3Diff (Source.Pos,Mobj.Pos).Length() > Range || !(Flags & HAZ_NOSIGHT) && !Mobj.CheckSight (Source,SF_IGNOREWATERBOUNDARY))
-				Continue;
-			
-			Bool Skip;
-			If (!Token)
+			HazardInfo.GiveHazard (Other,Hazard);
+		}
+	}
+	
+	Static Play Bool GiveHazard (Actor Other, HazardInfo Hazard)
+	{
+		If (!Other || !Hazard || IsDead (Other))
+			Return False;
+		
+		KAI_DataToken Token; //If this isn't null, we're dealing with a non-KAI_Actor that has a token we can give the hazard to.
+		If (!(Other Is "KAI_Actor") &&
+		//AND you also don't have a KAI_DataToken.
+		! (Token = KAI_DataToken(Other.FindInventory ("KAI_DataToken"))) )
+			Return False;
+		
+		If (Token && !Token.bAvoidHazards)
+			Return False;
+		
+		Bool Skip;
+		If (!Token)
+		{
+			//Don't give duplicate hazard entries if the NPC already got this one.
+			ForEach (CurHaz : KAI_Actor(Other).Hazards)
 			{
-				//Don't give duplicate hazard entries if the NPC already got this one.
-				ForEach (CurHaz : KAI_Actor(Mobj).Hazards)
-				{
-					If (AreHazardsIdentical (Hazard, CurHaz))
-						Skip = True;
-				}
-			}
-			Else
-			{
-				//Ditto, but for KAI_DataTokens
-				ForEach (CurHaz : KAI_DataToken(Token).Hazards)
-				{
-					If (AreHazardsIdentical (Hazard, CurHaz))
-						Skip = True;
-				}
-			}
-			
-			If (Skip)
-				Continue;
-			
-			If (!Token)
-			{
-				KAI_Actor(Mobj).Hazards.Push(Hazard);
-				console.printf ("alerted %s, now they have %d hazards stored",mobj.getclassname(),KAI_Actor(Mobj).Hazards.size());
-			}
-			Else
-			{
-				Token.Hazards.Push(Hazard);
-				Console.Printf ("Alerted token %p, whose owner is %p (%s), of this hazard:",Token,Token.Owner,Token.Owner.GetClassName());
-				Hazard.PrintHazardInfo();
+				If (AreHazardsIdentical (Hazard, CurHaz))
+					Skip = True;
 			}
 		}
+		Else
+		{
+			//Ditto, but for KAI_DataTokens
+			ForEach (CurHaz : KAI_DataToken(Token).Hazards)
+			{
+				If (AreHazardsIdentical (Hazard, CurHaz))
+					Skip = True;
+			}
+		}
+		
+		If (Skip)
+			Return False;
+		
+		If (!Token)
+		{
+			KAI_Actor(Other).Hazards.Push(Hazard);
+			console.printf ("alerted %s, now they have %d hazards stored",Other.getclassname(),KAI_Actor(Other).Hazards.size());
+		}
+		Else
+		{
+			Token.Hazards.Push(Hazard);
+			Console.Printf ("Alerted token %p, whose owner is %p (%s), of this hazard:",Token,Token.Owner,Token.Owner.GetClassName());
+			Hazard.PrintHazardInfo();
+		}
+		Return True;
 	}
 	
 	//Are Haz1 and Haz2 identical ? Used to prevent hazard emitters from spamming giving entries.

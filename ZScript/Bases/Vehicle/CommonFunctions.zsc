@@ -9,20 +9,25 @@ Extend Class KAI_BaseVehicle
 	{
 		Vector3 TurPos, OldPos;
 		KAI_BaseVehicle Veh = Self;
+		FCheckPosition Move;
+			//Move.FromPMove = True;
 		While (Veh.Turret)
 		{
 			If (TurretDepth <= 0)
-				Break;
+				{console.printf ("no depth left");Break;}
 			
-			TurPos = Level.Vec3Diff (NewPosition,Veh.Pos); //Subtract the new absolute pos from the current pos to get the relative pos.
+			TurPos = Level.Vec3Diff (NewPosition,Veh.Turret.Pos); //Subtract the new absolute pos from the current pos to get the relative pos.
 			
 			OldPos = Veh.Turret.Pos;
-			Veh.Turret.SetOrigin (Vec3Offset(TurPos.X,TurPos.Y,TurPos.Z),False); //Check where the turret will be in the future.
-			If (!Veh.Turret.TestMobjLocation()) //One of the turrets will bonk something.
+			Veh.Turret.SetOrigin (Level.Vec3Offset(Pos,TurPos),False); //Check where the turret will be in the future.
+			
+			If (!Level.IsPointInLevel(Veh.Turret.Pos) || !Veh.Turret.CheckPosition(TurPos.XY,False,Move)) //One of the turrets will bonk something.
 			{
 				Veh.Turret.SetOrigin (OldPos,False);
 				Return False;
 			}
+			spawn ("kai_debugpoint",veh.turret.pos);
+			console.printf ("%p is totally not impeded by any obstacles whatsoever at %d %d %d :D!",veh.turret,veh.turret.pos);
 			Veh.Turret.SetOrigin (OldPos,False);
 			OldPos = (Double.NaN,Double.NaN,Double.NaN);
 			Veh = Veh.Turret; //Now check the turrets' turret, recursively.

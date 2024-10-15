@@ -11,7 +11,6 @@ Extend Class KAI_Actor
 		CMR_IGNOREDIST	= 1 << 3, //Ignore the distance check attack chance code for missile attacks entirely.
 	}
 	
-	//TODO: Needs updating to reflect this one day: https://github.com/ZDoom/gzdoom/commit/8354c4a5c360460cbcc53e141da32ec2684601e4#diff-fa689e189d0be62127dddf26bffd2e435bf68e37de7a58e8726ca60121626fddR1258
 	//Returns true if the caller is in melee range of the other actor. Basically a rip of P_CheckMeleeRange().
 	Bool KAI_CheckMeleeRange (Actor Other, Double Range = -1, Int Flags = 0)
 	{
@@ -45,6 +44,7 @@ Extend Class KAI_Actor
 	}
 	
 	//The function is more or less the same as its' native counterpart, give or take the syntax and code comments, and it being slower by being non-native.
+	//TODO: Needs updating to reflect this one day: https://github.com/ZDoom/gzdoom/commit/8354c4a5c360460cbcc53e141da32ec2684601e4#diff-fa689e189d0be62127dddf26bffd2e435bf68e37de7a58e8726ca60121626fddR1258
 	Bool KAI_CheckMissileRange (Actor Other, Int Flags = 0)
 	{
 		Double Dist;
@@ -178,6 +178,7 @@ Extend Class KAI_Actor
 		double LastAngle = angle;
 		double NextAngle = LastAngle;
 		Bool IsVehicle = (Self Is "KAI_BaseVehicle");
+		Bool TurretBlock; //Is this movement blocked because one of the turrets' would collide with something?
 		
 		//MoveCount is greater than 0 when avoiding an obstacle
 		if (MoveCount)
@@ -196,18 +197,20 @@ Extend Class KAI_Actor
 				
 		//absolute position of next movement
 		vector2 NextPos = Vec2Angle(speed, NextAngle, True);
+		FCheckPosition Move;
+		Move.FromPMove = True; //Move anyways if there's an actor within your hitbox already.
 		If (IsVehicle) //Vehicle push and crush handling.
 		{
 			Let Vehicle = KAI_BaseVehicle(Self);
 			Array <Actor> Pushovers;
 			KAI_BaseVehicle(Self).KAI_VehiclePushActors(Self, NextPos,Vehicle.MaxPushRadius,Vehicle.MaxPushHeight,Pushovers);
 			KAI_BaseVehicle(Self).KAI_VehicleCrushObstacles (Pushovers,Vehicle.VehicleCrushDamage);
+			TurretBlock = !Vehicle.CheckTurretCollision ((NextPos,Pos.Z),3);
 		}
-		
+		if (turretblock) console.printf ("DING DING DING TURRET IN THE WAY!");
+		else if (isvehicle) console.printf ("the turrets of %p aren't getting on their way",self);
 		//If (!(Flags & KMT_NOLINEUSE)) {a_log ("lemme try opening this door");CheckMonsterUseSpecials ();}
-		FCheckPosition Move;
-		Move.FromPMove = True; //Move anyways if there's an actor within your hitbox already.
-		bool moved = TryMove(NextPos, 0, false, Move);
+		bool moved = !TurretBlock ? TryMove(NextPos, 0, false, Move) : False;
 		
 		//if I hit an obstacle while avoiding another, try moving straight towards Other
 		if (!moved && MoveCount || bCantLeaveFloorPic && FloorPic != OldFloor)
@@ -222,8 +225,9 @@ Extend Class KAI_Actor
 				Array <Actor> Pushovers;
 				KAI_BaseVehicle(Self).KAI_VehiclePushActors(Self, NextPos,Vehicle.MaxPushRadius,Vehicle.MaxPushHeight,Pushovers);
 				KAI_BaseVehicle(Self).KAI_VehicleCrushObstacles (Pushovers,Vehicle.VehicleCrushDamage);
+				TurretBlock = !Vehicle.CheckTurretCollision ((NextPos,Pos.Z),3);
 			}
-			moved = TryMove(NextPos, 0, false, Move);
+			moved = !TurretBlock ? TryMove(NextPos, 0, false, Move) : False;
 		}
 		
 		//If there's a limit to how much the actor can turn per step. Decide an amount of turns for CHF_NORANDOMTURN to make after it hits an obstacle.
@@ -264,8 +268,9 @@ Extend Class KAI_Actor
 					Array <Actor> Pushovers;
 					KAI_BaseVehicle(Self).KAI_VehiclePushActors(Self, NextPos,Vehicle.MaxPushRadius,Vehicle.MaxPushHeight,Pushovers);
 					KAI_BaseVehicle(Self).KAI_VehicleCrushObstacles (Pushovers,Vehicle.VehicleCrushDamage);
+					TurretBlock = !Vehicle.CheckTurretCollision ((NextPos,Pos.Z),3);
 				}
-				moved = TryMove(NextPos, 0, false, Move);
+				moved = !TurretBlock ? TryMove(NextPos, 0, false, Move) : False;
 				if (moved) break;
 				
 				lastTurnDir *= -1.0;
@@ -278,8 +283,9 @@ Extend Class KAI_Actor
 					Array <Actor> Pushovers;
 					KAI_BaseVehicle(Self).KAI_VehiclePushActors(Self, NextPos,Vehicle.MaxPushRadius,Vehicle.MaxPushHeight,Pushovers);
 					KAI_BaseVehicle(Self).KAI_VehicleCrushObstacles (Pushovers,Vehicle.VehicleCrushDamage);
+					TurretBlock = !Vehicle.CheckTurretCollision ((NextPos,Pos.Z),3);
 				}
-				moved = TryMove(NextPos, 0, false, Move);
+				moved = !TurretBlock ? TryMove(NextPos, 0, false, Move) : False;
 				if (moved) break;
 			}
 		}

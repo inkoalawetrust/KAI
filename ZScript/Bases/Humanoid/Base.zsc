@@ -60,7 +60,6 @@ Class KAI_Humanoid : KAI_Creature Abstract
 		Vector2 CheckPos = Vec2Angle(Speed,Angle);
 		Vector3 ClimbPos;
 		//Handle climbing up ledges above the callers' height.
-		//BUG: The code causes the NPC to climb over invisible ledges if it crosses from normal geometric ground to bridge things.
 		If (!CheckMove (CheckPos,0,Tm) && !KAI_LineBlocksClimb (BlockingLine)
 		//NPCs can climb over actors, but shouldn't do it on LIVING ones, since it looks stupid, especially if they start climbing over the player.
 		//MAYDO: Make a flag to disable the living actor check ?

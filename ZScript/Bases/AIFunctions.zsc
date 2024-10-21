@@ -44,7 +44,6 @@ Extend Class KAI_Actor
 	}
 	
 	//The function is more or less the same as its' native counterpart, give or take the syntax and code comments, and it being slower by being non-native.
-	//TODO: Needs updating to reflect this one day: https://github.com/ZDoom/gzdoom/commit/8354c4a5c360460cbcc53e141da32ec2684601e4#diff-fa689e189d0be62127dddf26bffd2e435bf68e37de7a58e8726ca60121626fddR1258
 	Bool KAI_CheckMissileRange (Actor Other, Int Flags = 0)
 	{
 		Double Dist;
@@ -85,13 +84,10 @@ Extend Class KAI_Actor
 		If (Flags & CMR_IGNOREDIST) //Skip stupid distance formula.
 			Return True;
 		
-		Bool Invert = (Flags & CMR_INVERTDIST);
-		If (bMissileMore) Dist *= !Invert ? 0.5 : 1.5;
-		If (bMissileEvenMore) Dist *= !Invert ? 0.125 : 2.5;
-		Dist *= AggressionMultiplier; //If CMF_INVERTDIST is on, keep in mind that the behavior of the AggressionMultiplier is also effectively inverted !
+		Dist *= MissileChanceMult; //If CMF_INVERTDIST is on, keep in mind that the behavior of the MissileChanceMult is also effectively inverted !
 		
 		Int MMC = Int(MinMissileChance * G_SkillPropertyFloat(SKILLP_Aggressiveness));
-		If (!Invert)
+		If (!(Flags & CMR_INVERTDIST))
 			Return Random2[PR_CheckMissileRange]() >= Min(Int(Dist), MMC);
 		Else
 			Return Random2[PR_CheckMissileRange]() <= Max(Int(Dist), MMC);
@@ -207,8 +203,8 @@ Extend Class KAI_Actor
 			KAI_BaseVehicle(Self).KAI_VehicleCrushObstacles (Pushovers,Vehicle.VehicleCrushDamage);
 			TurretBlock = !Vehicle.CheckTurretCollision ((NextPos,Pos.Z),3);
 		}
-		if (turretblock) console.printf ("DING DING DING TURRET IN THE WAY!");
-		else if (isvehicle) console.printf ("the turrets of %p aren't getting on their way",self);
+		//if (turretblock) console.printf ("DING DING DING TURRET IN THE WAY!");
+		//else if (isvehicle) console.printf ("the turrets of %p aren't getting on their way",self);
 		//If (!(Flags & KMT_NOLINEUSE)) {a_log ("lemme try opening this door");CheckMonsterUseSpecials ();}
 		bool moved = !TurretBlock ? TryMove(NextPos, 0, false, Move) : False;
 		

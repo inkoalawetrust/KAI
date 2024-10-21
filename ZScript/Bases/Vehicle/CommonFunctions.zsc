@@ -329,7 +329,7 @@ Extend Class KAI_BaseVehicle
 		Bool MovedAlready; //If one of the KAI_MoveTowards/Away calls was made. Don't call the rest.
 		Double MajorThreatRange = (RetreatRange*4)*(RetreatRange*4);
 		//Temporarily store the aggro multiplier that is changed by the fear code. Then reset it after ShouldAttack() finishes.
-		Double OldAggro = AggressionMultiplier;
+		Double OldAggro = MissileChanceMult;
 		
 		//ZScript exports of different segments of GZDooms' native AI code. This is the stuff not needed for movement.
 		KAI_Chase_PreChecks(ChaseFlags);
@@ -360,7 +360,7 @@ Extend Class KAI_BaseVehicle
 			}
 			
 			If (Flags & LVC_ATTACKWHENSCARED)
-				AggressionMultiplier *= 0.5;
+				MissileChanceMult *= 0.5;
 		}
 		
 		FollowPlayerControl (FollowDist); //Handle turning on bDontFollowPlayers if you are too close to your friendplayer.
@@ -409,11 +409,11 @@ Extend Class KAI_BaseVehicle
 		
 		If (ShouldAttack()) //Run the unique attack decision code of the vehicle.
 		{
-			AggressionMultiplier = OldAggro; //Reset aggression chance.
+			MissileChanceMult = OldAggro; //Reset aggression chance.
 			ChaseTimer = 0;
 			Return; //End the function if the vehicle should attack.
 		}
-		AggressionMultiplier = OldAggro; //Reset aggression chance.
+		MissileChanceMult = OldAggro; //Reset aggression chance.
 		
 		HandleChaseTimer();
 	}

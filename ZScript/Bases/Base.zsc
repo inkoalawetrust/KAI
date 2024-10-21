@@ -19,7 +19,6 @@ Class KAI_Actor : Actor Abstract
 		FriendlySeeBlocks 48; //4096 map units, longer than the default of 1280 map units.
 		MaxTargetRange 8196; //Maximum range the actor can attack enemies from.
 		Obituary "%o managed to be killed by an abstract class, congratulations %o, we are all very proud of you. Or maybe a modder forgot to define a custom obituary.";
-		KAI_Actor.AggressionMultiplier 1.0;
 		KAI_Actor.InaccuracyFrequency 0.1;
 		KAI_Actor.ActorFollowDist 64;
 		
@@ -195,9 +194,10 @@ Class KAI_Actor : Actor Abstract
 	//Other: The actor to check.
 	//CheckPlayers: Should the checks factor in players too ? e.g counting players with god or buddha mode as THREAT_UNSTOPPABLE. Useful for say not having NPCs just run away from cheating players.
 	//ForceAssess: Force an assessment of the actor, even if they've got a set threat level.
-	Virtual Int AssessThreatLevel (Actor Other, Bool CheckPlayers = True, Bool ForceAssess = False)
+	//CheckDead: Check the threat level of the other actor even if they're dead.
+	Virtual Int AssessThreatLevel (Actor Other, Bool CheckPlayers = True, Bool ForceAssess = False, Bool CheckDead = False)
 	{
-		If (!Other || IsDead (Other)) Return THREAT_NONE; //Nonexistent or dead actors aren't a problem.
+		If (!Other || !CheckDead && IsDead (Other)) Return THREAT_NONE; //Nonexistent or dead actors aren't a problem.
 		
 		//It's not even a player or NPC.
 		If (IsInanimateObject (Other))
@@ -324,10 +324,8 @@ Class KAI_Actor : Actor Abstract
 	Virtual Void AfterOrderChange (NPCOrders OldOrder, Bool Increment, Actor Commander, Bool IgnoreAllegiance, Bool FromACS){}
 	
 	//Actor properties and flags.
-	Double AggressionMultiplier; //Can be used to further increase the chance of KAI_CheckMissileRange returning true. The LOWER it is the more frequent the attacking.
 	Int ThreatLevelThreshold; //If another actors' threat level is at or over this threshold, then the NPC should do some action (Like run away, or be more likely to use stronger attacks).
 	Int ThreatLevel; //The NPCs' predetermined threat level. In its basic form it can be used as just a static value. But you could also dynamically change it, e.g based on what attacks your NPC currently has available.
-	Property AggressionMultiplier : AggressionMultiplier;
 	Property ThreatLevelThreshold : ThreatLevelThreshold;
 	Property ThreatLevel : ThreatLevel;
 	Vector3 Inaccuracy; //How inaccurate is the target tracking ? This is a vector3 property, which as of 19/8/2023 is exclusive to GZDoom dev builds.

@@ -6,6 +6,14 @@
 #Define NPCGRP_NOMEMBEREVENT 2
 #Define NPCGRP_NOICONS		 4
 
+//Order types
+#Define ORDER_NONE		0
+#Define ORDER_FOLLOW	1
+#Define ORDER_STAY		2
+#Define ORDER_WANDER	3
+//#Define ORDER_GOTOPOINT	4
+#Define ALLORDERS		4
+
 /*HACK: For cleanliness and readability. KAI_DataToken uses custom variables to pass data for KAI NPCs to read,
 such as threat levels. But trying to access those variables from an actor that possibly may not exist directly
 through ZScript causes startup errors if that actor (The token) does not exist, like if your non-KAI mod is not

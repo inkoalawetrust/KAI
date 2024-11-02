@@ -31,7 +31,7 @@ Mixin Class HumanoidAndVehicleCode
 			
 			If (KAI_DebugHitChance) Console.Printf ("DetermineHitChance(): Distance to other is %.2f", Distance);
 			Double MathFunnel = Distance * Tan (DumbSpread);
-			Double Chance = (Other.Radius / MathFunnel)+FRandom(0,0.05);
+			Double Chance = (Other.Radius / MathFunnel) + FRandom(0,0.05);
 			If (KAI_DebugHitChance) Console.Printf ("Hit ratio %.3f",Chance);
 			
 			Int Hits;

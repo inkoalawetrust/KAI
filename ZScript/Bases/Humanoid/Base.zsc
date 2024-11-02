@@ -35,10 +35,7 @@ Class KAI_Humanoid : KAI_Creature Abstract
 			
 			If (BlockingMobj && (BlockingMobj.Pos.Z < Pos.Z+Height && BlockingMobj.Pos.Z >= Pos.Z+CrouchHeight) ||
 			(SecHeight < Pos.Z+Height && SecHeight >= Pos.Z+CrouchHeight))
-			{if (BlockingMobj && (BlockingMobj.Pos.Z < Pos.Z+Height && BlockingMobj.Pos.Z >= Pos.Z+CrouchHeight) && KAI_DebugPrintMessages) console.printf ("Crouch handling: actor above the caller");
-				If (KAI_DebugPrintMessages)console.printf ("crouching %p down",self);If (ChangeHeight) Height = CrouchHeight;
 				Return True;
-			}
 		}
 		
 		Height = CurHeight;
@@ -76,7 +73,7 @@ Class KAI_Humanoid : KAI_Creature Abstract
 			//Check for 3D floors the actor can climb over separetely with a trace, since CheckPosition() won't cut it.
 			If (FFloor = KAI_FindClimbable3DFloor (Level.Vec2Diff(Pos.XY,CheckPos).Length()*3)) //There's actually a 3D floor in front of the actor.
 				ClimbZ = FFloor.Top.ZAtPoint(CheckPos); //Set the climbZ to the top of that 3D floor !
-			If (KAI_DebugPrintMessages)console.printf ("climb z after 3d floor check is %d",climbz); if (ffloor && KAI_DebugPrintMessages) console.printf ("found a 3D floor %p",ffloor);
+			
 			If (BlockingMobj)
 				ClimbZ = BlockingMobj.Pos.Z + BlockingMobj.Height;
 			//We can and should be able to climb over 3D middle textures too, such as fences.
@@ -111,7 +108,7 @@ Class KAI_Humanoid : KAI_Creature Abstract
 			
 			If (!UnobstructedClimb)
 			{
-				If (KAI_DebugPrintMessages) Console.Printf ("KAI_HandleClimbing(): Hit a blocking actor or level geometry");
+				If (KAI_DebugPrintMessages) Console.Printf ("KAI_HandleClimbing(): Wel'll hit a blocking actor or level geometry trying to climb up there");
 				Return False;
 			}
 			
@@ -174,18 +171,17 @@ Class KAI_Humanoid : KAI_Creature Abstract
 		Double HeightOffset = Height;
 		For (Int I = Iterations; I > 0; I--)
 		{
-			If (KAI_DebugPrintMessages)Console.Printf ("Ran a 3D floor check at %.2f, the spacing is %.2f",HeightOffset, Spacing);
 			FFloorCheck.Trace (Pos.PlusZ(HeightOffset),CurSector, (AngleToVector(Angle, Cos(0)), -Sin(0)) ,Dist,0);
 			
 			If (FFloor = FFloorCheck.Results.FFloor)
-			{If (KAI_DebugPrintMessages)a_log ("3d floor check passed");
-				FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 35; P.Size = 2; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
-				KAI_LOFRaycast.VisualizeTracePath(Pos.PlusZ(HeightOffset),FFloorCheck.Results.HitPos,FFloorCheck.Results.Distance,0.5,p);
+			{
+				//FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 35; P.Size = 2; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+				//KAI_LOFRaycast.VisualizeTracePath(Pos.PlusZ(HeightOffset),FFloorCheck.Results.HitPos,FFloorCheck.Results.Distance,0.5,p);
 				FFloorCheck.Destroy();
 				Return FFloor;
 			}
-			FSpawnParticleParams P; P.Color1 = "Red"; P.Style = STYLE_None; P.Lifetime = 35; P.Size = 2; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
-			KAI_LOFRaycast.VisualizeTracePath(Pos.PlusZ(HeightOffset),FFloorCheck.Results.HitPos,FFloorCheck.Results.Distance,0.5,p);
+			//FSpawnParticleParams P; P.Color1 = "Red"; P.Style = STYLE_None; P.Lifetime = 35; P.Size = 2; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+			//KAI_LOFRaycast.VisualizeTracePath(Pos.PlusZ(HeightOffset),FFloorCheck.Results.HitPos,FFloorCheck.Results.Distance,0.5,p);
 			HeightOffset -= Spacing;
 		}
 		
@@ -226,8 +222,8 @@ Class KAI_Humanoid : KAI_Creature Abstract
 			MovePos = Level.Vec2Offset(Pos.XY, Path*I);
 			
 			LineTrace (0,8192,90,TRF_THRUHITSCAN|TRF_SOLIDACTORS|TRF_ABSPOSITION,0,MovePos.X,MovePos.Y,data:Jump);
-			FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 2; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
-			KAI_LOFRaycast.VisualizeTracePath((MovePos,Pos.Z),Jump.HitLocation,Jump.Distance,8,p);
+			//FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 2; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+			//KAI_LOFRaycast.VisualizeTracePath((MovePos,Pos.Z),Jump.HitLocation,Jump.Distance,8,p);
 			
 			//We should NOT be getting a position that is out of bounds!!!!
 			If (!Level.IsPointInLevel((MovePos,Jump.HitLocation.Z)))

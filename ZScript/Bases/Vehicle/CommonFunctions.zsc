@@ -14,7 +14,7 @@ Extend Class KAI_BaseVehicle
 		While (Veh.Turret)
 		{
 			If (TurretDepth <= 0)
-				{console.printf ("no depth left");Break;}
+				Break;
 			
 			TurPos = Level.Vec3Diff (NewPosition,Veh.Turret.Pos); //Subtract the new absolute pos from the current pos to get the relative pos.
 			
@@ -26,8 +26,8 @@ Extend Class KAI_BaseVehicle
 				Veh.Turret.SetOrigin (OldPos,False);
 				Return False;
 			}
-			spawn ("kai_debugpoint",veh.turret.pos);
-			console.printf ("%p is totally not impeded by any obstacles whatsoever at %d %d %d :D!",veh.turret,veh.turret.pos);
+			//spawn ("kai_debugpoint",veh.turret.pos);
+			//console.printf ("%p is totally not impeded by any obstacles whatsoever at %d %d %d :D!",veh.turret,veh.turret.pos);
 			Veh.Turret.SetOrigin (OldPos,False);
 			OldPos = (Double.NaN,Double.NaN,Double.NaN);
 			Veh = Veh.Turret; //Now check the turrets' turret, recursively.

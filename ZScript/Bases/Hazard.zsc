@@ -110,16 +110,9 @@ Class HazardInfo
 			Return False;
 		
 		If (!Token)
-		{
 			KAI_Actor(Other).Hazards.Push(Hazard);
-			console.printf ("alerted %s, now they have %d hazards stored",Other.getclassname(),KAI_Actor(Other).Hazards.size());
-		}
 		Else
-		{
 			Token.Hazards.Push(Hazard);
-			Console.Printf ("Alerted token %p, whose owner is %p (%s), of this hazard:",Token,Token.Owner,Token.Owner.GetClassName());
-			Hazard.PrintHazardInfo();
-		}
 		Return True;
 	}
 	
@@ -234,7 +227,7 @@ Extend Class KAI_Actor
 			Return False;
 		
 		If (Hazard.Flags & HazardInfo.HAZ_SECTOR && CurSector == PointSec)
-			{console.printf ("inside a hazardous sector"); Return True;}
+			Return True;
 		
 		If (Hazard.Origin && Distance3DSquared (Hazard.Origin) < Hazard.Range*Hazard.Range || Level.Vec3Diff (Hazard.Position,Pos).Length() < Hazard.Range) //In range.
 			Return True;
@@ -474,10 +467,7 @@ Class KAI_SectorHazard : Actor
 					Continue;
 				
 				If (CurMo Is "KAI_Actor") KAI_Actor(CurMo).Hazards.Push (Hazard);
-				Else {Token.Hazards.Push(Hazard);
-				Console.Printf ("Alerted token %p, whose owner is %p (%s), of this hazard:",Token,Token.Owner,Token.Owner.GetClassName());
-				Hazard.PrintHazardInfo();
-				}
+				Else Token.Hazards.Push(Hazard);
 				CurMo = CurMo.SNext;
 			}
 		}

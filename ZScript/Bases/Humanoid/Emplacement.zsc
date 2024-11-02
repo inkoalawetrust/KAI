@@ -363,7 +363,7 @@ Class KAI_EmplacementFakeOperator : VisualThinker
 				[Texture,bXFlip,Garbage] = SpriteState.GetSpriteTexture (FakeOpGetSpriteAngle(Players[ConsolePlayer].Camera.Pos,True),PlayerSkinID);
 			}
 		}
-		//console.printf ("RENDERING STATS: GRAPHIC %s, MIRRORED %d, SCALE %.2f %.2f",texman.getname(texture),bxflip,scale);
+		
 		If (IsFrozen())
 			Return;
 		

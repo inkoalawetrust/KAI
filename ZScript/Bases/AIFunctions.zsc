@@ -201,7 +201,7 @@ Extend Class KAI_Actor
 			Array <Actor> Pushovers;
 			KAI_BaseVehicle(Self).KAI_VehiclePushActors(Self, NextPos,Vehicle.MaxPushRadius,Vehicle.MaxPushHeight,Pushovers);
 			KAI_BaseVehicle(Self).KAI_VehicleCrushObstacles (Pushovers,Vehicle.VehicleCrushDamage);
-			TurretBlock = !Vehicle.CheckTurretCollision ((NextPos,Pos.Z),3);
+			//TurretBlock = !Vehicle.CheckTurretCollision ((NextPos,Pos.Z),3);
 		}
 		//if (turretblock) console.printf ("DING DING DING TURRET IN THE WAY!");
 		//else if (isvehicle) console.printf ("the turrets of %p aren't getting on their way",self);
@@ -221,7 +221,7 @@ Extend Class KAI_Actor
 				Array <Actor> Pushovers;
 				KAI_BaseVehicle(Self).KAI_VehiclePushActors(Self, NextPos,Vehicle.MaxPushRadius,Vehicle.MaxPushHeight,Pushovers);
 				KAI_BaseVehicle(Self).KAI_VehicleCrushObstacles (Pushovers,Vehicle.VehicleCrushDamage);
-				TurretBlock = !Vehicle.CheckTurretCollision ((NextPos,Pos.Z),3);
+				//TurretBlock = !Vehicle.CheckTurretCollision ((NextPos,Pos.Z),3);
 			}
 			moved = !TurretBlock ? TryMove(NextPos, 0, false, Move) : False;
 		}
@@ -264,7 +264,7 @@ Extend Class KAI_Actor
 					Array <Actor> Pushovers;
 					KAI_BaseVehicle(Self).KAI_VehiclePushActors(Self, NextPos,Vehicle.MaxPushRadius,Vehicle.MaxPushHeight,Pushovers);
 					KAI_BaseVehicle(Self).KAI_VehicleCrushObstacles (Pushovers,Vehicle.VehicleCrushDamage);
-					TurretBlock = !Vehicle.CheckTurretCollision ((NextPos,Pos.Z),3);
+					//TurretBlock = !Vehicle.CheckTurretCollision ((NextPos,Pos.Z),3);
 				}
 				moved = !TurretBlock ? TryMove(NextPos, 0, false, Move) : False;
 				if (moved) break;
@@ -279,7 +279,7 @@ Extend Class KAI_Actor
 					Array <Actor> Pushovers;
 					KAI_BaseVehicle(Self).KAI_VehiclePushActors(Self, NextPos,Vehicle.MaxPushRadius,Vehicle.MaxPushHeight,Pushovers);
 					KAI_BaseVehicle(Self).KAI_VehicleCrushObstacles (Pushovers,Vehicle.VehicleCrushDamage);
-					TurretBlock = !Vehicle.CheckTurretCollision ((NextPos,Pos.Z),3);
+					//TurretBlock = !Vehicle.CheckTurretCollision ((NextPos,Pos.Z),3);
 				}
 				moved = !TurretBlock ? TryMove(NextPos, 0, false, Move) : False;
 				if (moved) break;
@@ -483,7 +483,7 @@ Extend Class KAI_Actor
 		Else
 		{
 			NextMovePos.XY = Vec2Angle (RunRad,GetAngleToPos(RunPos,0)-180);
-			KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(Height/2),RunPos.PlusZ(Height/2),Level.Vec3Diff (Pos.PlusZ(Height/2),RunPos.PlusZ(Height/2)).Length());
+			//KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(Height/2),RunPos.PlusZ(Height/2),Level.Vec3Diff (Pos.PlusZ(Height/2),RunPos.PlusZ(Height/2)).Length());
 			NextMovePos.Z = GetZAt (NextMovePos.X,NextMovePos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
 		}
 	}
@@ -495,7 +495,7 @@ Extend Class KAI_Actor
 		Double CheckAngle = (GetAngleToPos(NextMovePos,0)); //Try at the NextMovePos, unless blocked.
 		Vector3 CheckPos = (Vec2Angle (Radius+CheckDist,CheckAngle),0);
 		CheckPos.Z = GetZAt (CheckPos.X,CheckPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
-		kai_lofraycast.visualizetracepath (pos.plusz(height/2),checkpos,level.vec3diff(pos.plusz(height/2),checkpos).length());
+		//kai_lofraycast.visualizetracepath (pos.plusz(height/2),checkpos,level.vec3diff(pos.plusz(height/2),checkpos).length());
 		//if (kai_debugprintmessages) console.printf ("KAI_AvoidObstacles: NextMovePos %d %d %d, CheckPos %d %d %d",nextmovepos,checkpos);
 		//MAYDO: Make the code somehow ignore actors a vehicle can push away ? This would require reverting to using line traces.
 		If (CheckDist > 0 && CheckSlices > 0)

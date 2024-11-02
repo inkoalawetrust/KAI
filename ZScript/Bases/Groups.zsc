@@ -184,7 +184,7 @@ Class KAI_NPCGroup Play
 		
 		If (!Group)
 		{
-			Console.PrintfEx (PRINT_HIGH,"KAI_NPCGroup.CreateGroup(): Failed to create new instance of %s, returning null.",GroupClass);
+			Console.PrintfEx (PRINT_MEDIUM,"\c[Yellow]KAI_NPCGroup.CreateGroup(): Failed to create new instance of %s, returning null.",GroupClass);
 			Return Null;
 		}
 		
@@ -199,7 +199,7 @@ Class KAI_NPCGroup Play
 		//Group has no leader at all, try to use the fallback.
 		If (!Leader && !(Leader = Group.LeaderFallback()))
 		{
-			Console.PrintfEx (PRINT_HIGH,"KAI_NPCGroup.CreateGroup(): Failed to create new instance of %s, there's no assigned leader, nor could LeaderFallback() find one.",GroupClass.GetClassName());
+			Console.PrintfEx (PRINT_MEDIUM,"\c[Yellow]KAI_NPCGroup.CreateGroup(): Failed to create new instance of %s, there's no assigned leader, nor could LeaderFallback() find one.",GroupClass.GetClassName());
 			Group.Destroy();
 			Return Null;
 		}
@@ -221,7 +221,7 @@ Class KAI_NPCGroup Play
 		
 		Group.Handler.AddNPCGroup(Group); //Add group to group map.
 		Group.PostInitialize(); //Call any custom initialization code.
-		Console.Printf ("KAI_NPCGroup.CreateGroup(): Made group %p with leader %p and %d members",Group,Group.Leader,Group.Members.Size());
+		If (KAI_DebugPrintMessages) Console.Printf ("KAI_NPCGroup.CreateGroup(): Made group %p with leader %p and %d members",Group,Group.Leader,Group.Members.Size());
 		
 		Return Group; //Return our new group.
 	}

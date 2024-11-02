@@ -1,6 +1,7 @@
 //Base class for organic, or just generally non-vehicle NPCs. e.g demons and animals
 //MAYDO:
 //Add some corpse eating and health regen system.
+//A basic herd NPC group?
 Class KAI_Creature : KAI_Actor Abstract
 {
 	

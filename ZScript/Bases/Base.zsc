@@ -60,7 +60,7 @@ Class KAI_Actor : Actor Abstract
 			manually be fired here !*/
 			Group.HandleGroupEvent(Group.GRPEVNT_ERASED,Self);
 			If (KAI_DebugPrintGroupEvents)
-				Console.Printf ("KAI_Actor.OnDestroy(), Group %p: Member %p died", Group, Self);
+				Console.Printf ("KAI_Actor.OnDestroy(), Group %p: Member %p was erased", Group, Self);
 			Group.RemoveNPCFromGroup (Self,True);
 		}
 	}
@@ -109,7 +109,7 @@ Class KAI_Actor : Actor Abstract
 			For (Int I = Hazards.Size()-1; I >= 0; I--)
 			{
 				HazardInfo CurHaz = Hazards[I];
-				CurHaz.PrintHazardInfo(); //DEBUG
+				//CurHaz.PrintHazardInfo(); //DEBUG
 				//Remove hazards that are out of range, or that are actor-type hazards but have no actual source actor.
 				If (!InHazardRange(CurHaz) || CurHaz.Type == HazardInfo.HAZARD_ACTOR && !CurHaz.Origin)
 					Hazards.Delete(I);
@@ -289,10 +289,7 @@ Class KAI_Actor : Actor Abstract
 		{
 			Actor GroupLeader;
 			If (Groups.Size() && (GroupLeader = GetFirstPlayerNPCGroup(True).Leader) != Self)
-			{
-				If (KAI_DebugPrintMessages && groupleader) console.printf ("HandleFollowingActor: %p is following %s (%p)",self,groupleader.getclassname(),groupleader);
 				Return GroupLeader.Pos, GroupLeader;
-			}
 			Vector3 MasterPos = Master ? Master.Pos : (Double.NaN, Double.NaN, Double.NaN);
 			Return MasterPos, Master;
 		}
@@ -304,13 +301,11 @@ Class KAI_Actor : Actor Abstract
 			If ((MainGroup = GetFirstPlayerNPCGroup(IgnoringPlayers)) && MainGroup && MainGroup.Leader != Self)
 			{
 				Vector3 GroupPos = MainGroup.Leader ? MainGroup.Leader.Pos : (Double.NaN, Double.NaN, Double.NaN);
-				If (KAI_DebugPrintMessages && maingroup.leader) console.printf ("HandleFollowingActor: %p is following %s (%p)",self,maingroup.leader.getclassname(),maingroup.leader);
 				Return GroupPos, MainGroup.Leader;
 			}
 			
 			If (IgnoringPlayers && Master && !IsDead(Master)) //We are ignoring the player, so just follow whoever the master is, unless it is set to your friendplayer for some reason.
 			{
-				If (KAI_DebugPrintMessages && master) console.printf ("HandleFollowingActor: %p is following his master, %s (%p)",self,master.getclassname(),master);
 				Return Master.Pos, Master;
 			}
 			
@@ -556,7 +551,8 @@ Class KAI_EventHandler : EventHandler
 			ForEach (K : DirtyKeys)
 			{
 				If (K)
-				{If (KAI_DebugPrintMessages)console.printf ("removed group with no members");
+				{
+					If (KAI_DebugPrintMessages) Console.Printf ("NPC group janitor: Removed group with no members");
 					Let EmptyGroup = NPCGroups.GetIfExists(K);
 					If (EmptyGroup) EmptyGroup.Destroy(); //Destroy empty group.
 					NPCGroups.Remove(K);
@@ -737,8 +733,10 @@ Class KAI_DataToken : Inventory
 	Array <KAI_NPCGroup> Groups; //The groups this non-KAI NPC is in.
 	Array <HazardInfo> Hazards; //The hazards that are in range of the tokens' owner.
 }
+
 //DEBUG: Assesses the threat level of an actor in front of it, to see if the system works as intended.
-Class ThreatAssess : KAI_Actor// replaces gibbedmarineextra
+//TODO: Replace this with a KAI_GetThreatLevel netevent command. That also has a parameter for passing what classes' AssessThreatLevel() to use.
+Class ThreatAssess : KAI_Actor
 {
 	Default {+NoTarget;}
 	States

@@ -391,7 +391,7 @@ Extend Class KAI_Actor
 		
 		Actor SightTarget = Other;
 		Bool DoCornerCheck = (ExtraParams.CornerDist > 0 && (ExtraParams.CornerDiv > 0 || ExtraParams.CornerDiv == -1));
-		If (!SightTarget && DoCornerCheck) SightTarget = Spawn ("KAI_DebugPoint",TargPos); //Spawn a debug point to check the sight of a TargPos instead for running from a coordinate.
+		If (!SightTarget && DoCornerCheck) SightTarget = Spawn ("KAI_TempPoint",TargPos); //Spawn a debug point to check the sight of a TargPos instead for running from a coordinate.
 		
 		//TODO: Wait hold on, I think the current way that the dummy debug point for TargPos movement is set doesn't ever remove the debug points it spawns.
 		//MAYDO: Add a boolean flag for ExtraParams that makes IsPosReachable() also qualify blocking actors as cover?
@@ -554,7 +554,7 @@ Extend Class KAI_Actor
 			Xs.Push (CurPos.X); Ys.Push (CurPos.Y); Zs.Push (CurPos.Z); //Epic GZDoom fail.
 		}
 		
-		Actor SightTarget = Spawn ("KAI_DebugPoint",Pos);
+		Actor SightTarget = Spawn ("KAI_TempPoint",Pos);
 		For (Int I = Attempts-1; I >= 0; I--)
 		{
 			CurPos = (Xs[I],Ys[I],Zs[I]); //Reconstruct each vector.
@@ -666,6 +666,41 @@ Extend Class KAI_Actor
 		bThruActors = ThruActs;
 		SetOrigin (OldPos,False);
 		Return True; //No TryMove call returned false.
+	}
+	
+	//Check how big the specified space is for the calling actor. Works by scaling up the actor to the desired size, and seeing if they are blocked by anything.
+	//TargetRadius: The radius up to which the function checks if the actor is being blocked.
+	//TargetHeight: Ditto, but for the height.
+	//Iterations: How many steps is the caller scaled up from their real hitbox, to the hitbox being tested?
+	//ActorBlock: Should the function be blocked by actors that would stop the callers' movement as well?
+	//Returns after how many iterations it failed, if any, and at what radius and height it failed at.
+	Int, Double, Double CheckSpaceSize (Double TargetRadius, Double TargetHeight, Int Iterations = 8, Bool ActorBlock = False)
+	{
+		Double RealRadius = Radius; Double RealHeight = Height;
+		
+		For (Int I = Iterations; I > 0; I--)
+		{
+			//Skip iterations smaller than the caller, they're expensive.
+			If ((TargetRadius/I) <= RealRadius || (TargetHeight/I) <= RealHeight)
+				Continue;
+			A_SetSize (TargetRadius/I,TargetHeight/I);
+			If (KAI_DebugPrintMessages) Console.Printf ("CheckSpaceSize(): Checking if radius %f, height %f, iteration %d is valid",Radius,Height,I);
+			Bool Thru = bThruActors;
+			If (!ActorBlock) bThruActors = True;
+			Bool Success = TestMobjLocation();
+			bThruActors = Thru;
+			
+			If (!Success)
+			{
+				If (KAI_DebugPrintMessages) Console.Printf ("CheckSpaceSize(): Epic fail");
+				Double FailRadius = Radius; Double FailHeight = Height;
+				A_SetSize (RealRadius,RealHeight);
+				Return I, FailRadius, FailHeight;
+			}
+		}
+		
+		A_SetSize (RealRadius,RealHeight);
+		Return -1, -1, -1; //Nothing is blocking us.
 	}
 	
 	//=====|Order system|=====\\

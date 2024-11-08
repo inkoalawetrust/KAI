@@ -320,7 +320,11 @@ Class KAI_EmplacementFakeOperator : VisualThinker
 			//Acquire the first valid see state sprite of the operator to use as the fallback graphic. If the graphic is TNT1A0, look for the next state's sprite.
 			{
 				Translation = Operator.Translation;
-				Int SkinNum = Emplacement.OperatorMorph.Player ? Emplacement.OperatorMorph.Player.GetSkin() : 0;
+				Int SkinNum;
+				If (Emplacement.OperatorMorph)
+					SkinNum = Emplacement.OperatorMorph.Player ? Emplacement.OperatorMorph.Player.GetSkin() : 0;
+				Else
+					SkinNum = 0;
 				State LeState = GetDefaultByType(Operator.GetClass()).SeeState;
 				If (!LeState)
 				{

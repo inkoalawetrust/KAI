@@ -393,6 +393,15 @@ Class KAI_DebugPoint : Actor
 	}
 }
 
+//A temporary debug point, for use cases where a temporary actor is needed.
+Class KAI_TempPoint : KAI_DebugPoint
+{
+	Override Void PostBeginPlay()
+	{
+		Destroy();
+	}
+}
+
 Class KAI_EventHandler : EventHandler
 {
 	//Custom command handling

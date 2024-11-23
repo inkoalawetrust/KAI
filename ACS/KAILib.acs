@@ -1,7 +1,7 @@
 #Library "KAILib"
 #Include "ZCommon.acs"
 
-//Flag names fro CreateGroupACS().
+//Flag names from CreateGroupACS().
 #Define NPCGRP_EVERYONEDIED  1
 #Define NPCGRP_NOMEMBEREVENT 2
 #Define NPCGRP_NOICONS		 4

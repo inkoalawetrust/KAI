@@ -35,7 +35,10 @@ Class KAI_Humanoid : KAI_Creature Abstract
 			
 			If (BlockingMobj && (BlockingMobj.Pos.Z < Pos.Z+Height && BlockingMobj.Pos.Z >= Pos.Z+CrouchHeight) ||
 			(SecHeight < Pos.Z+Height && SecHeight >= Pos.Z+CrouchHeight))
+			{
+				If (ChangeHeight) Height = CrouchHeight;
 				Return True;
+			}
 		}
 		
 		Height = CurHeight;

@@ -9,7 +9,6 @@ If I do implement the order system to KAI actors, it will probably be before the
 //Add a headlightsound property, that plays a sound when the vehicles' headlights turn on or off.
 
 //IDEA:
-//Add an impact system, with impact smoke and sound effects that scale with how fast the vehicle hit the ground.
 /*Make a passenger system for vehicles ? By being able to define coordinates relative to the vehicle for NPCs to go to,
 "enter" the vehicle once they reach the entrance or exit point with A_ChangeLinkFlags and becoming STAT_INFOS.*/
 
@@ -22,7 +21,6 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 {
 	Default
 	{
-		
 		Radius 40;
 		Height 54;
 		DeathHeight 54;
@@ -62,6 +60,11 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	
 	//Used to neatly order the spawning of headlights in vehicle definitions. You could just as easily do the spawning in PostBeginPlay()
 	Virtual Void SpawnHeadlights(){}
+	
+	//Run something when the vehicle hits the ground above a sufficient Z velocity threshold.
+	//ImpactVel: How fast did the impact occur?
+	//InTheWay: If the vehicle was/is to be stopped by an actor or more below its' hitbox, who are they?
+	Virtual Void OnGroundImpact (Double ImpactVel, Array<Actor> InTheWay){}
 	
 	Override Bool CanAttack()
 	{
@@ -118,11 +121,34 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 		SpawnHeadlights();
 	}
 	
+	Protected Double LastTickFallVel;
+	
 	Override Void Tick()
 	{
+		If (Vel.Z <= 0) LastTickFallVel = Abs(Vel.Z);
+		Else LastTickFallVel = 0;
 		Super.Tick();
 		
 		If (IsFrozen()) Return;
+		
+		//Run fall impact code.
+		If (Vel.Z ~== 0 && LastTickFallVel && LastTickFallVel >= MinSurfaceImpactVel)
+		{
+			//Get victims under the vehicle.
+			Array <Actor> IMFALLINGOVERHERE;
+			Vector3 RealPos = Pos;
+			SetOrigin (Pos.PlusZ(-LastTickFallVel),False); //Move down the vehicle as if it never stopped, to check for blocking actors in the way.
+			BlockThingsIterator Blockers = BlockThingsIterator.Create(Self);
+			While (Blockers.Next())
+			{
+				//Blocking actor found.
+				If (Blockers.Thing && Blockers.Thing != Self && IsCollidable(Blockers.Thing,Self) && CheckHitboxIntersection(Self,Blockers.Thing))
+					IMFALLINGOVERHERE.Push(Blockers.Thing);
+			}
+			SetOrigin (RealPos,False);
+			OnGroundImpact(LastTickFallVel, IMFALLINGOVERHERE);
+			LastTickFallVel = 0;
+		}
 		
 		If (StayStillDelay)
 			StayStillDelay--;
@@ -211,10 +237,6 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	Vector3 TurretOffsets; //The offsets of the turret relative to the vehicle.
 	Bool LightsOnAlready; //Used to stop the headlight code from constantly iterating through the headlights.
 	
-	Double MaxCorpseRadius, MaxCorpseHeight; //The maximum dimensions of a corpse that the vehicle can crush, anything above this can't be crushed.
-	Property MaxCorpseRadius : MaxCorpseRadius;
-	Property MaxCorpseHeight : MaxCorpseHeight;
-	
 	//Flag variables
 	Private Int VehicleFlags;
 	FlagDef Transport : VehicleFlags, 0; //The vehicle is marked as being able to transport soldiers.
@@ -243,6 +265,12 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	Double MaxCrushRadius, MaxCrushHeight; //The maximum dimensions an actor blocking a vehicles' way can have before the vehicle can no longer crush it.
 	Property MaxCrushRadius : MaxCrushRadius;
 	Property MaxCrushHeight : MaxCrushHeight;
+	
+	Double MaxCorpseRadius, MaxCorpseHeight; //The maximum dimensions of a corpse that the vehicle can crush, anything above this can't be crushed.
+	Property MaxCorpseRadius : MaxCorpseRadius;
+	Property MaxCorpseHeight : MaxCorpseHeight;
+	Double MinSurfaceImpactVel;
+	Property SurfaceImpactThreshold : MinSurfaceImpactVel;
 	
 	States
 	{

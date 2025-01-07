@@ -526,6 +526,7 @@ Extend Class KAI_BaseVehicle
 			Mobj.Grind (False); //Crush corpse, but not items.
 		}
 	}
+	
 		//=====|Headlight functions|=====\\
 		//Turn the vehicles' headlights on.
 		Void TurnHeadlightsOn()

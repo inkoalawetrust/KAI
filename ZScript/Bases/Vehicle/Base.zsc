@@ -9,6 +9,7 @@ If I do implement the order system to KAI actors, it will probably be before the
 //Add a headlightsound property, that plays a sound when the vehicles' headlights turn on or off.
 
 //IDEA:
+//Add an impact system, with impact smoke and sound effects that scale with how fast the vehicle hit the ground.
 /*Make a passenger system for vehicles ? By being able to define coordinates relative to the vehicle for NPCs to go to,
 "enter" the vehicle once they reach the entrance or exit point with A_ChangeLinkFlags and becoming STAT_INFOS.*/
 

@@ -2,17 +2,17 @@
 #Include "ZCommon.acs"
 
 //Flag names from CreateGroupACS().
-#Define NPCGRP_EVERYONEDIED  1
-#Define NPCGRP_NOMEMBEREVENT 2
-#Define NPCGRP_NOICONS		 4
+#LibDefine NPCGRP_EVERYONEDIED  1
+#LibDefine NPCGRP_NOMEMBEREVENT 2
+#LibDefine NPCGRP_NOICONS		 4
 
 //Order types
-#Define ORDER_NONE		0
-#Define ORDER_FOLLOW	1
-#Define ORDER_STAY		2
-#Define ORDER_WANDER	3
-//#Define ORDER_GOTOPOINT	4
-#Define ALLORDERS		4
+#LibDefine ORDER_NONE		0
+#LibDefine ORDER_FOLLOW	1
+#LibDefine ORDER_STAY		2
+#LibDefine ORDER_WANDER	3
+//#LibDefine ORDER_GOTOPOINT	4
+#LibDefine ALLORDERS		4
 
 /*HACK: For cleanliness and readability. KAI_DataToken uses custom variables to pass data for KAI NPCs to read,
 such as threat levels. But trying to access those variables from an actor that possibly may not exist directly

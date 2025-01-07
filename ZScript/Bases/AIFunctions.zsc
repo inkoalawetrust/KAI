@@ -618,6 +618,9 @@ Extend Class KAI_Actor
 	//BUG: For some reason the function will sometimes return positions that are behind drops too tall for the caller as valid. I have no fucking idea why.
 	//BUG: It's not portal aware, because of course it isn't ! DESPITE LITERALLY CHECKING BY *ACTUALLY* MOVING THE CALLER IN A STRAIGHT LINE !
 	//BUG: God, why is a function that literally walks the caller forward so fucking hard.
+	/*BUG: Okay, I think the ultimate problem with the function is that the Z checks are fucked (i.e returning rooftops as valid but not stairs the actor can
+	climb). So maybe try adding manual GetZAt() checks between TryMoves? Kinda taking that idea from fucking around with Claude 3.5 by asking it to try and
+	fix this this god forsaken function to see how it fails.*/
 	//NOTE: A potential fix might be making Vec3Offset absolute, it should at least fix portals, since it fixed movement through them for KAI_MoveTowards.
 	//Checks if the straight line between the callers' position and the specified position can be walked up to.
 	//TargetPos: The position to check if it's walkable.

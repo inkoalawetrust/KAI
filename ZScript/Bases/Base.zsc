@@ -47,6 +47,7 @@ Class KAI_Actor : Actor Abstract
 		//Initialize inaccuracy.
 		NextInaccuracyOffset = (FRandom (Inaccuracy.X,-Inaccuracy.X),FRandom (Inaccuracy.Y,-Inaccuracy.Y),FRandom (Inaccuracy.Z,-Inaccuracy.Z));
 	}
+	
 	Override Void OnDestroy()
 	{
 		Super.OnDestroy();
@@ -214,7 +215,6 @@ Class KAI_Actor : Actor Abstract
 			If (Token && KAI_DataToken(Token).ThreatLevel != THREAT_ASSESS)
 				Return KAI_DataToken(Token).ThreatLevel;
 		}
-		
 		
 		//If indestructible. Then the other actor is unstoppable (Obviously)
 		If (HasGodMode (Other, !CheckPlayers) || HasBuddha (Other, !CheckPlayers) || IsIndestructible (Other) ||

@@ -356,46 +356,45 @@ Class KAI_BaseProjectile : FastProjectile
 		Trail.Vel = OldVel;
 	}
 	
-	//Called in SpecialMissileHit() to handle bullet-like projectiles bouncing off actors.
-	Bool DeflectProjectile (Actor Victim, Int DeflectChance, Double DamageReductionFactor, Double SlowDownFactor = 1,
-	Vector2 RandomAngle = (0,0), Vector2 RandomPitch = (0,0), Double Volume = 1, Double Attenuation = 0.9)
+	Virtual Bool OnActorDeflect (Actor Deflectee)
 	{
-		If (Random (0,255) < DeflectChance) Return False; //Fission mailed.
+		If (!Deflectee || !bDeflectable || !KAI_Actor(Deflectee) && !Deflectee.FindInventory("KAI_DataToken"))
+			Return False;
 		
+		Int RNGesus = Random (0,255); //Precalculate chance for OnProjectileDeflect().
+		
+		//Get parameters.
+		Int Chance = KAI_Actor(Deflectee) ? KAI_Actor(Deflectee).DeflectionChance : KAI_DataToken(Deflectee.FindInventory("KAI_DataToken")).DeflectionChance;
+		Double DamFac = KAI_Actor(Deflectee) ? KAI_Actor(Deflectee).DeflectDamageFactor : KAI_DataToken(Deflectee.FindInventory("KAI_DataToken")).DeflectDamageFactor;
+		Double VelFac = KAI_Actor(Deflectee) ? KAI_Actor(Deflectee).DeflectSlowDownFactor : KAI_DataToken(Deflectee.FindInventory("KAI_DataToken")).DeflectSlowDownFactor;
+		Vector4 Funnel = KAI_Actor(Deflectee) ? KAI_Actor(Deflectee).DeflectionFunnel : KAI_DataToken(Deflectee.FindInventory("KAI_DataToken")).DeflectionFunnel;
+		
+		//Call pre-deflection in case the actor wants to change the deflection behavior. Mainly for having custom deflection chances for different classes.
+		If (Deflectee Is "KAI_Actor")
+			Funnel = KAI_Actor(Deflectee).OnProjectileDeflect(Self,Vel,RNGesus,DamFac,VelFac,Funnel);
+		
+		If (RNGesus >= Chance)
+			Return False; //Wah wah
+		
+		//Actually deflect now.
+		DoDeflection (Deflectee, DamFac, VelFac, Funnel);
+		//MAYDO: Move to own function.
+		Return True;
+	}
+	
+	Void DoDeflection (Actor FromWhat, Double DamFac, Double VelFac, Vector4 Funnel)
+	{
 		Int Damage = GetMissileDamage(7,1); //Get your damage, be it a static number or a damage function.
-		Victim.DamageMobj (Self,Target,Int(Damage*DamageReductionFactor),DamageType); //Harm the caller even when deflected.
+		FromWhat.DamageMobj (Self,Target,Int(Damage*DamFac),DamageType); //Harm the caller even when deflected.
 		Angle -= 180; //Turn around.
 		Vel *= -1; //Opposite day today
-		Speed *= SlowDownFactor; //Slow down by a set amount. Can just be randomized in the parameters instead.
+		Speed *= VelFac; //Slow down by a set amount. Can just be randomized in the parameters instead.
 		//Randomize the direction you'll fly to.
-		Angle += FRandom (RandomAngle.X,RandomAngle.Y);
-		Pitch += FRandom (RandomPitch.X,RandomPitch.Y);
+		Angle += FRandom (Funnel.X,Funnel.Y);
+		Pitch += FRandom (Funnel.Z,Funnel.W);
 		Vel3DFromAngle (Speed,Angle,Pitch);
 		
-		//Spark effect.
-		//MAYDO: Make the spark effect customizable ? Potentially by handling it in an OnDeflection() virtual.
-		TextureID NullTex;
-		For (Int I = 0; I < 24; I++)
-		{
-			A_SpawnParticleEx (
-			"yellow",
-			NullTex,
-			STYLE_Add,
-			lifetime:23,
-			size:3,
-			xoff:FRandom (6,-6),
-			yoff:FRandom (6,-6),
-			zoff:FRandom (6,-6),
-			velx:FRandom (1,-1),
-			vely:FRandom (1,-1),
-			velz:FRandom (1,3),
-			accelz: FRandom (-0.1,-0.25)
-			);
-		}
-		Victim.A_StartSound (BounceSound,flags:CHANF_OVERLAP,Volume,Attenuation); //Ricochet sound, uses the BounceSound property, naturally.
-		DontCollide = Victim; //You should no longer collide with the actor you just deflected, to avoid getting stuck inside it.
-		
-		Return True;
+		DontCollide = FromWhat; //You should no longer collide with the actor you just deflected, to avoid getting stuck inside it.
 	}
 	
 	Enum SeekerMissileFlags
@@ -560,16 +559,20 @@ Class KAI_BaseProjectile : FastProjectile
 	//-1 Normal missile behavior
 	Override Int SpecialMissileHit (Actor Victim)
 	{
-		If (!Victim || Victim == DontCollide) Return 1;
-		If (bNoFriendlyFire && !IsInanimateObject (Victim) && !IsHostileToShooter (Victim)) Return 1;
-		If (Target && Target Is "KAI_BaseTurret" && Victim && Victim == Target.Master) Return 1; //If fired from a turret, ignore the vehicle it's attached on.
+		If (!Victim || Victim == DontCollide) Return MHIT_PASS;
+		If (Target && Target Is "KAI_BaseTurret" && Victim && Victim == Target.Master) Return MHIT_PASS; //If fired from a turret, ignore the vehicle it's attached on.
+		
+		If (OnActorDeflect(Victim)) //Handle deflection, if we deflect, the projectile technically didn't actually hit the victim and clips through them with DontCollide.
+			Return MHIT_PASS;
+		
+		If (bNoFriendlyFire && !IsInanimateObject (Victim) && !IsHostileToShooter (Victim)) Return MHIT_PASS;
 		
 		//Assume the actor will be hit and ripped. For overrides, this will need to be set manually, if some child class code says it shouldn't collide.
 		/*BUG: The RipDepth code is somewhat buggy, it doesn't necessarily rip through however many actors specified when they are tightly packed together.
 		And will sometimes do 2-3 rips on victims in despite the RipOnce flag. I've tried a few fixes, including using an array, but they made things worse.*/
 		IncrementRipDepth (Victim, False);
 		StoreLastRipped (Victim);
-		Return -1;
+		Return MHIT_DEFAULT;
 	}
 	
 	Void StoreLastRipped (Actor Victim)
@@ -642,6 +645,7 @@ Class KAI_BaseProjectile : FastProjectile
 	FlagDef NoTrailLine : ProjectileFlags, 0; //The projectile uses the normal FastProjectile trail spawning code.
 	FlagDef NoFriendlyFire : ProjectileFlags, 1; //The projectile should not collide with actors friendly to its' shooter.
 	FlagDef RipOnce : ProjectileFlags, 2; //If the projectile is a ripper, it will only rip a victim once, instead of multiple times.
+	FlagDef Deflectable: ProjectileFlags, 3; //The projectile can be deflected (Calls OnActorDeflect()).
 	Class <KAI_Tracer> TrailSprite;
 	Property TrailSprite : TrailSprite;
 	

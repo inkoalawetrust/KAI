@@ -48,6 +48,43 @@ Script "KAI_Token_GetVelocityMonster" (Int Set)
 	SetResultValue(GetUserVariable (0,"VelocityMonster"));
 }
 
+//Deflection parameter setters and getters.
+//TODO: ADD THE ABILITY TO SET AND READ DEFLECTION VECTOR VALUES, SEE IF THAT'S EVEN DOABLE THROUGH ACS WITH DEFLECTIONFUNNEL.X/Y/Z/W
+Script "KAI_Token_SetDeflectChance" (Int Set)
+{
+	If (!CalledFromToken()) Terminate;
+	SetUserVariable (0,"DeflectionChance",Set);
+}
+
+Script "KAI_Token_GetDeflectChance" (Int Set)
+{
+	If (!CalledFromToken()) Terminate;
+	SetResultValue(GetUserVariable (0,"DeflectionChance"));
+}
+
+Script "KAI_Token_SetDeflectDamageFactor" (Int Set)
+{
+	If (!CalledFromToken()) Terminate;
+	SetUserVariable (0,"DeflectDamageFactor",Set);
+}
+
+Script "KAI_Token_GetDeflectDamageFactor" (Int Set)
+{
+	If (!CalledFromToken()) Terminate;
+	SetResultValue(GetUserVariable (0,"DeflectDamageFactor"));
+}
+
+Script "KAI_Token_SetDeflectSpeedFactor" (Int Set)
+{
+	If (!CalledFromToken()) Terminate;
+	SetUserVariable (0,"DeflectSlowDownFactor",Set);
+}
+
+Script "KAI_Token_GetDeflectSpeedFactor" (Int Set)
+{
+	If (!CalledFromToken()) Terminate;
+	SetResultValue(GetUserVariable (0,"DeflectSlowDownFactor"));
+}
 
 //Safety measure to prevent changing the variables of non-token actors the scripts above are called to.
 Function Bool CalledFromToken (Void)

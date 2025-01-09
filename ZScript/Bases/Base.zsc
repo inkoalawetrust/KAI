@@ -318,6 +318,9 @@ Class KAI_Actor : Actor Abstract
 	Virtual Bool OnOrderChange (NPCOrders NewOrder, Bool Increment, Actor Commander, Bool IgnoreAllegiance, Bool FromACS) {Return True;}
 	Virtual Void AfterOrderChange (NPCOrders OldOrder, Bool Increment, Actor Commander, Bool IgnoreAllegiance, Bool FromACS){}
 	
+	//HACK: The deflection funnel has to be a function return instead of passed by reference because GZDoom is broken and doesn't support that for vectors.
+	Virtual Vector4 OnProjectileDeflect (Actor Projectile, Vector3 ImpactVel, Int &FailChance, Double &DamFac, Double &VelFac, Vector4 Funnel){Return Funnel;}
+	
 	//Actor properties and flags.
 	Int ThreatLevelThreshold; //If another actors' threat level is at or over this threshold, then the NPC should do some action (Like run away, or be more likely to use stronger attacks).
 	Int ThreatLevel; //The NPCs' predetermined threat level. In its basic form it can be used as just a static value. But you could also dynamically change it, e.g based on what attacks your NPC currently has available.
@@ -327,6 +330,16 @@ Class KAI_Actor : Actor Abstract
 	Property Inaccuracy : Inaccuracy; //TODO: Make this be affected by SHADOW and SHADOWBLOCK actors, and the Shadow penalty factors.
 	Double InaccuracyFrequency; //How fast does the inaccuracy property shift ?
 	Property InaccuracyFrequency : InaccuracyFrequency;
+	
+	//Deflection properties
+	Int DeflectionChance;
+	Property DeflectionChance : DeflectionChance;
+	Double DeflectDamageFactor;
+	Property DeflectDamageFactor : DeflectDamageFactor;
+	Double DeflectSlowDownFactor;
+	Property DeflectSlowDownFactor : DeflectSlowDownFactor;
+	Vector4 DeflectionFunnel;
+	Property DeflectionFunnel : DeflectionFunnel;
 	
 	Private Int NPCFlags;
 	FlagDef NoTargetPrediction : NPCFlags, 0; //The NPC will not calculate its' targets' movement and lead its' shots.
@@ -741,6 +754,12 @@ Class KAI_DataToken : Inventory
 							//as moving with momentum by the target prediction code.
 	Array <KAI_NPCGroup> Groups; //The groups this non-KAI NPC is in.
 	Array <HazardInfo> Hazards; //The hazards that are in range of the tokens' owner.
+	
+	//Deflection parameters
+	Int DeflectionChance;
+	Double DeflectDamageFactor;
+	Double DeflectSlowDownFactor;
+	Vector4 DeflectionFunnel;
 }
 
 //DEBUG: Assesses the threat level of an actor in front of it, to see if the system works as intended.

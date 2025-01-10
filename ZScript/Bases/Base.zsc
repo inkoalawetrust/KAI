@@ -319,7 +319,7 @@ Class KAI_Actor : Actor Abstract
 	Virtual Void AfterOrderChange (NPCOrders OldOrder, Bool Increment, Actor Commander, Bool IgnoreAllegiance, Bool FromACS){}
 	
 	//HACK: The deflection funnel has to be a function return instead of passed by reference because GZDoom is broken and doesn't support that for vectors.
-	Virtual Vector4 OnProjectileDeflect (Actor Projectile, Vector3 ImpactVel, Int &FailChance, Double &DamFac, Double &VelFac, Vector4 Funnel){Return Funnel;}
+	Virtual Vector4 OnProjectileDeflect (Actor Projectile, Int &FailChance, Double &DamFac, Double &VelFac, Vector4 Funnel){Return Funnel;}
 	
 	//Actor properties and flags.
 	Int ThreatLevelThreshold; //If another actors' threat level is at or over this threshold, then the NPC should do some action (Like run away, or be more likely to use stronger attacks).

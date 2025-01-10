@@ -371,14 +371,13 @@ Class KAI_BaseProjectile : FastProjectile
 		
 		//Call pre-deflection in case the actor wants to change the deflection behavior. Mainly for having custom deflection chances for different classes.
 		If (Deflectee Is "KAI_Actor")
-			Funnel = KAI_Actor(Deflectee).OnProjectileDeflect(Self,Vel,RNGesus,DamFac,VelFac,Funnel);
+			Funnel = KAI_Actor(Deflectee).OnProjectileDeflect(Self,RNGesus,DamFac,VelFac,Funnel);
 		
 		If (RNGesus >= Chance)
 			Return False; //Wah wah
 		
 		//Actually deflect now.
 		DoDeflection (Deflectee, DamFac, VelFac, Funnel);
-		//MAYDO: Move to own function.
 		Return True;
 	}
 	

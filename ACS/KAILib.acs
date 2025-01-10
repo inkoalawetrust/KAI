@@ -42,7 +42,7 @@ Script "KAI_Token_SetVelocityMonster" (Int Set)
 }
 
 //Return the tokens' VelocityMonster value.
-Script "KAI_Token_GetVelocityMonster" (Int Set)
+Script "KAI_Token_GetVelocityMonster" (Void)
 {
 	If (!CalledFromToken()) Terminate;
 	SetResultValue(GetUserVariable (0,"VelocityMonster"));
@@ -56,7 +56,7 @@ Script "KAI_Token_SetDeflectChance" (Int Set)
 	SetUserVariable (0,"DeflectionChance",Set);
 }
 
-Script "KAI_Token_GetDeflectChance" (Int Set)
+Script "KAI_Token_GetDeflectChance" (Void)
 {
 	If (!CalledFromToken()) Terminate;
 	SetResultValue(GetUserVariable (0,"DeflectionChance"));
@@ -68,7 +68,7 @@ Script "KAI_Token_SetDeflectDamageFactor" (Int Set)
 	SetUserVariable (0,"DeflectDamageFactor",Set);
 }
 
-Script "KAI_Token_GetDeflectDamageFactor" (Int Set)
+Script "KAI_Token_GetDeflectDamageFactor" (Void)
 {
 	If (!CalledFromToken()) Terminate;
 	SetResultValue(GetUserVariable (0,"DeflectDamageFactor"));
@@ -80,7 +80,7 @@ Script "KAI_Token_SetDeflectSpeedFactor" (Int Set)
 	SetUserVariable (0,"DeflectSlowDownFactor",Set);
 }
 
-Script "KAI_Token_GetDeflectSpeedFactor" (Int Set)
+Script "KAI_Token_GetDeflectSpeedFactor" (Void)
 {
 	If (!CalledFromToken()) Terminate;
 	SetResultValue(GetUserVariable (0,"DeflectSlowDownFactor"));

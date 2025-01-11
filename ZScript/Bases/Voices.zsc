@@ -1,3 +1,5 @@
+//URGENT: When I finish this and begin documenting it, the feature page for the voice packs should have the non-technical info for making voice definitions!
+
 //NPC voice data container.
 //IDEA: Add Talk, TalkYes, and TalkNo types? Eh, probably too much, at least for now.
 Class KAI_Voice
@@ -54,11 +56,6 @@ Extend Class KAI_EventHandler
         While (CurrentLump != -1)
 		{
 			//Find voice definitions on this particular file.
-			//TODO: Add abort condition for accidental file setups like:
-			/*
-			Voice CoolName othername?
-			{
-			*/
 			let parser = new("ScriptScanner");
 			parser.OpenLumpNum(CurrentLump);
 			FilePath = wads.getlumpfullname(CurrentLump);
@@ -76,10 +73,16 @@ Extend Class KAI_EventHandler
 					//Get voice definition name before proceeding to the data block itself.
 					Parser.MustGetString();
 					Voice.Name = Parser.GetStringContents();
+					//No duplicate voice names allowed.
+					If (FindDuplicateVoice(Voice.Name))
+						ThrowAbortException("KAI_VOICES: %s is a duplicate voice name!",Voice.Name);
 					console.printf ("voice name is %s",voice.name);
 					
 					//Get the built-in voice types
 					parser.GetString(); // Skip the { (Opening bracket)
+					If (!Compare("{",Parser.GetStringContents()))
+						ThrowAbortException("KAI_VOICES: No opening bracket on line %d, file path %s, got %s instead.
+						\n\c[Red]Make sure you do not have double voice names!",Parser.GetMessageLine(),FilePath,Parser.GetStringContents());
 					while (parser.GetString())
 					{
 						if (Compare("}",Parser.GetStringContents())) break; // End of voice block
@@ -104,6 +107,17 @@ Extend Class KAI_EventHandler
 		}
     }
 	
+	Protected Bool FindDuplicateVoice (String Name)
+	{
+		ForEach (Voice : NPCVoices)
+		{
+			If (Voice.Name ~== Name)
+				Return True;
+		}
+		Return False;
+	}
+	
+	//MAYDO: Put this in OnEngineInitialize() instead?
 	Override Void OnRegister()
 	{
 		Super.OnRegister();

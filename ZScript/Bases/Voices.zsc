@@ -63,7 +63,7 @@ Extend Class KAI_EventHandler
 			
 			//Parse NPC voice definitions.
 			While (Parser.GetString())
-			{console.printf ("parsing...| string is %s",parser.getstringcontents());
+			{//console.printf ("parsing...| string is %s",parser.getstringcontents());
 				
 				//Check for voice block.
 				if (Compare("Voice",Parser.GetStringContents()))
@@ -85,27 +85,109 @@ Extend Class KAI_EventHandler
 						\n\c[Red]Make sure you do not have double voice names!",Parser.GetMessageLine(),FilePath,Parser.GetStringContents());
 					while (parser.GetString())
 					{
-						if (Compare("}",Parser.GetStringContents())) break; // End of voice block
+						if (Compare("}",Parser.GetStringContents())) break; // End of voice  definition block
 						
-						String DefaultType = parser.GetStringContents(); //Get default voice type.
-						parser.GetString(); // Skip the = sign;
-						//EPIC FAIL, NO EQUALS SEPARATOR.
-						If (!Compare("=",Parser.GetStringContents()))
-							ThrowAbortException("KAI_VOICES: No \"=\" separator on line %d, file path %s",Parser.GetMessageLine(),FilePath);
-						//TODO: Make this a loop split by commas until the line breaks, or maybe allow sub-bracket blocks? We'll see.
-						Parser.GetString(); //Now read the actual sound name. URGENT: Just the first one for now
-						String value = parser.GetStringContents();
-						console.printf ("retrieved sound type %s, first sound %s",defaulttype,value);
+						Name VoiceType = Parser.GetStringContents(); //Get built-in voice type.
+						console.printf ("parsed voice type is %s",voicetype);
+						Switch (VoiceType)
+						{
+							Case 'See':
+								GetDefaultVoiceSounds (Parser,Voice.See,FilePath);
+								Break;
+							Case 'PlayerSee':
+								GetDefaultVoiceSounds (Parser,Voice.PlayerSee,FilePath);
+								Break;
+							Case 'Idle':
+								GetDefaultVoiceSounds (Parser,Voice.Idle,FilePath);
+								Break;
+							Case 'Fear':
+								GetDefaultVoiceSounds (Parser,Voice.Fear,FilePath);
+								Break;
+							Case 'HazardNear':
+								GetDefaultVoiceSounds (Parser,Voice.HazardNear,FilePath);
+								Break;
+							Case 'PlayerFear':
+								GetDefaultVoiceSounds (Parser,Voice.PlayerFear,FilePath);
+								Break;
+							Case 'OrderChange':
+								GetDefaultVoiceSounds (Parser,Voice.OrderChange,FilePath);
+								Break;
+							Case 'GroupJoin':
+								GetDefaultVoiceSounds (Parser,Voice.GroupJoin,FilePath);
+								Break;
+							Case 'GroupLeave':
+								GetDefaultVoiceSounds (Parser,Voice.GroupLeave,FilePath);
+								Break;
+							Case 'Death':
+								GetDefaultVoiceSounds (Parser,Voice.Death,FilePath);
+								Break;
+							Case 'AllyDeath':
+								GetDefaultVoiceSounds (Parser,Voice.AllyDeath,FilePath);
+								Break;
+							Case 'AllyPlayerDeath':
+								GetDefaultVoiceSounds (Parser,Voice.AllyPlayerDeath,FilePath);
+								Break;
+							Case 'AllyVehicleDeath':
+								GetDefaultVoiceSounds (Parser,Voice.AllyVehicleDeath,FilePath);
+								Break;
+							Case 'EnemyDeath':
+								GetDefaultVoiceSounds (Parser,Voice.EnemyDeath,FilePath);
+								Break;
+							Case 'EnemyVehicleDeath':
+								GetDefaultVoiceSounds (Parser,Voice.EnemyVehicleDeath,FilePath);
+								Break;
+							Case 'AllyRevive':
+								GetDefaultVoiceSounds (Parser,Voice.AllyRevive,FilePath);
+								Break;
+							Case 'EnemyRevive':
+								GetDefaultVoiceSounds (Parser,Voice.EnemyRevive,FilePath);
+								Break;
+							Case 'Revive':
+								GetDefaultVoiceSounds (Parser,Voice.Revive,FilePath);
+								Break;
+							Default:
+								//IDEA: Custom voice type handling in the future goes here??????
+								Break;
+						}
 					}
 					
 					// Add the voice to the list.
 					NPCVoices.Push(Voice);
+					
+					foreach (snd : voice.see)
+					{
+						console.printf ("%s",snd);
+					}
+					foreach (snd : voice.idle)
+					{
+						console.printf ("%s",snd);
+					}
+					foreach (snd : voice.see)
+					{
+						console.printf ("%s",snd);
+					}
 				}
 			}
 			
 			CurrentLump = Wads.FindLump ("KAI_VOICES", CurrentLump+1); //We're done here, look for the next voice file in the loaded mods.
 		}
     }
+	
+	//Fill the specified default KAI_Voice array with the sounds found in this line.
+	Protected Void GetDefaultVoiceSounds (ScriptScanner Parser, Array<Sound> &Where, String FilePath)
+	{
+		Parser.GetString(); //Skip the equals sign.
+		//But we DO need it.
+		If (!Compare("=",Parser.GetStringContents()))
+			ThrowAbortException("KAI_VOICES: No \"=\" separator on line %d, file path %s",Parser.GetMessageLine(),FilePath);
+		While (Parser.GetString()) 
+		{
+			console.printf ("pushing %s into array",parser.getstringcontents());
+			Where.Push (Parser.GetStringContents());
+			
+			if (!Parser.CheckString(",")) {Console.printf ("reached end of line");Break;} // End of voice type block ahead, cuz the next token isn't a comma.
+		}
+	}
 	
 	Protected Bool FindDuplicateVoice (String Name)
 	{

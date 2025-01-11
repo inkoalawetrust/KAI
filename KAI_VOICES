@@ -1,22 +1,11 @@
 //If you're seeing this on GitHub, this is just here for testing and will be removed.
 //Also, I have a second KAI_VOICES lump on my Smart Marines mod to ensure the WIP parser works.
 
-Voice DifferentFileParserTest //oopsididafuckywucky <== Correctly breaks parsing
+Voice DifferentFileParserTest// oopsididafuckywucky <== Correctly breaks parsing
 {
 	/*this is a closed comment*/
-	See = "new file"//, "there", "parser"
+	See = "new file", "there", "parser", "haiiii :3"
 	//this is an open comment
-	Idle = "aeiou"
-}
-
-/* Correctly breaks parsing.
-Voice DifferentFileParserTest //ඞ
-{
-	see = "i don't know walt, you've been seeming kinda sus lately, almost like we have an imposter among us"
-}*/
-
-Voice altsecondparsableline
-{
-	See = "i'm here too!"
+	Idle = "aeiou", "lorem ipsum", "something something foxes and lazy dogs"
 	fear = "AAAAAAAAAAAAAAAAAAAAAAAAAAA"
 }

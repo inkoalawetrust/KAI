@@ -1,0 +1,16 @@
+//If you're seeing this on GitHub, this is just here for testing and will be removed.
+//Also, I have a second KAI_VOICES lump on my Smart Marines mod to ensure the WIP parser works.
+
+Voice DifferentFileParserTest
+{
+	/*this is a closed comment*/
+	See = "new file"//, "there", "parser"
+	//this is an open comment
+	Idle = "aeiou"
+}
+
+Voice altsecondparsableline
+{
+	See = "i'm here too!"
+	fear = "AAAAAAAAAAAAAAAAAAAAAAAAAAA"
+}

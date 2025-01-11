@@ -116,13 +116,14 @@ Default
 //=====|Library structure|=====\\
 /*The most basic NPC class, all types are based on this, land/water/air vehicles, humanoids, flying creatures, you name it. 
 So, the code that is meant to be shared by all NPCs also goes here.*/
-#Include "ZScript/Bases/Base.zsc"
-#Include "ZScript/Bases/Projectile.zsc"
+#Include "ZScript/Bases/Base.zsc" //Base NPC/actor class
+#Include "ZScript/Bases/Projectile.zsc" //Base projectile class
 #Include "ZScript/Bases/AIFunctions.zsc"
 #Include "ZScript/Bases/OtherFunctions.zsc"
 #Include "ZScript/Bases/OtherCode.zsc"
 #Include "ZScript/Bases/Hazard.zsc" //Universal code for hazards, hazard zones, etc
 #Include "ZScript/Bases/Groups.zsc" //NPC group/squad handling.
+#Include "ZScript/Bases/Voices.zsc" //NPC voice system
 #Include "ZScript/Bases/SharedCode.zsc" //Mixins and shit.
 	
 	//The base *land* vehicle class. As of 8/4/2023, this basically a direct rip from a dev build of MVP 0.5.0.

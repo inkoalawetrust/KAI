@@ -1,0 +1,123 @@
+//NPC voice data container.
+//IDEA: Add Talk, TalkYes, and TalkNo types? Eh, probably too much, at least for now.
+Class KAI_Voice
+{
+	String Name; //The fancy name/identifier of the voice pack. i.e "Cool Soldier" voice pack
+	Array<Sound> See; //Spotted enemy.
+	Array<Sound> PlayerSee; //Ditto, but it's an enemy player.
+	Array<Sound> Fear; //Scared of something, likely a dangerous monster or some shit.
+	Array<Sound> Idle; //We're chilling.
+	Array<Sound> HazardNear; //In range of some kind of hazard. Basically a fear sub-type.
+	Array<Sound> PlayerFear; //Scared of an enemy player specifically.
+	Array<Sound> OrderChange; //The actors' current order changed.
+	Array<Sound> GroupJoin; //Entered NPC group.
+	Array<Sound> GroupLeave; //Left NPC group.
+	
+	//*Lego Yoda death sound*
+	Array<Sound> Death; //Death voice lines?
+	Array<Sound> AllyDeath; //An ally died.
+	Array<Sound> AllyPlayerDeath; //A friendly player died
+	Array<Sound> EnemyDeath; //An enemy died.
+	Array<Sound> AllyVehicleDeath; //A friendly vehicle died.
+	Array<Sound> EnemyVehicleDeath; //An enemy vehicle died.
+	Array<Sound> AllyRevive; //Ally resurrected
+	Array<Sound> EnemyRevive; //Enemy ressurected.
+	Array<Sound> Revive; //WE resurrected.
+	
+	//TODO:
+	//Write the actual parser and voice pack file format it reads.
+	//Write the ZScript API that USES this format, mainly the SayVoiceLine() virtual method for saying those lines and the VOICE_WHATEVER enum for the default types.
+	//Add support for arbitrary custom voice types, identified through their name perhaps, and stored in a nested sound array.
+	//MAYDO:
+	//A structure for defining sequential sentences for NPCs to say, with timed delays, think GoldSrc's sentence system.
+}
+
+//Script parser and voice pack storage handling.
+Extend Class KAI_EventHandler
+{
+	//Parser
+	//CREDIT: Claude 3.5 for giving me a VERY basic working parser because there's no goddamn documentation of ScriptScanner TO FUCKING USE!!!
+	
+	//HACK: Because the native parser function for this isn't exposed.
+	Bool Compare (String Text1, String Text2)
+	{
+		Return (Text1 ~== Text2);
+	}
+    
+	//TODO: Add anti-duplicate voice pack name protection.
+    void ParseNPCVoices()
+    {
+		String FilePath;
+		Int CurrentLump = Wads.FindLump ("KAI_VOICES", 0); //Find the very first voice file.
+		
+		//Get the current KAI_VOICES lump to parse. If there's no more files, we're finished.
+        While (CurrentLump != -1)
+		{
+			//Find voice definitions on this particular file.
+			//TODO: Add abort condition for accidental file setups like:
+			/*
+			Voice CoolName othername?
+			{
+			*/
+			let parser = new("ScriptScanner");
+			parser.OpenLumpNum(CurrentLump);
+			FilePath = wads.getlumpfullname(CurrentLump);
+			console.printf ("getstring is %d, %s| filestring %s",parser.GetString(),parser.GetStringContents(),FilePath); parser.unget();
+			
+			//Parse NPC voice definitions.
+			While (Parser.GetString())
+			{console.printf ("parsing...| string is %s",parser.getstringcontents());
+				
+				//Check for voice block.
+				if (Compare("Voice",Parser.GetStringContents()))
+				{
+					KAI_Voice Voice = New ('KAI_Voice');
+					
+					//Get voice definition name before proceeding to the data block itself.
+					Parser.MustGetString();
+					Voice.Name = Parser.GetStringContents();
+					console.printf ("voice name is %s",voice.name);
+					
+					//Get the built-in voice types
+					parser.GetString(); // Skip the { (Opening bracket)
+					while (parser.GetString())
+					{
+						if (Compare("}",Parser.GetStringContents())) break; // End of voice block
+						
+						String DefaultType = parser.GetStringContents(); //Get default voice type.
+						parser.GetString(); // Skip the = sign;
+						//EPIC FAIL, NO EQUALS SEPARATOR.
+						If (!Compare("=",Parser.GetStringContents()))
+							ThrowAbortException("KAI_VOICES: No \"=\" separator on line %d, file path %s",Parser.GetMessageLine(),FilePath);
+						//TODO: Make this a loop split by commas until the line breaks, or maybe allow sub-bracket blocks? We'll see.
+						Parser.GetString(); //Now read the actual sound name. URGENT: Just the first one for now
+						String value = parser.GetStringContents();
+						console.printf ("retrieved sound type %s, first sound %s",defaulttype,value);
+					}
+					
+					// Add the voice to the list.
+					NPCVoices.Push(Voice);
+				}
+			}
+			
+			CurrentLump = Wads.FindLump ("KAI_VOICES", CurrentLump+1); //We're done here, look for the next voice file in the loaded mods.
+		}
+    }
+	
+	Override Void OnRegister()
+	{
+		Super.OnRegister();
+		
+		ParseNPCVoices();
+	}
+    
+    // Helper function to get item info by index
+    /*ItemInfo GetItem(int index)
+    {
+        if (index >= 0 && index < items.Size())
+            return items[index];
+        return null;
+    }*/
+	
+	Array<KAI_Voice> NPCVoices;
+}

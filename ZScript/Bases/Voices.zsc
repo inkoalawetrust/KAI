@@ -109,7 +109,7 @@ Extend Class KAI_Actor
 				Return;
 			}
 			
-			Console.Printf ("\c[Yellow]GetNPCVoiceList(): Failed to find custom voice type %s in voice pack %s",CustomType,Voice.Name);
+			If (KAI_DebugPrintMessages) Console.Printf ("\c[Yellow]GetNPCVoiceList(): Failed to find custom voice type %s in voice pack %s",CustomType,Voice.Name);
 			//No custom voice type found, fall back to whatever built-in type was passed.
 		}
 		
@@ -415,5 +415,5 @@ Extend Class KAI_EventHandler
 		Return Null;
 	}
 	
-	Array<KAI_Voice> NPCVoices;
+	Transient Array<KAI_Voice> NPCVoices;
 }

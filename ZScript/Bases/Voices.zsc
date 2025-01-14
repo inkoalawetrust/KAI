@@ -9,7 +9,7 @@ Class KAI_Voice
 	Array<Sound> PlayerSee; //Ditto, but it's an enemy player.
 	Array<Sound> Fear; //Scared of something, likely a dangerous monster or some shit.
 	Array<Sound> Idle; //We're chilling.
-	Array<Sound> HazardNear; //In range of some kind of hazard. Basically a fear sub-type.
+	Array<Sound> Hazard; //In range of some kind of hazard. Basically a fear sub-type.
 	Array<Sound> PlayerFear; //Scared of an enemy player specifically.
 	Array<Sound> OrderChange; //The actors' current order changed.
 	Array<Sound> GroupJoin; //Entered NPC group.
@@ -27,11 +27,137 @@ Class KAI_Voice
 	Array<Sound> Revive; //WE resurrected.
 	
 	//TODO:
-	//Write the actual parser and voice pack file format it reads.
 	//Write the ZScript API that USES this format, mainly the SayVoiceLine() virtual method for saying those lines and the VOICE_WHATEVER enum for the default types.
 	//Add support for arbitrary custom voice types, identified through their name perhaps, and stored in a nested sound array.
 	//MAYDO:
 	//A structure for defining sequential sentences for NPCs to say, with timed delays, think GoldSrc's sentence system.
+}
+
+Extend Class KAI_Actor
+{
+	Enum VoiceTypes
+	{
+		VOICE_NONE,
+		VOICE_SEE,
+		VOICE_PLAYERSEE,
+		VOICE_FEAR,
+		VOICE_IDLE,
+		VOICE_HAZARD,
+		VOICE_PLAYERFEAR,
+		VOICE_ORDERCHANGE,
+		VOICE_GROUPJOIN,
+		VOICE_GROUPLEAVE,
+		
+		VOICE_DEATH,
+		VOICE_ALLYDEATH,
+		VOICE_ALLYPLAYERDEATH,
+		VOICE_ENEMYDEATH,
+		VOICE_ALLYVEHICLEDEATH,
+		VOICE_ENEMYVEHICLEDEATH,
+		VOICE_ALLYREVIVE,
+		VOICE_ENEMYREVIVE,
+		VOICE_REVIVE,
+	}
+	
+	//Voice line spitting API function, say a line of the specified type from the chosen voice pack.
+	Virtual Bool SayVoiceLine (VoiceTypes Type, KAI_Voice Voice, Double Volume = 1.0, Double Attenuation = ATTN_NORM, Int Channel = CHAN_VOICE)
+	{
+		If (Type == VOICE_NONE || !Voice)
+			Return False; //🤐
+		
+		//By default, we just care about playing a random sound of that particular type.
+		Array <Sound> Yapping;
+		GetNPCVoiceList (Yapping, Type, Voice);
+		Int RNG = Random(0,Yapping.Size()-1);
+		Sound Snd = Yapping[RNG];
+		A_StartSound (Snd,Channel,CHANF_OVERLAP,Volume,Attenuation);
+		console.printf ("playing %s",snd);
+		Return IsActorPlayingSound (Channel,Yapping[RNG]);
+	}
+	
+	//Resolve the right voice array from a KAI_VOICE instance based on voice type and pass it back by reference.
+	Void GetNPCVoiceList (Array<Sound> Sounds, VoiceTypes Type, KAI_Voice Voice)
+	{
+		If (Type == VOICE_NONE || !Voice)
+			Return; //🤐
+		
+		Switch (Type)
+		{
+			Case VOICE_SEE:
+				Sounds.Copy(Voice.See);
+				Break;
+			Case VOICE_PLAYERSEE:
+				Sounds.Copy(Voice.PlayerSee);
+				Break;
+			Case VOICE_FEAR:
+				Sounds.Copy(Voice.Fear);
+				Break;
+			Case VOICE_IDLE:
+				Sounds.Copy(Voice.Idle);
+				Break;
+			Case VOICE_HAZARD:
+				Sounds.Copy(Voice.Hazard);
+				Break;
+			Case VOICE_PLAYERFEAR:
+				Sounds.Copy(Voice.PlayerFear);
+				Break;
+			Case VOICE_ORDERCHANGE:
+				Sounds.Copy(Voice.OrderChange);
+				Break;
+			Case VOICE_GROUPJOIN:
+				Sounds.Copy(Voice.GroupJoin);
+				Break;
+			Case VOICE_GROUPLEAVE:
+				Sounds.Copy(Voice.GroupLeave);
+				Break;
+			Case VOICE_DEATH:
+				Sounds.Copy(Voice.Death);
+				Break;
+			Case VOICE_ALLYDEATH:
+				Sounds.Copy(Voice.AllyDeath);
+				Break;
+			Case VOICE_ALLYPLAYERDEATH:
+				Sounds.Copy(Voice.AllyPlayerDeath);
+				Break;
+			Case VOICE_ENEMYDEATH:
+				Sounds.Copy (Voice.EnemyDeath);
+				Break;
+			Case VOICE_ALLYVEHICLEDEATH:
+				Sounds.Copy (Voice.AllyVehicleDeath);
+				Break;
+			Case VOICE_ENEMYVEHICLEDEATH:
+				Sounds.Copy (Voice.EnemyVehicleDeath);
+				Break;
+			Case VOICE_ALLYREVIVE:
+				Sounds.Copy (Voice.AllyRevive);
+				Break;
+			Case VOICE_ENEMYREVIVE:
+				Sounds.Copy (Voice.EnemyRevive);
+				Break;
+			Case VOICE_REVIVE:
+				Sounds.Copy (Voice.Revive);
+				Break;
+			Default:
+				Break;
+		}
+	}
+}
+
+class yapper : kai_actor
+{
+	override void tick ()
+	{
+		super.tick();
+		
+		if (GetAge() % 35*10 == 0)
+			sayvoiceline (voice_groupjoin,kaihandler.getnpcvoice("hecu"));
+	}
+	states
+	{
+		spawn:
+			play a -1;
+			stop;
+	}
 }
 
 //Script parser and voice pack storage handling.
@@ -46,8 +172,7 @@ Extend Class KAI_EventHandler
 		Return (Text1 ~== Text2);
 	}
     
-	//TODO: Add anti-duplicate voice pack name protection.
-    void ParseNPCVoices()
+    Void ParseNPCVoices()
     {
 		String FilePath;
 		Int CurrentLump = Wads.FindLump ("KAI_VOICES", 0); //Find the very first voice file.
@@ -56,9 +181,9 @@ Extend Class KAI_EventHandler
         While (CurrentLump != -1)
 		{
 			//Find voice definitions on this particular file.
-			let parser = new("ScriptScanner");
-			parser.OpenLumpNum(CurrentLump);
-			FilePath = wads.getlumpfullname(CurrentLump);
+			Let Parser = New("ScriptScanner");
+			Parser.OpenLumpNum(CurrentLump);
+			FilePath = Wads.GetlumpFullName(CurrentLump);
 			console.printf ("getstring is %d, %s| filestring %s",parser.GetString(),parser.GetStringContents(),FilePath); parser.unget();
 			
 			//Parse NPC voice definitions.
@@ -66,7 +191,7 @@ Extend Class KAI_EventHandler
 			{//console.printf ("parsing...| string is %s",parser.getstringcontents());
 				
 				//Check for voice block.
-				if (Compare("Voice",Parser.GetStringContents()))
+				If (Compare("Voice",Parser.GetStringContents()))
 				{
 					KAI_Voice Voice = New ('KAI_Voice');
 					
@@ -83,9 +208,9 @@ Extend Class KAI_EventHandler
 					If (!Compare("{",Parser.GetStringContents()))
 						ThrowAbortException("KAI_VOICES: No opening bracket on line %d, file path %s, got %s instead.
 						\n\c[Red]Make sure you do not have double voice names!",Parser.GetMessageLine(),FilePath,Parser.GetStringContents());
-					while (parser.GetString())
+					While (parser.GetString())
 					{
-						if (Compare("}",Parser.GetStringContents())) break; // End of voice  definition block
+						If (Compare("}",Parser.GetStringContents())) break; // End of voice  definition block
 						
 						Name VoiceType = Parser.GetStringContents(); //Get built-in voice type.
 						console.printf ("parsed voice type is %s",voicetype);
@@ -103,8 +228,8 @@ Extend Class KAI_EventHandler
 							Case 'Fear':
 								GetDefaultVoiceSounds (Parser,Voice.Fear,FilePath);
 								Break;
-							Case 'HazardNear':
-								GetDefaultVoiceSounds (Parser,Voice.HazardNear,FilePath);
+							Case 'Hazard':
+								GetDefaultVoiceSounds (Parser,Voice.Hazard,FilePath);
 								Break;
 							Case 'PlayerFear':
 								GetDefaultVoiceSounds (Parser,Voice.PlayerFear,FilePath);
@@ -146,6 +271,7 @@ Extend Class KAI_EventHandler
 								GetDefaultVoiceSounds (Parser,Voice.Revive,FilePath);
 								Break;
 							Default:
+								ThrowAbortException("\c[Red]KAI_VOICES: Invalid voice type %s",VoiceType);
 								//IDEA: Custom voice type handling in the future goes here??????
 								Break;
 						}
@@ -207,13 +333,16 @@ Extend Class KAI_EventHandler
 		ParseNPCVoices();
 	}
     
-    // Helper function to get item info by index
-    /*ItemInfo GetItem(int index)
-    {
-        if (index >= 0 && index < items.Size())
-            return items[index];
-        return null;
-    }*/
+	//Fetch NPC voice pack by name.
+    KAI_Voice GetNPCVoice (String Name)
+	{
+		ForEach (Voice : NPCVoices)
+		{
+			If (Voice.Name ~== Name)
+				Return Voice;
+		}
+		Return Null;
+	}
 	
 	Array<KAI_Voice> NPCVoices;
 }

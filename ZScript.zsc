@@ -38,8 +38,6 @@ Add a GetBodyPart virtual to NPCs, to define positions for parts, and return the
 allowing for projectiles to do special effects like double damage on headshots.
 Maybe also add an OnBodyPartHit callback for projectiles to use. Such as to make the victim itself react to a headshot. Or the back of the tank being hit.
 */
-/*Cacodemon345 exposed the native FScanner class to ZScript a few months ago, maybe I could retry my idea for
-NPC voice packs using ScriptScanner ? Hopefully it'll be a lot easier to use than manually reading and parsing files !*/
 /*Make some kind of target priority queue system, or something ? Like, for having NPCs optionally target multiple enemies.*/
 
 //DEBUG DEBUG DEBUG

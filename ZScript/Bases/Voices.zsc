@@ -26,11 +26,29 @@ Class KAI_Voice
 	Array<Sound> EnemyRevive; //Enemy ressurected.
 	Array<Sound> Revive; //WE resurrected.
 	
-	//TODO:
-	//Write the ZScript API that USES this format, mainly the SayVoiceLine() virtual method for saying those lines and the VOICE_WHATEVER enum for the default types.
-	//Add support for arbitrary custom voice types, identified through their name perhaps, and stored in a nested sound array.
+	//Custom voice types.
+	Array<KAI_CustomVoice> CustomTypes;
+	
+	//Get custom voice type.
+	KAI_CustomVoice GetCustomType (String Name)
+	{
+		ForEach (Type : CustomTypes)
+		{
+			If (Type.Name ~== Name)
+				Return Type;
+		}
+		Return Null;
+	}
+	
+	
 	//MAYDO:
 	//A structure for defining sequential sentences for NPCs to say, with timed delays, think GoldSrc's sentence system.
+}
+
+Class KAI_CustomVoice
+{
+	String Name; //The name of the custom voice type.
+	Array<Sound> Sounds; //The sounds stored in it.
 }
 
 Extend Class KAI_Actor
@@ -60,14 +78,14 @@ Extend Class KAI_Actor
 	}
 	
 	//Voice line spitting API function, say a line of the specified type from the chosen voice pack.
-	Virtual Bool SayVoiceLine (VoiceTypes Type, KAI_Voice Voice, Double Volume = 1.0, Double Attenuation = ATTN_NORM, Int Channel = CHAN_VOICE)
+	Virtual Bool SayVoiceLine (VoiceTypes Type, KAI_Voice Voice, String CustomType = "", Double Volume = 1.0, Double Attenuation = ATTN_NORM, Int Channel = CHAN_VOICE)
 	{
 		If (Type == VOICE_NONE || !Voice)
 			Return False; //🤐
 		
 		//By default, we just care about playing a random sound of that particular type.
 		Array <Sound> Yapping;
-		GetNPCVoiceList (Yapping, Type, Voice);
+		GetNPCVoiceList (Yapping, Type, Voice, CustomType);
 		Int RNG = Random(0,Yapping.Size()-1);
 		Sound Snd = Yapping[RNG];
 		A_StartSound (Snd,Channel,CHANF_OVERLAP,Volume,Attenuation);
@@ -76,13 +94,29 @@ Extend Class KAI_Actor
 	}
 	
 	//Resolve the right voice array from a KAI_VOICE instance based on voice type and pass it back by reference.
-	Void GetNPCVoiceList (Array<Sound> Sounds, VoiceTypes Type, KAI_Voice Voice)
+	Void GetNPCVoiceList (Array<Sound> Sounds, VoiceTypes Type, KAI_Voice Voice, String CustomType = "")
 	{
-		If (Type == VOICE_NONE || !Voice)
+		If (!Voice)
 			Return; //🤐
+		
+		If (!(CustomType ~== ""))
+		{
+			KAI_CustomVoice Custom = Voice.GetCustomType (CustomType);
+			
+			If (Custom)
+			{
+				Sounds.Copy (Custom.Sounds); //Resolve custom voice type.
+				Return;
+			}
+			
+			Console.Printf ("\c[Yellow]GetNPCVoiceList(): Failed to find custom voice type %s in voice pack %s",CustomType,Voice.Name);
+			//No custom voice type found, fall back to whatever built-in type was passed.
+		}
 		
 		Switch (Type)
 		{
+			Case VOICE_NONE: //Lol
+				Break;
 			Case VOICE_SEE:
 				Sounds.Copy(Voice.See);
 				Break;
@@ -149,8 +183,8 @@ class yapper : kai_actor
 	{
 		super.tick();
 		
-		if (GetAge() % 35*10 == 0)
-			sayvoiceline (voice_groupjoin,kaihandler.getnpcvoice("hecu"));
+		if (GetAge() % 35*30 == 0)
+			SayVoiceLine (VOICE_FEAR,KAIHandler.GetNPCVoice("HECU"),"HeavyAss");
 	}
 	states
 	{
@@ -208,9 +242,9 @@ Extend Class KAI_EventHandler
 					If (!Compare("{",Parser.GetStringContents()))
 						ThrowAbortException("KAI_VOICES: No opening bracket on line %d, file path %s, got %s instead.
 						\n\c[Red]Make sure you do not have double voice names!",Parser.GetMessageLine(),FilePath,Parser.GetStringContents());
-					While (parser.GetString())
+					While (Parser.GetString())
 					{
-						If (Compare("}",Parser.GetStringContents())) break; // End of voice  definition block
+						If (Compare("}",Parser.GetStringContents())) Break; // End of voice  definition block
 						
 						Name VoiceType = Parser.GetStringContents(); //Get built-in voice type.
 						console.printf ("parsed voice type is %s",voicetype);
@@ -270,10 +304,21 @@ Extend Class KAI_EventHandler
 							Case 'Revive':
 								GetDefaultVoiceSounds (Parser,Voice.Revive,FilePath);
 								Break;
+							Case 'Custom':
+								//NOTE: Special voice type!
+								GetCustomVoiceType (Parser,FilePath, Voice);
+								Break;
 							Default:
 								ThrowAbortException("\c[Red]KAI_VOICES: Invalid voice type %s",VoiceType);
-								//IDEA: Custom voice type handling in the future goes here??????
 								Break;
+						}
+						
+						//This is a custom, arbitrary voice type.
+						//If (VoiceType == "Custom")
+						{
+						//	Parser.GetString(); //Get voice type name.
+							
+						//	console.printf ("this custom voice type is called %s",parser.getstringcontents());
 						}
 					}
 					
@@ -312,6 +357,32 @@ Extend Class KAI_EventHandler
 			Where.Push (Parser.GetStringContents());
 			
 			if (!Parser.CheckString(",")) {Console.printf ("reached end of line");Break;} // End of voice type block ahead, cuz the next token isn't a comma.
+		}
+	}
+	
+	Protected Void GetCustomVoiceType (ScriptScanner Parser, String FilePath, KAI_Voice Voice)
+	{
+		KAI_CustomVoice Custom = New('KAI_CustomVoice');
+		Parser.GetString(); //Move on to the name of the custom voice type.
+		console.printf ("this custom voice type is called %s",parser.getstringcontents());
+		Custom.Name = Parser.GetStringContents(); //Assign custom voice type name.
+		Parser.GetString(); //Skip the equals sign.
+		//But we DO need it.
+		If (!Compare("=",Parser.GetStringContents()))
+			ThrowAbortException("KAI_VOICES: No \"=\" separator on line %d, file path %s",Parser.GetMessageLine(),FilePath);
+		While (Parser.GetString()) 
+		{
+			console.printf ("pushing %s into array",parser.getstringcontents());
+			Custom.Sounds.Push (Parser.GetStringContents());
+			
+			if (!Parser.CheckString(",")) {Console.printf ("reached end of line");Break;} // End of voice type block ahead, cuz the next token isn't a comma.
+		}
+		
+		Voice.CustomTypes.Push (Custom);
+		console.printf ("parsed custom voice type %s, which has the following sounds:",custom.name);
+		foreach (snd : custom.sounds)
+		{
+			console.printf ("%s",snd);
 		}
 	}
 	

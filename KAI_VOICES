@@ -5,7 +5,9 @@ Voice DifferentFileParserTest// oopsididafuckywucky <== Correctly breaks parsing
 {
 	/*this is a closed comment*/
 	See = "new file", "there", "parser", "haiiii :3"
+	custom aeiou = "HECU/GroupIn1", "HECU/GroupIn2"
 	//this is an open comment
 	Idle = "aeiou", "lorem ipsum", "something something foxes and lazy dogs"
 	fear = "AAAAAAAAAAAAAAAAAAAAAAAAAAA"
+	custom secondcustomtype = "misc/gibbed", "world/quake"
 }

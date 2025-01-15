@@ -40,7 +40,6 @@ Class KAI_Voice
 		Return Null;
 	}
 	
-	
 	//MAYDO:
 	//A structure for defining sequential sentences for NPCs to say, with timed delays, think GoldSrc's sentence system.
 }
@@ -80,7 +79,7 @@ Extend Class KAI_Actor
 	//Voice line spitting API function, say a line of the specified type from the chosen voice pack.
 	Virtual Bool SayVoiceLine (VoiceTypes Type, KAI_Voice Voice, String CustomType = "", Double Volume = 1.0, Double Attenuation = ATTN_NORM, Int Channel = CHAN_VOICE)
 	{
-		If (Type == VOICE_NONE || !Voice)
+		If (!Voice)
 			Return False; //🤐
 		
 		//By default, we just care about playing a random sound of that particular type.
@@ -89,7 +88,7 @@ Extend Class KAI_Actor
 		Int RNG = Random(0,Yapping.Size()-1);
 		Sound Snd = Yapping[RNG];
 		A_StartSound (Snd,Channel,CHANF_OVERLAP,Volume,Attenuation);
-		console.printf ("playing %s",snd);
+		console.printf ("playing %s, %d",snd,IsActorPlayingSound (Channel,Yapping[RNG]));
 		Return IsActorPlayingSound (Channel,Yapping[RNG]);
 	}
 	

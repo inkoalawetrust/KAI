@@ -176,23 +176,6 @@ Extend Class KAI_Actor
 	}
 }
 
-class yapper : kai_actor
-{
-	override void tick ()
-	{
-		super.tick();
-		
-		if (GetAge() % 35*30 == 0)
-			SayVoiceLine (VOICE_FEAR,KAIHandler.GetNPCVoice("HECU"),"HeavyAss");
-	}
-	states
-	{
-		spawn:
-			play a -1;
-			stop;
-	}
-}
-
 //Script parser and voice pack storage handling.
 Extend Class KAI_EventHandler
 {

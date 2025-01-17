@@ -257,7 +257,7 @@ Extend Class KAI_EventHandler
 		Voice.CustomTypes.Push (Custom);
 	}
 	
-	Protected Bool FindDuplicateVoice (String Name)
+	Bool FindDuplicateVoice (String Name)
 	{
 		ForEach (Voice : NPCVoices)
 		{

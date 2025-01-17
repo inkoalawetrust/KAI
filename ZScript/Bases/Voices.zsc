@@ -1,4 +1,4 @@
-//URGENT: When I finish this and begin documenting it, the feature page for the voice packs should have the non-technical info for making voice definitions!
+//TODO: Add duplicate custom voice type check/prevention.
 
 //NPC voice data container.
 //IDEA: Add Talk, TalkYes, and TalkNo types? Eh, probably too much, at least for now.
@@ -84,95 +84,12 @@ Extend Class KAI_Actor
 		
 		//By default, we just care about playing a random sound of that particular type.
 		Array <Sound> Yapping;
-		GetNPCVoiceList (Yapping, Type, Voice, CustomType);
+		KAIHandler.GetNPCVoiceList (Yapping, Type, Voice, CustomType);
 		Int RNG = Random(0,Yapping.Size()-1);
 		Sound Snd = Yapping[RNG];
 		A_StartSound (Snd,Channel,CHANF_OVERLAP,Volume,Attenuation);
 		console.printf ("playing %s, %d",snd,IsActorPlayingSound (Channel,Yapping[RNG]));
 		Return IsActorPlayingSound (Channel,Yapping[RNG]);
-	}
-	
-	//Resolve the right voice array from a KAI_VOICE instance based on voice type and pass it back by reference.
-	Void GetNPCVoiceList (Array<Sound> Sounds, VoiceTypes Type, KAI_Voice Voice, String CustomType = "")
-	{
-		If (!Voice)
-			Return; //🤐
-		
-		If (!(CustomType ~== ""))
-		{
-			KAI_CustomVoice Custom = Voice.GetCustomType (CustomType);
-			
-			If (Custom)
-			{
-				Sounds.Copy (Custom.Sounds); //Resolve custom voice type.
-				Return;
-			}
-			
-			If (KAI_DebugPrintMessages) Console.Printf ("\c[Yellow]GetNPCVoiceList(): Failed to find custom voice type %s in voice pack %s",CustomType,Voice.Name);
-			//No custom voice type found, fall back to whatever built-in type was passed.
-		}
-		
-		Switch (Type)
-		{
-			Case VOICE_NONE: //Lol
-				Break;
-			Case VOICE_SEE:
-				Sounds.Copy(Voice.See);
-				Break;
-			Case VOICE_PLAYERSEE:
-				Sounds.Copy(Voice.PlayerSee);
-				Break;
-			Case VOICE_FEAR:
-				Sounds.Copy(Voice.Fear);
-				Break;
-			Case VOICE_IDLE:
-				Sounds.Copy(Voice.Idle);
-				Break;
-			Case VOICE_HAZARD:
-				Sounds.Copy(Voice.Hazard);
-				Break;
-			Case VOICE_PLAYERFEAR:
-				Sounds.Copy(Voice.PlayerFear);
-				Break;
-			Case VOICE_ORDERCHANGE:
-				Sounds.Copy(Voice.OrderChange);
-				Break;
-			Case VOICE_GROUPJOIN:
-				Sounds.Copy(Voice.GroupJoin);
-				Break;
-			Case VOICE_GROUPLEAVE:
-				Sounds.Copy(Voice.GroupLeave);
-				Break;
-			Case VOICE_DEATH:
-				Sounds.Copy(Voice.Death);
-				Break;
-			Case VOICE_ALLYDEATH:
-				Sounds.Copy(Voice.AllyDeath);
-				Break;
-			Case VOICE_ALLYPLAYERDEATH:
-				Sounds.Copy(Voice.AllyPlayerDeath);
-				Break;
-			Case VOICE_ENEMYDEATH:
-				Sounds.Copy (Voice.EnemyDeath);
-				Break;
-			Case VOICE_ALLYVEHICLEDEATH:
-				Sounds.Copy (Voice.AllyVehicleDeath);
-				Break;
-			Case VOICE_ENEMYVEHICLEDEATH:
-				Sounds.Copy (Voice.EnemyVehicleDeath);
-				Break;
-			Case VOICE_ALLYREVIVE:
-				Sounds.Copy (Voice.AllyRevive);
-				Break;
-			Case VOICE_ENEMYREVIVE:
-				Sounds.Copy (Voice.EnemyRevive);
-				Break;
-			Case VOICE_REVIVE:
-				Sounds.Copy (Voice.Revive);
-				Break;
-			Default:
-				Break;
-		}
 	}
 }
 
@@ -294,31 +211,10 @@ Extend Class KAI_EventHandler
 								ThrowAbortException("\c[Red]KAI_VOICES: Invalid voice type %s",VoiceType);
 								Break;
 						}
-						
-						//This is a custom, arbitrary voice type.
-						//If (VoiceType == "Custom")
-						{
-						//	Parser.GetString(); //Get voice type name.
-							
-						//	console.printf ("this custom voice type is called %s",parser.getstringcontents());
-						}
 					}
 					
 					// Add the voice to the list.
 					NPCVoices.Push(Voice);
-					
-					foreach (snd : voice.see)
-					{
-						console.printf ("%s",snd);
-					}
-					foreach (snd : voice.idle)
-					{
-						console.printf ("%s",snd);
-					}
-					foreach (snd : voice.see)
-					{
-						console.printf ("%s",snd);
-					}
 				}
 			}
 			
@@ -335,10 +231,9 @@ Extend Class KAI_EventHandler
 			ThrowAbortException("KAI_VOICES: No \"=\" separator on line %d, file path %s",Parser.GetMessageLine(),FilePath);
 		While (Parser.GetString()) 
 		{
-			console.printf ("pushing %s into array",parser.getstringcontents());
 			Where.Push (Parser.GetStringContents());
 			
-			if (!Parser.CheckString(",")) {Console.printf ("reached end of line");Break;} // End of voice type block ahead, cuz the next token isn't a comma.
+			If (!Parser.CheckString(",")) Break; // End of voice type block ahead, cuz the next token isn't a comma.
 		}
 	}
 	
@@ -346,7 +241,6 @@ Extend Class KAI_EventHandler
 	{
 		KAI_CustomVoice Custom = New('KAI_CustomVoice');
 		Parser.GetString(); //Move on to the name of the custom voice type.
-		console.printf ("this custom voice type is called %s",parser.getstringcontents());
 		Custom.Name = Parser.GetStringContents(); //Assign custom voice type name.
 		Parser.GetString(); //Skip the equals sign.
 		//But we DO need it.
@@ -354,18 +248,13 @@ Extend Class KAI_EventHandler
 			ThrowAbortException("KAI_VOICES: No \"=\" separator on line %d, file path %s",Parser.GetMessageLine(),FilePath);
 		While (Parser.GetString()) 
 		{
-			console.printf ("pushing %s into array",parser.getstringcontents());
+			//console.printf ("pushing %s into array",parser.getstringcontents());
 			Custom.Sounds.Push (Parser.GetStringContents());
 			
-			if (!Parser.CheckString(",")) {Console.printf ("reached end of line");Break;} // End of voice type block ahead, cuz the next token isn't a comma.
+			If (!Parser.CheckString(",")) Break; // End of voice type block ahead, cuz the next token isn't a comma.
 		}
 		
 		Voice.CustomTypes.Push (Custom);
-		console.printf ("parsed custom voice type %s, which has the following sounds:",custom.name);
-		foreach (snd : custom.sounds)
-		{
-			console.printf ("%s",snd);
-		}
 	}
 	
 	Protected Bool FindDuplicateVoice (String Name)
@@ -395,6 +284,89 @@ Extend Class KAI_EventHandler
 				Return Voice;
 		}
 		Return Null;
+	}
+	
+	//Resolve the right voice array from a KAI_VOICE instance based on voice type and pass it back by reference.
+	Void GetNPCVoiceList (Array<Sound> Sounds, Int Type, KAI_Voice Voice, String CustomType = "")
+	{
+		If (!Voice)
+			Return; //🤐
+		
+		If (!(CustomType ~== ""))
+		{
+			KAI_CustomVoice Custom = Voice.GetCustomType (CustomType);
+			
+			If (Custom)
+			{
+				Sounds.Copy (Custom.Sounds); //Resolve custom voice type.
+				Return;
+			}
+			
+			If (KAI_DebugPrintMessages) Console.Printf ("\c[Yellow]GetNPCVoiceList(): Failed to find custom voice type %s in voice pack %s",CustomType,Voice.Name);
+			//No custom voice type found, fall back to whatever built-in type was passed.
+		}
+		
+		Switch (Type)
+		{
+			Case KAI_Actor.VOICE_NONE: //Lol
+				Break;
+			Case KAI_Actor.VOICE_SEE:
+				Sounds.Copy(Voice.See);
+				Break;
+			Case KAI_Actor.VOICE_PLAYERSEE:
+				Sounds.Copy(Voice.PlayerSee);
+				Break;
+			Case KAI_Actor.VOICE_FEAR:
+				Sounds.Copy(Voice.Fear);
+				Break;
+			Case KAI_Actor.VOICE_IDLE:
+				Sounds.Copy(Voice.Idle);
+				Break;
+			Case KAI_Actor.VOICE_HAZARD:
+				Sounds.Copy(Voice.Hazard);
+				Break;
+			Case KAI_Actor.VOICE_PLAYERFEAR:
+				Sounds.Copy(Voice.PlayerFear);
+				Break;
+			Case KAI_Actor.VOICE_ORDERCHANGE:
+				Sounds.Copy(Voice.OrderChange);
+				Break;
+			Case KAI_Actor.VOICE_GROUPJOIN:
+				Sounds.Copy(Voice.GroupJoin);
+				Break;
+			Case KAI_Actor.VOICE_GROUPLEAVE:
+				Sounds.Copy(Voice.GroupLeave);
+				Break;
+			Case KAI_Actor.VOICE_DEATH:
+				Sounds.Copy(Voice.Death);
+				Break;
+			Case KAI_Actor.VOICE_ALLYDEATH:
+				Sounds.Copy(Voice.AllyDeath);
+				Break;
+			Case KAI_Actor.VOICE_ALLYPLAYERDEATH:
+				Sounds.Copy(Voice.AllyPlayerDeath);
+				Break;
+			Case KAI_Actor.VOICE_ENEMYDEATH:
+				Sounds.Copy (Voice.EnemyDeath);
+				Break;
+			Case KAI_Actor.VOICE_ALLYVEHICLEDEATH:
+				Sounds.Copy (Voice.AllyVehicleDeath);
+				Break;
+			Case KAI_Actor.VOICE_ENEMYVEHICLEDEATH:
+				Sounds.Copy (Voice.EnemyVehicleDeath);
+				Break;
+			Case KAI_Actor.VOICE_ALLYREVIVE:
+				Sounds.Copy (Voice.AllyRevive);
+				Break;
+			Case KAI_Actor.VOICE_ENEMYREVIVE:
+				Sounds.Copy (Voice.EnemyRevive);
+				Break;
+			Case KAI_Actor.VOICE_REVIVE:
+				Sounds.Copy (Voice.Revive);
+				Break;
+			Default:
+				Break;
+		}
 	}
 	
 	Transient Array<KAI_Voice> NPCVoices;

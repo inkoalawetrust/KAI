@@ -482,6 +482,19 @@ Class KAI_NPCGroup Play
 		Return True;
 	}
 	
+	Bool IsMember (Actor Who)
+	{
+		If (!Who) Return False;
+		
+		ForEach (Cur : Members)
+		{
+			If (Cur == Who)
+				Return True;
+		}
+		
+		Return False;
+	}
+	
 	//Functions useful for non-KAI actors that are part of an NPC group. i.e for players that are part of a group.
 	//This shit is probably slow as balls for more than like 5 groups, considering it iterates over every group AND THEN over every member in that group !
 	//Who: The actor to check for any groups they're in.

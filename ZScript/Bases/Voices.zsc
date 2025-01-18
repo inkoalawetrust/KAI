@@ -81,7 +81,7 @@ Extend Class KAI_Actor
 	{
 		If (!Voice)
 			Return False; //🤐
-		IF (type == VOICE_ALLYREVIVE) CONSOLE.PRINTF ("ALLY REVIVED");
+		
 		//By default, we just care about playing a random sound of that particular type.
 		Array <Sound> Yapping;
 		KAIHandler.GetNPCVoiceList (Yapping, Type, Voice, CustomType);

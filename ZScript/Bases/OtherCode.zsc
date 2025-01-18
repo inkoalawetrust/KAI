@@ -271,7 +271,7 @@ Mixin Class KAI_CheckFunctions
 		If (Caller.bFriendly)
 		{
 			//Is the other actor targeting an actor that is your friend ?
-			Return (Caller.IsFriend(Other.Target));
+			Return (Caller.IsFriend(Other.Target) && Other.Target != Other);
 		}
 		//Hostile NPCs are only concerned if actors of their own species are targeted, or in the case of vehicles, if their hull or turret is targeted.
 		Else

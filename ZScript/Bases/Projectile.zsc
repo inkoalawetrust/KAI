@@ -561,10 +561,10 @@ Class KAI_BaseProjectile : FastProjectile
 		If (!Victim || Victim == DontCollide) Return MHIT_PASS;
 		If (Target && Target Is "KAI_BaseTurret" && Victim && Victim == Target.Master) Return MHIT_PASS; //If fired from a turret, ignore the vehicle it's attached on.
 		
+		If (bNoFriendlyFire && !IsInanimateObject (Victim) && !IsHostileToShooter (Victim)) Return MHIT_PASS;
+		
 		If (OnActorDeflect(Victim)) //Handle deflection, if we deflect, the projectile technically didn't actually hit the victim and clips through them with DontCollide.
 			Return MHIT_PASS;
-		
-		If (bNoFriendlyFire && !IsInanimateObject (Victim) && !IsHostileToShooter (Victim)) Return MHIT_PASS;
 		
 		//Assume the actor will be hit and ripped. For overrides, this will need to be set manually, if some child class code says it shouldn't collide.
 		/*BUG: The RipDepth code is somewhat buggy, it doesn't necessarily rip through however many actors specified when they are tightly packed together.

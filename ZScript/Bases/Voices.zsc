@@ -210,7 +210,7 @@ Extend Class KAI_EventHandler
 								GetCustomVoiceType (Parser,FilePath, Voice);
 								Break;
 							Default:
-								ThrowAbortException("\c[Red]KAI_VOICES: Invalid voice type %s",VoiceType);
+								ThrowAbortException("\c[Red]KAI_VOICES: Invalid voice type %s, is it supposed to be custom?",VoiceType);
 								Break;
 						}
 					}

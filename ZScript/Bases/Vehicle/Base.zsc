@@ -1,7 +1,3 @@
-/*NOTE: The order system from the MVP and Smart Marines is not implemented to the KAI, at least for now. As I want to get it to hopefully be more stable.
-However, the CurrentOrder variable, bNoRadio flag, and VehicleCommands enum is still included in the KAI.
-If I do implement the order system to KAI actors, it will probably be before the marine rewrite. So I'll have to rewrite the vehicle chase function.*/
-
 //PLAYTEST:
 //Check how vehicle turret collision is handled, like, if a vehicle drives under a pipe and the turret is blocked, does it just clip through ?
 
@@ -10,7 +6,10 @@ If I do implement the order system to KAI actors, it will probably be before the
 
 //IDEA:
 /*Make a passenger system for vehicles ? By being able to define coordinates relative to the vehicle for NPCs to go to,
-"enter" the vehicle once they reach the entrance or exit point with A_ChangeLinkFlags and becoming STAT_INFOS.*/
+"enter" the vehicle once they reach the entrance or exit point with A_ChangeLinkFlags and becoming STAT_INFOS.
+Also, since we can't have vector arrays anyway, maybe make each entrace a custom "KAI_VehicleEntrance class,
+with both the entrance position stored, and a "Closed" bool (Can't use), and a max number of passangers that can
+enter from there?*/
 
 //FIXME:
 /*Try and fix the vehicle turrets to be at the top of their vehicle even at the first tick of their existance.

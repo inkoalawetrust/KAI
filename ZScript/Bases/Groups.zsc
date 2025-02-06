@@ -1,6 +1,3 @@
-/*IDEA: Maybe find a way to integrate the order system my marines and vehicles independently use - into this new group system, finally taking the feature out of its'
-semi-built-in code limbo.*/
-
 //Base data class for NPC groups, accessed by NPCs to find data like the group they're in, other members in it, its' leader, if a member died, etc.
 //All NPC groups are stored in an associative array in KAI_EventHandler for easy lookup.
 //$GZDB_SKIP
@@ -9,7 +6,7 @@ Class KAI_NPCGroup Play
 	Mixin KAI_CheckFunctions;
 	KAI_EventHandler Handler;
 	
-	String GroupName; //The name of the group. Doesn't do anything on its' own. IDEA: Maybe figure a way out to visually print the groups' name over its' members ?
+	String GroupName; //The name of the group. Doesn't do anything on its' own.
 	Array<Actor> Members; //The groups' members. If the group is emtpy, the janitor in KAI_EventHandler removes it.
 	Actor Leader; //The head honcho of the group. Should be in the Members list too. Can be any actor, mainly in case a player is leading NPCs around or something.
 	Actor OldLeader; //The last leader the NPC group had. Useful for comparing the new and previous leader for example.

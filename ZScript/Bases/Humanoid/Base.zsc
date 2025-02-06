@@ -99,6 +99,10 @@ Class KAI_Humanoid : KAI_Creature Abstract
 			SetXYZ ((CheckPos,ClimbZ));
 			FindFloorCeiling (FFCF_ONLYSPAWNPOS); //DO. NOT. CHECK. UNDER. THE. WORLD.
 			Bool PosGood = TestMobjLocation ();
+			SetXYZ ((CheckPos,ClimbZ-Height));
+			FindFloorCeiling (FFCF_ONLYSPAWNPOS); //DO. NOT. CHECK. UNDER. THE. WORLD.
+			Bool PosGoodLower = TestMobjLocation(); //Alt check for if the call also supports jump up to a ledge to climb.
+			console.printf ("tested mobj location %d %d %d, is it good? %d",pos,posgoodlower);
 			SetXYZ (OldPos);
 			FindFloorCeiling (FFCF_ONLYSPAWNPOS); //DO. NOT. CHECK. UNDER. THE. WORLD.
 			
@@ -125,9 +129,10 @@ Class KAI_Humanoid : KAI_Creature Abstract
 				Return True;
 			}
 			//Ledge is just a bit too tall for the caller, but could be still reached by jumping and grabbing it.
-			Else If (JumpState && PosGood && ClimbZ < Pos.Z+(Height*JumpClimbMul) && !(FloorZ - Tm.DropoffZ > MaxDropOffHeight))
+			Else If (JumpState && PosGoodLower && ClimbZ < Pos.Z+(Height*JumpClimbMul) && !(FloorZ - Tm.DropoffZ > MaxDropOffHeight))
 			{
 				JumpToPos = (CheckPos,ClimbZ-Height); //Jump to the position we need to climb.
+				console.printf ("let's just jump up here, up here being %d %d %d",jumptopos);
 				If (ClimbPos == ClimbPos)
 					ClimbToPos = ClimbPos;				
 				SetStateLabel (JumpState);
@@ -225,8 +230,8 @@ Class KAI_Humanoid : KAI_Creature Abstract
 			MovePos = Level.Vec2Offset(Pos.XY, Path*I);
 			
 			LineTrace (0,8192,90,TRF_THRUHITSCAN|TRF_SOLIDACTORS|TRF_ABSPOSITION,0,MovePos.X,MovePos.Y,data:Jump);
-			//FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 2; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
-			//KAI_LOFRaycast.VisualizeTracePath((MovePos,Pos.Z),Jump.HitLocation,Jump.Distance,8,p);
+			FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 2; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+			KAI_LOFRaycast.VisualizeTracePath((MovePos,Pos.Z),Jump.HitLocation,Jump.Distance,8,p);
 			
 			//We should NOT be getting a position that is out of bounds!!!!
 			If (!Level.IsPointInLevel((MovePos,Jump.HitLocation.Z)))

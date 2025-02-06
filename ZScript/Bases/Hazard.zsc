@@ -1,5 +1,3 @@
-//IDEA: Add some way to allow non-KAI actors to get hazard warnings and store them ?
-
 //Has to be a class because ZScript is shit and can't handle struct arrays.
 Class HazardInfo
 {

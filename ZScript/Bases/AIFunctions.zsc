@@ -681,7 +681,7 @@ Extend Class KAI_Actor
 		For (Int I = Iterations; I > 0; I--)
 		{
 			//Skip iterations smaller than the caller, they're expensive.
-			If ((TargetRadius/I) <= RealRadius || (TargetHeight/I) <= RealHeight)
+			If ((TargetRadius/I) <= RealRadius && (TargetHeight/I) <= RealHeight)
 				Continue;
 			A_SetSize (TargetRadius/I,TargetHeight/I);
 			If (KAI_DebugPrintMessages) Console.Printf ("CheckSpaceSize(): Checking if radius %f, height %f, iteration %d is valid",Radius,Height,I);

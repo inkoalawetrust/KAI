@@ -282,7 +282,7 @@ Extend Class KAI_EventHandler
 	{
 		ForEach (Voice : NPCVoices)
 		{
-			If (Voice.Name ~== Name)
+			If (Voice && Voice.Name ~== Name)
 				Return Voice;
 		}
 		Return Null;

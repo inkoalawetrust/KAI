@@ -15,12 +15,17 @@ Class KAI_Math
 		Return (Val - O_Min) * (N_Max - N_Min) / (O_Max - O_Min) + N_Min;
 	}
 	
-	//Credit: RaveYard
+	//Credit: RaveYard, DeepSeek R1 (Making it fallback when about to divide by zero.)
 	//I don't even know what this does lmfao.
 	ClearScope Static Double Distance3DLine(Vector3 A, Vector3 B, Vector3 C)
 	{
-		Return (((A - B) Cross (C - B))).Length() / (C - B).Length();
+		Vector3 CB = C - B;
+		Double Denominator = CB.Length();
+		If (Denominator == 0.0) //Don't divide by zero.
+			Return 0.0;
+		Return (((A - B) Cross (C - B))).Length() / Denominator;
 	}
+
 	//==============================\\
 	
 	Enum Vec3RelFlags

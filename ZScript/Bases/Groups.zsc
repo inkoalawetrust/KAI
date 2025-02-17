@@ -89,6 +89,9 @@ Class KAI_NPCGroup Play
 			Return;
 		ForEach (Icon : MemberIcons)
 		{
+			If (!Icon.Owner)
+				Continue;
+			
 			If (Icon.Owner.Health <= 0)
 			{
 				If (Icon.Owner == Leader)

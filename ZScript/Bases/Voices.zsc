@@ -280,6 +280,9 @@ Extend Class KAI_EventHandler
 	//Fetch NPC voice pack by name.
     KAI_Voice GetNPCVoice (String Name)
 	{
+		If (!Self) //HACK: Truly magical, isn't it? Happens enough to need this check.
+			Return Null;
+		
 		ForEach (Voice : NPCVoices)
 		{
 			If (Voice && Voice.Name ~== Name)

@@ -52,7 +52,8 @@ Default
 		Height 56;
 		Mass 400;
 		Monster;
-		+FLOORCLIP+missileevenmore;+MISSILEMORE;
+		+FLOORCLIP
+		MissileChanceMult 0.625;
 		SeeSound "demon/sight";
 		AttackSound "demon/melee";
 		PainSound "demon/pain";

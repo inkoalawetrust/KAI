@@ -191,6 +191,7 @@ Class KAI_Actor : Actor Abstract
 	{
 		Return (Other.SpawnHealth() >= Amount || Other.Health >= Amount);
 	}
+	//TODO: Add readyweapon checks, like if the current player weapon is a BFG or explosive.
 	//Tries to heuristically determine how dangerous another actor is. This is pretty hard to do universally. Since stuff like attacks can't be checked.
 	//Other: The actor to check.
 	//CheckPlayers: Should the checks factor in players too ? e.g counting players with god or buddha mode as THREAT_UNSTOPPABLE. Useful for say not having NPCs just run away from cheating players.

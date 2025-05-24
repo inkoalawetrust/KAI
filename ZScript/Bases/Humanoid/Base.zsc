@@ -102,7 +102,7 @@ Class KAI_Humanoid : KAI_Creature Abstract
 			SetXYZ ((CheckPos,ClimbZ-Height));
 			FindFloorCeiling (FFCF_ONLYSPAWNPOS); //DO. NOT. CHECK. UNDER. THE. WORLD.
 			Bool PosGoodLower = TestMobjLocation(); //Alt check for if the call also supports jump up to a ledge to climb.
-			console.printf ("tested mobj location %d %d %d, is it good? %d",pos,posgoodlower);
+			//console.printf ("tested mobj location %d %d %d, is it good? %d",pos,posgoodlower);
 			SetXYZ (OldPos);
 			FindFloorCeiling (FFCF_ONLYSPAWNPOS); //DO. NOT. CHECK. UNDER. THE. WORLD.
 			
@@ -132,7 +132,7 @@ Class KAI_Humanoid : KAI_Creature Abstract
 			Else If (JumpState && PosGoodLower && ClimbZ < Pos.Z+(Height*JumpClimbMul) && !(FloorZ - Tm.DropoffZ > MaxDropOffHeight))
 			{
 				JumpToPos = (CheckPos,ClimbZ-Height); //Jump to the position we need to climb.
-				console.printf ("let's just jump up here, up here being %d %d %d",jumptopos);
+				//console.printf ("let's just jump up here, up here being %d %d %d",jumptopos);
 				If (ClimbPos == ClimbPos)
 					ClimbToPos = ClimbPos;				
 				SetStateLabel (JumpState);

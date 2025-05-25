@@ -125,24 +125,26 @@ Extend Class KAI_Actor
 	
 	Enum KAIMoveTowardsFlags
 	{
-		KMT_CHASEGOAL = 1 << 0, //If the caller has a goal pointer, and the bChaseGoal flag on. It will follow the goal instead of the TargetPos.
-		KMT_ZIGZAG	  = 1 << 1, //Move around with more A_Chase-esque movement (Like zigzagging), instead of only moving in a straight line.
-		KMT_NOLINEUSE = 1 << 2, //Disable the function being able to make the monster use crossed over lines at all, in case you want your own code for that.
+		KMT_CHASEGOAL 	= 1 << 0, //If the caller has a goal pointer, and the bChaseGoal flag on. It will follow the goal instead of the TargetPos.
+		KMT_ZIGZAG	  	= 1 << 1, //Move around with more A_Chase-esque movement (Like zigzagging), instead of only moving in a straight line.
+		KMT_NOLINEUSE 	= 1 << 2, //Disable the function being able to make the monster use crossed over lines at all, in case you want your own code for that.
+		KMT_3D		  	= 1 << 3, //The actor should be able to move in full 3D, such as if it's a flying NPC.
 	}
 	
 	Double LastTurnDir;
 	Int TurnCount; //Keeps track of how many turns in a row an actor calling KAI_MoveTowards with CHF_NORANDOMTURN should make.
 	Vector3 ZigZagPos;
 	
-	//Makes the actor move towards the specified actor.
+	//Makes the actor move towards the specified position.
 	//TODO: Add a check for if a vehicles' turret would collide with the next move. And probably find a way to call it recursively for turrets on turrets.
 	//CREDIT: Written by Custodian. Modified and expanded by me (inkoalawetrust).
 	//TargetPos: The position to move to.
 	//DetourFactor: How long the actor is allowed to move in a direction after hitting an obstacle, before heading straight for the target again.
-	//AngleLimit: How much the actor can turn per detour. Used to not have it snap back 180 or anything like that.
+	//AngleLimit: How much the actor can turn per step. Used to not have it snap back 180 or anything like that.
 	//ChaseFlags: What flags from A_Chase should the function use ? Supports CHF_DONTMOVE, CHF_NODIRECTIONTURN, CHF_NORANDOMTURN, and CHF_STOPIFBLOCKED.
 	//Flags: The functions' own flags, see above for a list of flags.
-	Void KAI_MoveTowards (Vector3 TargetPos, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0)
+	//PitchLimit: How much the actors' pitch can change per call. Used by KMT_3D to limit how much the actor moves up and down, effectively.
+	Void KAI_MoveTowards (Vector3 TargetPos, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0, Double PitchLimit = 40)
 	{
 		If (ChaseFlags & CHF_DONTMOVE || KAI_Math.IsEmptyVector3 (TargetPos)) Return;
 		
@@ -161,7 +163,7 @@ Extend Class KAI_Actor
 			}
 			Else
 			{
-				ZigZagPos = FindRandomMovePos (TargetPos,16,256,FRMP_CLOSEST);
+				ZigZagPos = FindRandomMovePos (TargetPos,16,256,FRMP_CLOSEST,(Flags & KMT_3D));
 				NewPosStepCount = 0;
 			}
 		}
@@ -171,7 +173,7 @@ Extend Class KAI_Actor
 		//The function works with the CANTLEAVEFLOORPIC flag as well.
 		TextureID OldFloor = FloorPic;
 		
-		double LastAngle = angle;
+		double LastAngle = Angle;
 		double NextAngle = LastAngle;
 		Bool IsVehicle = (Self Is "KAI_BaseVehicle");
 		Bool TurretBlock; //Is this movement blocked because one of the turrets' would collide with something?
@@ -190,31 +192,16 @@ Extend Class KAI_Actor
 		
 		//When CHF_NORANDOMTURN is on. The actor can take a set amount of turns before no longer turning to face its' target.
 		If (ChaseFlags & CHF_NORANDOMTURN && --TurnCount > 0) NextAngle = GetAngleToPos(TargetPos,AngleLimit);
-				
-		//absolute position of next movement
-		vector2 NextPos = Vec2Angle(speed, NextAngle, True);
-		FCheckPosition Move;
-		Move.FromPMove = True; //Move anyways if there's an actor within your hitbox already.
-		If (IsVehicle) //Vehicle push and crush handling.
-		{
-			Let Vehicle = KAI_BaseVehicle(Self);
-			Array <Actor> Pushovers;
-			KAI_BaseVehicle(Self).KAI_VehiclePushActors(Self, NextPos,Vehicle.MaxPushRadius,Vehicle.MaxPushHeight,Pushovers);
-			KAI_BaseVehicle(Self).KAI_VehicleCrushObstacles (Pushovers,Vehicle.VehicleCrushDamage);
-			//TurretBlock = !Vehicle.CheckTurretCollision ((NextPos,Pos.Z),3);
-		}
-		//if (turretblock) console.printf ("DING DING DING TURRET IN THE WAY!");
-		//else if (isvehicle) console.printf ("the turrets of %p aren't getting on their way",self);
-		//If (!(Flags & KMT_NOLINEUSE)) {a_log ("lemme try opening this door");CheckMonsterUseSpecials ();}
-		bool moved = !TurretBlock ? TryMove(NextPos, 0, false, Move) : False;
 		
-		//if I hit an obstacle while avoiding another, try moving straight towards Other
-		if (!moved && MoveCount || bCantLeaveFloorPic && FloorPic != OldFloor)
+		Double NextPitch = Pitch; //Used by 3D movement.
+		
+		//Normal 2D TryMove() movement.
+		If (!(Flags & KMT_3D))
 		{
-			If (!(Flags & KMT_NOLINEUSE)) KAI_NPCUseLines();
-			MoveCount = Int(random(16,32)*DetourFactor);
-			NextAngle = GetAngleToPos(TargetPos,AngleLimit);
-			NextPos = Vec2Angle(speed, NextAngle, True);
+			//absolute position of next movement
+			vector2 NextPos = Vec2Angle(speed, NextAngle, True);
+			FCheckPosition Move;
+			Move.FromPMove = True; //Move anyways if there's an actor within your hitbox already.
 			If (IsVehicle) //Vehicle push and crush handling.
 			{
 				Let Vehicle = KAI_BaseVehicle(Self);
@@ -223,40 +210,17 @@ Extend Class KAI_Actor
 				KAI_BaseVehicle(Self).KAI_VehicleCrushObstacles (Pushovers,Vehicle.VehicleCrushDamage);
 				//TurretBlock = !Vehicle.CheckTurretCollision ((NextPos,Pos.Z),3);
 			}
-			moved = !TurretBlock ? TryMove(NextPos, 0, false, Move) : False;
-		}
-		
-		//If there's a limit to how much the actor can turn per step. Decide an amount of turns for CHF_NORANDOMTURN to make after it hits an obstacle.
-		If (!moved && AngleLimit > 0 && ChaseFlags & CHF_NORANDOMTURN)
-		{
-			Switch (AngleLimit)
-			{
-				Case 20:
-					TurnCount = Random (2,4);
-					Break;
-				Case 10:
-					TurnCount = Random (3,6);
-					Break;
-				Case 5:
-					TurnCount = Random (8,12);
-					Break;
-				Default:
-					Break;
-			}
-		}
-		
-		//test movement angles until I find one that works, avoid that obstacle for MoveCount tics
-		if (!moved && !(ChaseFlags & CHF_STOPIFBLOCKED))
-		{
-			MoveCount = Int(random(16,32) * DetourFactor);
- 
-			//try moving the same relative direction as last time
-			if (lastturndir == 0) lastTurnDir = random(0,1) ? 1.0 : -1.0;
+			//if (turretblock) console.printf ("DING DING DING TURRET IN THE WAY!");
+			//else if (isvehicle) console.printf ("the turrets of %p aren't getting on their way",self);
+			//If (!(Flags & KMT_NOLINEUSE)) {a_log ("lemme try opening this door");CheckMonsterUseSpecials ();}
+			bool moved = !TurretBlock ? TryMove(NextPos, 0, false, Move) : False;
 			
-			//find viable movement direction
-			for (double i = 1; i < 6; i++)
+			//if I hit an obstacle while avoiding another, try moving straight towards Other
+			if (!moved && MoveCount || bCantLeaveFloorPic && FloorPic != OldFloor)
 			{
-				NextAngle = LastAngle + (i * 48 * lastturndir);
+				If (!(Flags & KMT_NOLINEUSE)) KAI_NPCUseLines();
+				MoveCount = Int(random(16,32)*DetourFactor);
+				NextAngle = GetAngleToPos(TargetPos,AngleLimit);
 				NextPos = Vec2Angle(speed, NextAngle, True);
 				If (IsVehicle) //Vehicle push and crush handling.
 				{
@@ -267,27 +231,97 @@ Extend Class KAI_Actor
 					//TurretBlock = !Vehicle.CheckTurretCollision ((NextPos,Pos.Z),3);
 				}
 				moved = !TurretBlock ? TryMove(NextPos, 0, false, Move) : False;
-				if (moved) break;
-				
-				lastTurnDir *= -1.0;
-				
-				NextAngle = LastAngle + (i * 48 * lastturndir);
-				NextPos = Vec2Angle(speed, NextAngle, True);
-				If (IsVehicle) //Vehicle push and crush handling.
-				{
-					Let Vehicle = KAI_BaseVehicle(Self);
-					Array <Actor> Pushovers;
-					KAI_BaseVehicle(Self).KAI_VehiclePushActors(Self, NextPos,Vehicle.MaxPushRadius,Vehicle.MaxPushHeight,Pushovers);
-					KAI_BaseVehicle(Self).KAI_VehicleCrushObstacles (Pushovers,Vehicle.VehicleCrushDamage);
-					//TurretBlock = !Vehicle.CheckTurretCollision ((NextPos,Pos.Z),3);
-				}
-				moved = !TurretBlock ? TryMove(NextPos, 0, false, Move) : False;
-				if (moved) break;
 			}
+			
+			//If there's a limit to how much the actor can turn per step. Decide an amount of turns for CHF_NORANDOMTURN to make after it hits an obstacle.
+			If (!moved && AngleLimit > 0 && ChaseFlags & CHF_NORANDOMTURN)
+			{
+				Switch (AngleLimit)
+				{
+					Case 20:
+						TurnCount = Random (2,4);
+						Break;
+					Case 10:
+						TurnCount = Random (3,6);
+						Break;
+					Case 5:
+						TurnCount = Random (8,12);
+						Break;
+					Default:
+						Break;
+				}
+			}
+			
+			//test movement angles until I find one that works, avoid that obstacle for MoveCount tics
+			if (!moved && !(ChaseFlags & CHF_STOPIFBLOCKED))
+			{
+				MoveCount = Int(random(16,32) * DetourFactor);
+	 
+				//try moving the same relative direction as last time
+				if (lastturndir == 0) lastTurnDir = random(0,1) ? 1.0 : -1.0;
+				
+				//find viable movement direction
+				for (double i = 1; i < 6; i++)
+				{
+					NextAngle = LastAngle + (i * 48 * lastturndir);
+					NextPos = Vec2Angle(speed, NextAngle, True);
+					If (IsVehicle) //Vehicle push and crush handling.
+					{
+						Let Vehicle = KAI_BaseVehicle(Self);
+						Array <Actor> Pushovers;
+						KAI_BaseVehicle(Self).KAI_VehiclePushActors(Self, NextPos,Vehicle.MaxPushRadius,Vehicle.MaxPushHeight,Pushovers);
+						KAI_BaseVehicle(Self).KAI_VehicleCrushObstacles (Pushovers,Vehicle.VehicleCrushDamage);
+						//TurretBlock = !Vehicle.CheckTurretCollision ((NextPos,Pos.Z),3);
+					}
+					moved = !TurretBlock ? TryMove(NextPos, 0, false, Move) : False;
+					if (moved) break;
+					
+					lastTurnDir *= -1.0;
+					
+					NextAngle = LastAngle + (i * 48 * lastturndir);
+					NextPos = Vec2Angle(speed, NextAngle, True);
+					If (IsVehicle) //Vehicle push and crush handling.
+					{
+						Let Vehicle = KAI_BaseVehicle(Self);
+						Array <Actor> Pushovers;
+						KAI_BaseVehicle(Self).KAI_VehiclePushActors(Self, NextPos,Vehicle.MaxPushRadius,Vehicle.MaxPushHeight,Pushovers);
+						KAI_BaseVehicle(Self).KAI_VehicleCrushObstacles (Pushovers,Vehicle.VehicleCrushDamage);
+						//TurretBlock = !Vehicle.CheckTurretCollision ((NextPos,Pos.Z),3);
+					}
+					moved = !TurretBlock ? TryMove(NextPos, 0, false, Move) : False;
+					if (moved) break;
+				}
+			}
+		}
+		//3D velocity based movement
+		//TODO:
+		//Do the most basic "thrust towards target coordinate by speed scalar, turning based on anglelimit" logic.
+		//Oh fuck, I need a system to accelerate the NPC up to whatever max velocity. And make it counter any velocity the actor already has, to reach TargetPos.
+		//Account for the CantLeaveFloorPic stuff.
+		//Probably still keep an FCheckPosition struct around as we'll still likely need to use CheckPosition().
+		//Include the vehicle pushing and crushing code. And also make VehiclePushActors accept 3D coordinates instead, why did I make it a Vector2 when I planned this for months?
+		//Use movecount = Int(random(16,32)*DetourFactor) and stuff for making the flying actor bounce off obstacles (With custom code I need to figure out).
+		//On the above note, also include support for CHF_STOPIFBLOCKED.
+		Else
+		{
+			NextPitch = GetPitchToPos(TargetPos,PitchLimit);
+			Console.Printf ("nextpitch is %.2f,",nextpitch);
+			//Vel3DFromAngle (Speed,Angle,Pitch);
+			//Vel3DFromAngle (Speed,180,45);
+			Vel = KAI_Math.AngleToVector3D (NextAngle,-NextPitch,Speed);
+			KAI_LOFRaycast.VisualizeTracePath (Pos,Level.Vec3Offset(Pos,Vel),128,1);
+			//Vel = (AngleToVector(NextAngle,Speed),0);
+			//console.printf ("velocity is %.2f %.2f %.2f",vel);
+			//MAYDO: Add a slowdown factor the closer a flying (Or any actor) gets to their destination to prevent orbiting?
 		}
 		
 		//face movement direction
-		If (!(ChaseFlags & CHF_NODIRECTIONTURN)) angle = Normalize180(NextAngle);
+		If (!(ChaseFlags & CHF_NODIRECTIONTURN))
+		{
+			Angle = Normalize180(NextAngle);
+			If (Flags & KMT_3D)
+				Pitch = -NextPitch;
+		}
 	}
 	
 	//Makes the NPC wander around aimlessly.
@@ -295,7 +329,7 @@ Extend Class KAI_Actor
 	//MoveRad: The radius around which to find a viable position to move to.
 	//MaxSteps: How many steps the actor is allowed to take before having to find a new position to move to.
 	//The rest are KAI_MoveTowards' parameters.
-	Void KAI_Wander (Int Attempts = 24, Double MoveRad = 256, Int MaxSteps = 72, Double DetourFactor = 0.5, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0)
+	Void KAI_Wander (Int Attempts = 24, Double MoveRad = 256, Int MaxSteps = 72, Double DetourFactor = 0.5, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0, Double PitchLimit = 40)
 	{
 		Int Friend = KAI_GetFriendPlayer();
 		If (!OnWander()) //Virtual callback
@@ -335,10 +369,11 @@ Extend Class KAI_Actor
 	//Attempts: How many positions to try per next position picked.
 	//RunRad: The radius around which to find a viable position to run away to.
 	//MaxSteps: How many steps the actor is allowed to take before having to find a new position to move away to.
-	//The rest are KAI_MoveTowards' parameters.
 	//KMAFlags: The flags unique to KAI_MoveAway.
 	//TargPos: If this is set to a non-NaN value. This position vector will be used directly instead of the Other pointer.
-	//ExtraParams: This is a KAIMoveParams struct, unlike it's supposed to be used by custom chase functions, here KAI_MoveAway() only cares for a few of the params.
+	/*ExtraParams: This is a KAIMoveParams struct, KAI_MoveAway() only cares for the obstacle avoidance and corner checking parameters.
+	And also the KAI_MoveTowards() PitchLimit. So that I don't need to shoehorn even more parameters in this damn function.*/
+	//The rest are KAI_MoveTowards' parameters.
 	Void KAI_MoveAway (Actor Other, Int Attempts = 32, Double RunRad = 128, Int MaxSteps = 32, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0,
 	Int KMAFlags = 0, Vector3 TargPos = (Double.NaN, Double.NaN, Double.NaN), KAIMoveParams ExtraParams = Null)
 	{
@@ -352,6 +387,7 @@ Extend Class KAI_Actor
 			Default_Params.CornerDiv = 0;
 			Default_Params.ObstacleDist = 0.0;
 			Default_Params.ObstacleSlices = 0.0;*/
+			Default_Params.PitchLimit = 40;
 			KAI_MoveAway (Other, Attempts, RunRad, MaxSteps, DetourFactor, AngleLimit, ChaseFlags, Flags, KMAFlags, TargPos, Default_Params);
 			Return;
 		}
@@ -361,7 +397,7 @@ Extend Class KAI_Actor
 		//Got a goal to head to, no time to get spooked.
 		If (Flags & KMT_CHASEGOAL && Goal && bChaseGoal)
 		{
-			KAI_MoveTowards (Goal.Pos, DetourFactor, AngleLimit, ChaseFlags, Flags);
+			KAI_MoveTowards (Goal.Pos, DetourFactor, AngleLimit, ChaseFlags, Flags, ExtraParams.PitchLimit);
 			Return;
 		}
 		
@@ -378,7 +414,7 @@ Extend Class KAI_Actor
 		//If there's already a prior position to move to, begin moving there instead. Until within melee range of that position.
 		If (!KAI_Math.IsEmptyVector3 (NextMovePos) && NewPosStepCount <= MaxSteps && Level.Vec3Diff (Pos,NextMovePos).Length() >= MeleeRange)
 		{if (kai_debugprintmessages)console.printf ("KAI_MoveAway(): Walking to NextMovePos %d %d %d",nextmovepos);
-			KAI_MoveTowards (NextMovePos, DetourFactor, AngleLimit, ChaseFlags, Flags);
+			KAI_MoveTowards (NextMovePos, DetourFactor, AngleLimit, ChaseFlags, Flags,ExtraParams.PitchLimit);
 			NewPosStepCount++;
 			Return;
 		}
@@ -538,7 +574,8 @@ Extend Class KAI_Actor
 	//Attempts: How many random positions should be produced ? The more you add, the more heavy the function becomes. (Obviously)
 	//CheckRad: What is the maximum radius around which random positions can be produced ?
 	//Filter: What position are we looking for exactly ? Look above for a list of filters. These are NOT to be used as flags that stack !
-	Vector3 FindRandomMovePos (Vector3 RelativeTo = (Double.NaN, Double.NaN, Double.NaN), Int Attempts = 32, Double CheckRad = 128, Int Filter = FRMP_FURTHEST)
+	//Full3D: Generate fully 3D positions instead of alligning Z to the floor. For flying actors.
+	Vector3 FindRandomMovePos (Vector3 RelativeTo = (Double.NaN, Double.NaN, Double.NaN), Int Attempts = 32, Double CheckRad = 128, Int Filter = FRMP_FURTHEST, bool Full3D = False)
 	{
 		If (Filter == 0) Filter = FRMP_FURTHEST;
 		
@@ -549,8 +586,8 @@ Extend Class KAI_Actor
 		
 		For (Int I = 0; I <= Attempts; I++)
 		{
-			CurPos = Vec3Offset (FRandom(CheckRad,-CheckRad),FRandom(CheckRad,-CheckRad),0);
-			CurPos.Z = GetZAt (CurPos.X,CurPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
+			CurPos = Vec3Offset (FRandom(CheckRad,-CheckRad),FRandom(CheckRad,-CheckRad),Full3D ? FRandom(CheckRad,-CheckRad) : 0);
+			If (!Full3D) CurPos.Z = GetZAt (CurPos.X,CurPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
 			Xs.Push (CurPos.X); Ys.Push (CurPos.Y); Zs.Push (CurPos.Z); //Epic GZDoom fail.
 		}
 		
@@ -649,6 +686,7 @@ Extend Class KAI_Actor
 			Data.FromPMove = True;
 			If (TryMove (Level.Vec2Offset(OldPos.XY, Path*I), Dropoff, tm:Data))
 			{
+				//TODO: Get rid of this SetZ when moving in 3D? Honestly I might need to make totally custom code for flying movement. Using Vec3Diff and CheckPosition().
 				SetZ (GetZAt (Pos.X,Pos.Y,flags:GZF_ABSOLUTEPOS)); //HACK: Update the actors' Z position. TryMove should do that internally, but it doesn't. GZDoom moment.
 				//actor debug = spawn ("kai_debugpoint",(Level.Vec2Offset(OldPos.XY, Path*I),Pos.Z));
 				//debug.scale *= 0.5;
@@ -1192,6 +1230,7 @@ Struct KAIMoveParams
 	Vector3 TargetPos; //The position to actually move to.
 	Double DetourFactor; //A multiplier for how many steps the caller can take around an obstacle before heading straight to the TargetPos again.
 	Double AngleLimit; //How much the caller can turn to face their TargetPos per step.
+	Double PitchLimit; //Ditto, but for the 3D movement of KMT_3D.
 	Int ChaseFlags; //The A_Chase flags KAI_MoveTowards() supports, which are CHF_DONTMOVE, CHF_NODIRECTIONTURN, CHF_NORANDOMTURN, and CHF_STOPIFBLOCKED.
 	Int Flags; //The functions' own flags, check the KAIMoveTowardsFlags enum for a list of them and what they do.
 	

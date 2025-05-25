@@ -218,6 +218,24 @@ Extend Class KAI_Actor
 		Return 0;
 	}
 	
+	Double GetPitchToPos (Vector3 Position, Double PitchLimit = 10)
+	{
+		//No constraint, just return the pitch.
+		If (PitchLimit == 0)
+		{
+			Vector3 SCoords = Level.SphericalCoords (Pos,Position);
+			Return -SCoords.Y;
+		}
+		
+		Vector3 Diff = Level.Vec3Diff (Pos,Position);
+		Double PitchTo = -ATan2 (Diff.Z,Diff.XY.Length());
+		console.printf ("ATAN2 PITCH IS %.2f",pitchto);
+		//Pitch to target is below the constraint, so just return the plain pitch.
+		If (AbsAngle (Pitch,PitchTo) <= PitchLimit)
+			{console.printf ("returning plain pitch");Return PitchTo;}
+		Return Clamp(PitchTo,-PitchLimit,PitchLimit); //Clamp pitch to the pitch limits.
+	}
+	
 	//Gets the sprite angle relative to the specified camera position, which is usually the consoleplayers' view.
 	//This is more or less a rip of this: https://github.com/ZDoom/gzdoom/blob/62f37079a7834b813f251818d1db6c80e644d209/src/rendering/hwrenderer/scene/hw_sprites.cpp#L860-L888
 	//It returns the sprite angle that should be shown. AKA the value it returns internally. And also returns an actual 360 angle, which is more useful.

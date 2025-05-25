@@ -112,6 +112,25 @@ Default
 	}
 }
 
+Class TestCaco : KAI_Actor Replaces Cacodemon
+{default {speed 4;+NOGRAVITY;-solid}
+	States
+	{
+		Spawn:
+			TNT1 A 0 NoDelay
+			{
+				Actor Targ = Spawn ("KAI_DebugPoint",(0,0,256));
+				If (Targ) Tracer = Targ;
+			}
+			HEAD A 1
+			{
+				KAI_MoveTowards (Tracer.Pos,anglelimit:10,flags:KMT_3D,pitchlimit:10);
+				//console.printf ("the players' angle is %.2f, pitch %.2f",players[consoleplayer].mo.angle,players[consoleplayer].mo.pitch);
+			}
+			Wait;
+	}
+}
+
 //=====|Library structure|=====\\
 /*The most basic NPC class, all types are based on this, land/water/air vehicles, humanoids, flying creatures, you name it. 
 So, the code that is meant to be shared by all NPCs also goes here.*/

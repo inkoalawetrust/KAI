@@ -72,6 +72,7 @@ Class KAI_Actor : Actor Abstract
 		Super.Tick();
 		If (IsFrozen()) Return;
 		
+		//Vel *= 0.98; //DEBUG DEBUG DBEUG
 		//Update inaccuracy relative to target over time.
 		If (!IsDead(Self) && !KAI_Math.IsZeroVector3(Inaccuracy))
 		{
@@ -346,12 +347,14 @@ Class KAI_Actor : Actor Abstract
 	FlagDef NoTargetPrediction : NPCFlags, 0; //The NPC will not calculate its' targets' movement and lead its' shots.
 	FlagDef MovesWithVelocity : NPCFlags, 1; //Specifies that the NPC moves using real momentum, like players. For the target prediction code, does nothing else on its' own.
 	FlagDef IgnoreOrders : NPCFlags, 2; //The NPC ignores orders.
+	FlagDef IsFlyer : NPCFlags, 3; //This NPC flies. This carries implicit logic like tracking F3DVel.
 	
 	//Actor variables
 	Array <State> AttackStates; //Can be used to store all of the attack state labels an actor has. Such as for actors with multiple attacks besides a missile and melee attack, like vanilla monsters only have.
 	Vector3 LastEnemyPosition; //Used by the target prediction. If the turret has a target with no velocity, it grabs their last position every tick to compare it to the current position.
 	Vector3 CurrentEnemyPosition;
 	Vector3 NextMovePos; //The next position the NPC should move to. Used by KAI_MoveAway() and KAI_Wander().
+	Vector3 F3DVel; //The velocity at which the NPC is supposed to be moving, separate from the actual physics velocity.
 	Int NewPosStepCount; //How many steps the actor has taken before NextMovePos is reset, so the actor will get a new point to move to. Like if it gets stuck.
 	KAI_EventHandler KAIHandler; //A permanent pointer to the libraries' event handler, for regular accesses to info like the projectile list.
 	Double OldAngle; //The angle the NPC was at last tick.

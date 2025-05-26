@@ -113,7 +113,7 @@ Default
 }
 
 Class TestCaco : KAI_Actor Replaces Cacodemon
-{default {speed 4;+NOGRAVITY;-solid}
+{default {speed 4;+NOGRAVITY;-solid+nodamage}
 	States
 	{
 		Spawn:
@@ -124,7 +124,7 @@ Class TestCaco : KAI_Actor Replaces Cacodemon
 			}
 			HEAD A 1
 			{
-				KAI_MoveTowards (Tracer.Pos,anglelimit:10,flags:KMT_3D,pitchlimit:10);
+				KAI_MoveTowards (Tracer.Pos,anglelimit:10,flags:KMT_3D,pitchlimit:60);
 				//console.printf ("the players' angle is %.2f, pitch %.2f",players[consoleplayer].mo.angle,players[consoleplayer].mo.pitch);
 			}
 			Wait;

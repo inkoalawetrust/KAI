@@ -711,8 +711,10 @@ Extend Class KAI_Actor
 	//Spacing: The spacing of the move checks. Default is 0, which means that the spacing is the diameter of the callers' hitbox.
 	//IgnoreActors: Makes' the check ignore blocking actors entirely.
 	//Dropoff: The Dropoff value passed to TryMove().
-	Bool IsPosReachable (Vector3 TargetPos, Double DistCutoff = 0, Double Spacing = 0, Bool IgnoreActors = False, Int Dropoff = 1)
+	Bool IsPosReachable (Vector3 TargetPos, Double DistCutoff = 0, Double Spacing = 0, Bool IgnoreActors = False, Int Dropoff = 1, Bool Full3D = False)
 	{
+		If (Full3D)
+			Return IsPosReachable3D(TargetPos,DistCutoff,Spacing,IgnoreActors);
 		Vector3 OldPos = Pos;
 		Bool Interp = bDontInterpolate;
 		Bool ThruActs = bThruActors;
@@ -728,7 +730,7 @@ Extend Class KAI_Actor
 		If (IgnoreActors) bThruActors = True;
 		For (Int I = 0; I < Distance; I += Spacing)
 		{
-			If (Level.Vec2Diff (Pos.XY, OldPos.XY).Length() >= Distance) Break; //The check went further than the distance to the target position. Success
+			If (Level.Vec2Diff (Pos.XY, OldPos.XY).Length() >= Distance) Break; //The check went further than the distance to the target position. Success.
 			//Run as many times as it takes between you and your destination.
 			FCheckPosition Data;
 			Data.FromPMove = True;
@@ -752,6 +754,48 @@ Extend Class KAI_Actor
 		bThruActors = ThruActs;
 		SetOrigin (OldPos,False);
 		Return True; //No TryMove call returned false.
+	}
+	
+	//Called in place of the stock one for flying actors.
+	//Works similarly to the normal one. Except that it relies on a row of CheckPosition() calls instead of moving the actor forward.
+	Bool IsPosReachable3D (Vector3 TargetPos, Double DistCutoff = 0, Double Spacing = 0, Bool IgnoreActors = False)
+	{
+		Vector3 OldPos = Pos;
+		Bool ThruActs = bThruActors;
+		If (IgnoreActors) bThruActors = True;
+		
+		//This is where the fun begins. Get the direction to the target pos, and create a line towards there to iterate.
+		Vector3 Path = Level.Vec3Diff(Pos, TargetPos);
+		Double Distance = (Path.Length()-DistCutoff);
+		If (Spacing == 0)
+			Spacing = Radius*2;
+		Distance += Spacing; //HACK: According to RaveYard, apparently the last check in the row might be getting ignored, so this is a simple hack fix.
+		If (Distance <= 1) Return False;
+		Path /= Distance;
+		
+		//Iterate from the current position to the target position.
+		For (Int I = 0; I < Distance; I += Spacing)
+		{
+			If (Level.Vec3Diff (Pos, OldPos).Length() >= Distance) Break; //The check went further than the distance to the target position. Success.
+			
+			//Now, actually check for a bad position.
+			FCheckPosition Data;
+			Data.FromPMove = True;
+			Vector3 CheckPos = Level.Vec3Offset (OldPos,Path*I);
+			SetZ (CheckPos.Z); //Set the Z position before the check so CheckPosition's janky ass will hopefully not shit the bed.
+			//Spawn ("KAI_DebugPoint",CheckPos);
+			If (!CheckPosition(CheckPos.XY,False,Data)/* || !Data.FloatOk*/)
+			{
+				If (KAI_DebugPrintMessages) Console.Printf ("IsPosReachable3D(): %.2f %.2f %.2f is blocking %p",CheckPos,Self);
+				bThruActors = ThruActs;
+				SetOrigin(OldPos,False);
+				Return False;
+			}
+		}
+		
+		bThruActors = ThruActs;
+		SetOrigin(OldPos,False);
+		Return True;
 	}
 	
 	//Check how big the specified space is for the calling actor. Works by scaling up the actor to the desired size, and seeing if they are blocked by anything.

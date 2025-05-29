@@ -46,7 +46,7 @@ Maybe also add an OnBodyPartHit callback for projectiles to use. Such as to make
 //Add code for moving KMT_3D actors up or down when it's near lowered ceilings or raised floors by checking in front of them.
 
 //DEBUG DEBUG DEBUG
-class TestPinky : KAI_Actor// Replaces Demon
+class TestPinky : KAI_Actor Replaces Demon
 {
 Default
 	{
@@ -58,6 +58,7 @@ Default
 		Mass 400;
 		Monster;
 		+FLOORCLIP
+		+LookAllAround;
 		MissileChanceMult 0.625;
 		SeeSound "demon/sight";
 		AttackSound "demon/melee";
@@ -86,16 +87,17 @@ Default
 			//if (target) KAI_MoveTowards(target.Pos,detourfactor:0.5,flags:KMT_ZIGZAG);
 			
 			//KAI_Wander(32,1024,256);
+			//Test the obstacle avoidance code.
 			KAIMoveParams data;
-			data.cornerdist = 384;
-			data.cornerdiv = 16;
+			//data.cornerdist = 384;
+			//data.cornerdiv = 16;
 			data.obstacledist = 256;
 			data.obstacleslices = 16;
 			
-			if (target)isposreachable(Target.poS);
-			destroy();
+			//if (target)isposreachable(Target.poS);
+			//destroy();
 			
-			//if (target) KAI_MoveAway(target,runrad:256,maxsteps:64,detourfactor:0.5,flags:0,kmaflags:KMA_STRAIGHT,extraparams:data);
+			if (target) KAI_MoveAway(target,runrad:256,maxsteps:64,detourfactor:0.5,flags:0,kmaflags:KMA_STRAIGHT,extraparams:data);
 			//A_Chase ("Melee",Null);
 		}
 		Loop;
@@ -118,7 +120,7 @@ Default
 }
 
 Class TestCaco : KAI_Actor Replaces Cacodemon
-{default {speed 6;+NOGRAVITY;-solid+nodamage+float}
+{default {speed 6;+NOGRAVITY;-solid+nodamage+float+lookallaround}
 	States
 	{
 		Spawn:
@@ -126,7 +128,8 @@ Class TestCaco : KAI_Actor Replaces Cacodemon
 			{
 				Actor Targ = Spawn ("KAI_DebugPoint",(0,0,256));
 				If (Targ) Tracer = Targ;
-				A_LookEx(LOF_NOJUMP,fov:360);
+				//A_LookEx(LOF_NOJUMP);
+				Target = Players[ConsolePlayer].Mo;
 			}
 			HEAD A 1
 			{
@@ -134,9 +137,15 @@ Class TestCaco : KAI_Actor Replaces Cacodemon
 				//KAI_Wander (anglelimit:40,flags:KMT_3D,pitchlimit:40);
 				KAIMoveParams Params;
 				Params.PitchLimit = 40; //Pass pitch limit for KAI_MoveAway.
-				//KAI_MoveAway (Tracer,128,flags:KMT_3D,kmaflags:KMA_STRAIGHT,extraparams:Params);
+				Params.cornerdist = 384;
+				Params.cornerdiv = 16;
+				Params.obstacledist = 256;
+				Params.obstacleslices = 16;
+				//Test to see how the corner taking works with KMT_3D.
+				If (Target)
+					KAI_MoveAway (Target,128,flags:KMT_3D,kmaflags:KMA_STRAIGHT,extraparams:Params);
 				//console.printf ("the players' angle is %.2f, pitch %.2f",players[consoleplayer].mo.angle,players[consoleplayer].mo.pitch);
-				If (Target) IsPosReachable3D (Target.Pos);
+				//If (Target) IsPosReachable3D (Target.Pos);
 			}
 			Wait;
 	}

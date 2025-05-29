@@ -305,12 +305,12 @@ Extend Class KAI_Actor
 		Else
 		{
 			NextPitch = GetPitchToPos(TargetPos,PitchLimit);
-			If (KAI_DebugPrintMessages) Console.Printf ("KMT_3D: NextPitch is %.2f,",NextPitch);
+			If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D: NextPitch is %.2f,",NextPitch);
 			Vel *= KMT_3D_DecelWrongVector (TargetPos); //Decelerate from wrong velocities, like when an explosion blasts the actor off-course.
 			Vector3 F3DVel = KAI_Math.AngleToVector3D (NextAngle,-NextPitch,Speed); //Generate velocity that reaches the target over time (Or instantly).
 			KMT_3D_SpeedLimit (Speed*3,F3DVel); //HACK: Magic number to make the total vel length cap ACTUALLY match the speed property.
 			//KAI_LOFRaycast.VisualizeTracePath (Pos,Level.Vec3Offset(Pos,Vel),128,1);
-			If (KAI_DebugPrintMessages) Console.Printf ("KMT_3D: Velocity is %.2f %.2f %.2f, length %.2f",Vel,Vel.Length());
+			If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D: Velocity is %.2f %.2f %.2f, length %.2f",Vel,Vel.Length());
 		}
 		
 		//face movement direction
@@ -334,7 +334,7 @@ Extend Class KAI_Actor
 		
 		//Map dot product between 0 (Not facing at all) and 1 (Facing the desired vector).
 		DistFromTarg = KAI_Math.LinearMap (DistFromTarg,-1,1,0.5,1);
-		If (KAI_DebugPrintMessages) Console.Printf ("KMT_3D_DecelWrongVector(): Actor facing away from target pos factor is %.2f",DistFromTarg);
+		If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D_DecelWrongVector(): Actor facing away from target pos factor is %.2f",DistFromTarg);
 		Return DistFromTarg;
 	}
 	
@@ -347,7 +347,7 @@ Extend Class KAI_Actor
 			Return;
 		}
 		Double Delta = Vel Dot ExtraVel;
-		If (KAI_DebugPrintMessages) Console.Printf ("KMT_3D_Speedlimit() Delta is %.2f",Delta);
+		If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D_Speedlimit() Delta is %.2f",Delta);
 		Double Acceleration = 1;
 		If (Delta < SpeedLimit) //Accelerate the actor, but never let them exceed the speed limit under their own motion.
 			Vel += ExtraVel * Min (SpeedLimit - Delta,Acceleration);
@@ -465,11 +465,12 @@ Extend Class KAI_Actor
 		//TODO: Wait hold on, I think the current way that the dummy debug point for TargPos movement is set doesn't ever remove the debug points it spawns.
 		//MAYDO: Add a boolean flag for ExtraParams that makes IsPosReachable() also qualify blocking actors as cover?
 		//Try to run behind corners.
+		Console.Printf ("CornerCheck %d, checksight %d",docornercheck,CheckSight(SightTarget,SF_IGNOREWATERBOUNDARY));
 		If (DoCornerCheck && CheckSight(SightTarget,SF_IGNOREWATERBOUNDARY))
 		{
 			Vector3 RealPos = Pos;
 			Double CheckLength = ExtraParams.CornerDist;
-			
+			console.printf ("doing corner check");
 			//Check your left.
 			Vector3 LeftPos;
 			If (ExtraParams.CornerDiv == -1) //Use exact old behavior
@@ -586,8 +587,16 @@ Extend Class KAI_Actor
 			For (Int I = 0; I < CheckSlices; I++)
 			{
 				If (IsPosReachable (CheckPos,spacing:CheckSpacing))
+				{
+					If (KAI_DebugObstacleAvoid) KAI_DebugPointDelay.KAI_TempPointSpawn(CheckPos,KAI_DebugObstacleAvoid);
 					Break;
-				If (KAI_DebugPrintMessages) Console.Printf ("%d %d %d isn't reachable, adjusting movepos",checkpos);
+				}
+				If (KAI_DebugPrintMessages) Console.Printf ("%d %d %d isn't reachable, adjusting movepos",CheckPos);
+				If (KAI_DebugObstacleAvoid)
+				{
+					Let Debug = KAI_DebugPointDelay.KAI_TempPointSpawn(CheckPos,KAI_DebugObstacleAvoid);
+					If (Debug) Debug.A_SetTranslation ('KAI_DebugRed');
+				}
 				UseObstacleAvoidPos = True;
 				CheckAngle += 360/CheckSlices; //There's an obstacle in front of this path, try another angle.
 				CheckPos.XY = (Vec2Angle (Radius+CheckDist,CheckAngle));
@@ -595,7 +604,7 @@ Extend Class KAI_Actor
 			}
 			If (UseObstacleAvoidPos)
 			{
-				//Subtract the extra distance to check ahead off from the final move position.
+				//Subtract the extra distance to check ahead of from the final move position.
 				CheckPos.XY = Vec2Angle (CheckDist,CheckAngle);
 				CheckPos.Z = GetZAt (CheckPos.X,CheckPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
 			}
@@ -773,7 +782,6 @@ Extend Class KAI_Actor
 		If (Distance <= 1) Return False;
 		Path /= Distance;
 		
-		//Iterate from the current position to the target position.
 		For (Int I = 0; I < Distance; I += Spacing)
 		{
 			If (Level.Vec3Diff (Pos, OldPos).Length() >= Distance) Break; //The check went further than the distance to the target position. Success.
@@ -784,7 +792,7 @@ Extend Class KAI_Actor
 			Vector3 CheckPos = Level.Vec3Offset (OldPos,Path*I);
 			SetZ (CheckPos.Z); //Set the Z position before the check so CheckPosition's janky ass will hopefully not shit the bed.
 			//Spawn ("KAI_DebugPoint",CheckPos);
-			If (!CheckPosition(CheckPos.XY,False,Data)/* || !Data.FloatOk*/)
+			If (!CheckPosition(CheckPos.XY,False,Data))
 			{
 				If (KAI_DebugPrintMessages) Console.Printf ("IsPosReachable3D(): %.2f %.2f %.2f is blocking %p",CheckPos,Self);
 				bThruActors = ThruActs;

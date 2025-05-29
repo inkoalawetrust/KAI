@@ -417,6 +417,24 @@ Class KAI_TempPoint : KAI_DebugPoint
 	}
 }
 
+//A less temporary debug point that lasts for a set amount of tics before despawning.
+Class KAI_DebugPointDelay : KAI_DebugPoint
+{
+	Default {ReactionTime 1;}
+	Override Void Tick()
+	{
+		If (IsFrozen()) Return;
+		If (GetAge() >= ReactionTime)
+			Destroy();
+	}
+	Static KAI_DebugPointDelay KAI_TempPointSpawn (Vector3 Where, Int Lifespan)
+	{
+		Let Point = KAI_DebugPointDelay(Spawn ("KAI_DebugPointDelay",Where));
+		If (Point) Point.ReactionTime = Lifespan;
+		Return Point;
+	}
+}
+
 Class KAI_EventHandler : EventHandler
 {
 	//Custom command handling

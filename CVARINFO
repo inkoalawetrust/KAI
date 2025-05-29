@@ -3,3 +3,5 @@ Server Bool KAI_DebugPredictiveAim = False; //Display white (Desired) and yellow
 Server Bool KAI_DebugHitChance = False; //Show debug info and hitscan paths for DetermineHitChance().
 Server Bool KAI_DebugPrintGroupEvents = False; //Print NPC group event info like when a groups' member dies.
 Server Bool KAI_DebugNextMovePos = False; //Show a KAI_DebugPoint over every NextMovePos on all NPCs spawned after this CVAR is set.
+Server Bool KAI_DebugPrintFlyers = False; //Show debug messages for KMT_3D movement.
+Server Int	KAI_DebugObstacleAvoid = 0; //Show debug visualizations for KAI_AvoidObstacles. Controls how long the visualizations last too.

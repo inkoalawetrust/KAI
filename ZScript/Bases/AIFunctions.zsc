@@ -296,33 +296,23 @@ Extend Class KAI_Actor
 		//3D velocity based movement
 		//TODO:
 		//Oh fuck, I need a system to accelerate the NPC up to whatever max velocity. And make it counter any velocity the actor already has, to reach TargetPos.
+		//Uh, maybe handle deceleration by slowing the NPC based on just how much its' velocity is making it face away from the target?
 		//Account for the CantLeaveFloorPic stuff.
 		//Probably still keep an FCheckPosition struct around as we'll still likely need to use CheckPosition().
 		//Include the vehicle pushing and crushing code. And also make VehiclePushActors accept 3D coordinates instead, why did I make it a Vector2 when I planned this for months?
 		//Use movecount = Int(random(16,32)*DetourFactor) and stuff for making the flying actor bounce off obstacles (With custom code I need to figure out).
 		//On the above note, also include support for CHF_STOPIFBLOCKED.
+		//Add an optional flag to either the function or KAI_Actor proper that when enabled, allows the use of a virtual override for 3D movement.
+		//CREDIT: Boondorl and RaveYard for helping me get this fucking god forsaken math to mostly work.
 		Else
 		{
 			NextPitch = GetPitchToPos(TargetPos,PitchLimit);
-			
 			Console.Printf ("nextpitch is %.2f,",nextpitch);
-			//Vel3DFromAngle (Speed,Angle,Pitch);
-			//Vel3DFromAngle (Speed,180,45);
-			//Get acceleration towards target.
-			Double DistToPos = Level.Vec3Diff (Pos,TargetPos).Length();
-			//Decrease move speed towards target when closer.
-			Double MoveSpeed = Speed / (Max (1.,DistToPos / Speed));
-			F3DVel = KAI_Math.AngleToVector3D (NextAngle,-NextPitch,MoveSpeed);
-			Console.printf ("f3dvel %.2f %.2f %.2f",f3dvel);
-			Let NewVel = Vel += F3DVel;
-			//Going too fast with the movement added on top, try clamping that.
-			F3DVel *= KAI_Math.LinearMap (NewVel.Length(),0,Speed,1,0);
-			Console.printf ("f3dvel is now %.2f %.2f %.2f",f3dvel);
-			Vel += F3DVel;
+			Vel *= KMT_3D_DecelWrongVector (TargetPos); //Decelerate from wrong velocities, like when an explosion blasts the actor off-course.
+			F3DVel = KAI_Math.AngleToVector3D (NextAngle,-NextPitch,Speed); //Generate velocity that reaches the target over time (Or instantly).
+			KMT_3D_SpeedLimit (Speed*3,F3DVel); //HACK: Magic number to make the total vel length cap ACTUALLY match the speed property.
 			KAI_LOFRaycast.VisualizeTracePath (Pos,Level.Vec3Offset(Pos,Vel),128,1);
-			//Vel = (AngleToVector(NextAngle,Speed),0);
-			console.printf ("velocity is %.2f %.2f %.2f",vel);
-			//MAYDO: Add a slowdown factor the closer a flying (Or any actor) gets to their destination to prevent orbiting?
+			console.printf ("velocity is %.2f %.2f %.2f, length %.2f",vel,vel.length());
 		}
 		
 		//face movement direction
@@ -332,6 +322,37 @@ Extend Class KAI_Actor
 			If (Flags & KMT_3D)
 				Pitch = -NextPitch;
 		}
+	}
+	
+	//Handle slowing down the actor based on just how far its' current velocity is from the target position, i.e if it fully faces away, it grinds to a halt.
+	//Used to make the actor decelerate and gets its' bearings again when  thrown of course by external forces like explosions.
+	//TargetPos: The desired position which there would be 0 deceleration returned if we headed straight for it.
+	Protected Double KMT_3D_DecelWrongVector (Vector3 TargetPos)
+	{
+		Vector3 TheVel = Vel;
+		If (TheVel == (0,0,0)) //Can't dot a vector of 0.
+			TheVel = (0.001,0.001,0.001);
+		Double DistFromTarg = (TargetPos - Pos).Unit() Dot TheVel.Unit(); //Get how much the actor is currently facing away from the target position.
+		
+		//Map dot product between 0 (Not facing at all) and 1 (Facing the desired vector).
+		DistFromTarg = KAI_Math.LinearMap (DistFromTarg,-1,1,0.5,1);
+		console.printf ("actor facing away from target pos factor is %.2f",distfromtarg);
+		Return DistFromTarg;
+	}
+	
+	//Limit the max speed that the actor reaches over time. If the vel length is too high, extra vel is zeroed out as well until the length goes below SpeedLimit.
+	Protected Void KMT_3D_SpeedLimit (Double SpeedLimit, Vector3 ExtraVel)
+	{
+		If (SpeedLimit == 0) //Wheeeeee
+		{
+			Vel += ExtraVel;
+			Return;
+		}
+		Double Delta = Vel Dot ExtraVel;
+		console.printf ("delta is %.2f",delta);
+		Double Acceleration = 1;
+		If (Delta < SpeedLimit) //Accelerate the actor, but never let them exceed the speed limit under their own motion.
+			Vel += ExtraVel * Min (SpeedLimit - Delta,Acceleration);
 	}
 	
 	//Makes the NPC wander around aimlessly.

@@ -3,6 +3,7 @@ For more detailed credits, you can do a codebase-wide search for the CREDIT code
 Written by inkoalawetrust. With help for some tasks and code snippets here and there by RaveYard and Lewisk3.
 
 |=|>-----<|Individual credits|>-----<|=|
+- KMT_3D movement code deceleration and speed limit code written by Boondorl and RaveYard.
 - Trail line spawning code for KAI_BaseProjectile written by Boondorl.
 - GetNearestCardinalAngle() written by Lewisk3.
 - Initial KAI_MoveTowards coden written by Custodian. However the original was basically just moving in a straight line with smooth turning.

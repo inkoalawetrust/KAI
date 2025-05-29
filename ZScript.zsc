@@ -40,6 +40,10 @@ Maybe also add an OnBodyPartHit callback for projectiles to use. Such as to make
 */
 /*Make some kind of target priority queue system, or something ? Like, for having NPCs optionally target multiple enemies.*/
 
+//TODO:
+//Add 3D obstacle avoidance for KMT_3D actors by firing a sphere of traces around and getting a total vector to avoid.
+//For the corner code in MoveAway(), add extra up and down checks for flyers too.
+
 //DEBUG DEBUG DEBUG
 class TestPinky : KAI_Actor// Replaces Demon
 {
@@ -113,7 +117,7 @@ Default
 }
 
 Class TestCaco : KAI_Actor Replaces Cacodemon
-{default {speed 8;+NOGRAVITY;-solid+nodamage}
+{default {speed 6;+NOGRAVITY;-solid+nodamage}
 	States
 	{
 		Spawn:
@@ -124,8 +128,11 @@ Class TestCaco : KAI_Actor Replaces Cacodemon
 			}
 			HEAD A 1
 			{
-				KAI_MoveTowards (Tracer.Pos,anglelimit:0,flags:KMT_3D,pitchlimit:0);
-				//KAI_Wander (anglelimit:10,KMT_3D,pitchlimit:60);
+				//KAI_MoveTowards (Tracer.Pos,anglelimit:0,flags:KMT_3D,pitchlimit:0);
+				//KAI_Wander (anglelimit:40,flags:KMT_3D,pitchlimit:40);
+				KAIMoveParams Params;
+				Params.PitchLimit = 40; //Pass pitch limit for KAI_MoveAway.
+				KAI_MoveAway (Tracer,128,flags:KMT_3D,kmaflags:KMA_STRAIGHT,extraparams:Params);
 				//console.printf ("the players' angle is %.2f, pitch %.2f",players[consoleplayer].mo.angle,players[consoleplayer].mo.pitch);
 			}
 			Wait;

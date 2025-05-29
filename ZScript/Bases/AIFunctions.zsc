@@ -295,8 +295,6 @@ Extend Class KAI_Actor
 		}
 		//3D velocity based movement
 		//TODO:
-		//Oh fuck, I need a system to accelerate the NPC up to whatever max velocity. And make it counter any velocity the actor already has, to reach TargetPos.
-		//Uh, maybe handle deceleration by slowing the NPC based on just how much its' velocity is making it face away from the target?
 		//Account for the CantLeaveFloorPic stuff.
 		//Probably still keep an FCheckPosition struct around as we'll still likely need to use CheckPosition().
 		//Include the vehicle pushing and crushing code. And also make VehiclePushActors accept 3D coordinates instead, why did I make it a Vector2 when I planned this for months?
@@ -307,12 +305,12 @@ Extend Class KAI_Actor
 		Else
 		{
 			NextPitch = GetPitchToPos(TargetPos,PitchLimit);
-			Console.Printf ("nextpitch is %.2f,",nextpitch);
+			If (KAI_DebugPrintMessages) Console.Printf ("KMT_3D: NextPitch is %.2f,",NextPitch);
 			Vel *= KMT_3D_DecelWrongVector (TargetPos); //Decelerate from wrong velocities, like when an explosion blasts the actor off-course.
-			F3DVel = KAI_Math.AngleToVector3D (NextAngle,-NextPitch,Speed); //Generate velocity that reaches the target over time (Or instantly).
+			Vector3 F3DVel = KAI_Math.AngleToVector3D (NextAngle,-NextPitch,Speed); //Generate velocity that reaches the target over time (Or instantly).
 			KMT_3D_SpeedLimit (Speed*3,F3DVel); //HACK: Magic number to make the total vel length cap ACTUALLY match the speed property.
-			KAI_LOFRaycast.VisualizeTracePath (Pos,Level.Vec3Offset(Pos,Vel),128,1);
-			console.printf ("velocity is %.2f %.2f %.2f, length %.2f",vel,vel.length());
+			//KAI_LOFRaycast.VisualizeTracePath (Pos,Level.Vec3Offset(Pos,Vel),128,1);
+			If (KAI_DebugPrintMessages) Console.Printf ("KMT_3D: Velocity is %.2f %.2f %.2f, length %.2f",Vel,Vel.Length());
 		}
 		
 		//face movement direction
@@ -336,7 +334,7 @@ Extend Class KAI_Actor
 		
 		//Map dot product between 0 (Not facing at all) and 1 (Facing the desired vector).
 		DistFromTarg = KAI_Math.LinearMap (DistFromTarg,-1,1,0.5,1);
-		console.printf ("actor facing away from target pos factor is %.2f",distfromtarg);
+		If (KAI_DebugPrintMessages) Console.Printf ("KMT_3D_DecelWrongVector(): Actor facing away from target pos factor is %.2f",DistFromTarg);
 		Return DistFromTarg;
 	}
 	
@@ -349,7 +347,7 @@ Extend Class KAI_Actor
 			Return;
 		}
 		Double Delta = Vel Dot ExtraVel;
-		console.printf ("delta is %.2f",delta);
+		If (KAI_DebugPrintMessages) Console.Printf ("KMT_3D_Speedlimit() Delta is %.2f",Delta);
 		Double Acceleration = 1;
 		If (Delta < SpeedLimit) //Accelerate the actor, but never let them exceed the speed limit under their own motion.
 			Vel += ExtraVel * Min (SpeedLimit - Delta,Acceleration);
@@ -387,7 +385,7 @@ Extend Class KAI_Actor
 			NewPosStepCount = 0;
 		}
 		
-		NextMovePos = FindRandomMovePos (Pos,Attempts,MoveRad,FRMP_RANDOM); //Pick a random position to go to.
+		NextMovePos = FindRandomMovePos (Pos,Attempts,MoveRad,FRMP_RANDOM,(Flags & KMT_3D)); //Pick a random position to go to.
 	}
 	
 	Enum MoveAwayFlags
@@ -408,7 +406,11 @@ Extend Class KAI_Actor
 	Void KAI_MoveAway (Actor Other, Int Attempts = 32, Double RunRad = 128, Int MaxSteps = 32, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0,
 	Int KMAFlags = 0, Vector3 TargPos = (Double.NaN, Double.NaN, Double.NaN), KAIMoveParams ExtraParams = Null)
 	{
-		If (!Other && KAI_Math.IsEmptyVector3(TargPos)) {If (KAI_DebugPrintMessages)console.printf ("KAI_MoveAway(): Premptively stopping execution");Return;}
+		If (!Other && KAI_Math.IsEmptyVector3(TargPos))
+		{
+			If (KAI_DebugPrintMessages) Console.Printf ("KAI_MoveAway(): Premptively stopping execution");
+			Return;
+		}
 		
 		//HACK: Thanks GZDoom :D!
 		If (!ExtraParams)
@@ -546,12 +548,23 @@ Extend Class KAI_Actor
 		}
 		
 		If (!(KMAFlags & KMA_STRAIGHT))
-			NextMovePos = FindRandomMovePos (RunPos,Attempts,RunRad,FRMP_FURTHEST); //Pick whichever position is the furthest from Runpos.
+			NextMovePos = FindRandomMovePos (RunPos,Attempts,RunRad,FRMP_FURTHEST,Flags & KMT_3D); //Pick whichever position is the furthest from RunPos.
+		//Run in the exact opposite direction of the target.
 		Else
 		{
 			NextMovePos.XY = Vec2Angle (RunRad,GetAngleToPos(RunPos,0)-180);
-			//KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(Height/2),RunPos.PlusZ(Height/2),Level.Vec3Diff (Pos.PlusZ(Height/2),RunPos.PlusZ(Height/2)).Length());
-			NextMovePos.Z = GetZAt (NextMovePos.X,NextMovePos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
+			If (!(Flags & KMT_3D))
+			{
+				//KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(Height/2),RunPos.PlusZ(Height/2),Level.Vec3Diff (Pos.PlusZ(Height/2),RunPos.PlusZ(Height/2)).Length());
+				NextMovePos.Z = GetZAt (NextMovePos.X,NextMovePos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
+			}
+			//Use AngleToVector3D for getting the opposite pitch vector.
+			Else
+			{
+				Double PitchTo = GetPitchToPos (RunPos,0); //Do NOT "-" the pitch since it's specifically meant to be the exact opposite pitch.
+				Vector3 Vec = KAI_Math.AngleToVector3D (0,PitchTo,RunRad);
+				NextMovePos.Z = Pos.Z + Vec.Z;
+			}
 		}
 	}
 	
@@ -629,9 +642,13 @@ Extend Class KAI_Actor
 			SightTarget.SetXYZ (CurPos); //Move the target to the pos for the visibility check.
 			//If it's out of bounds, not visible, or can't be walked to. We can't go there. So remove that potential position.
 			If (!Level.IsPointInLevel (CurPos) || !CheckSight(SightTarget,SF_IGNOREVISIBILITY) || !IsPosReachable (CurPos))
-			{//actor mo = spawn ("gibbedmarineextra",curpos); mo.bnogravity = true;//Epic fail 
+			{
 				Xs.Delete (I); Ys.Delete(I); Zs.Delete(I);
-			}//else {actor mo = spawn ("candlestick",curpos); mo.bnogravity = true;} //EPIC WIN !!!!!!!!!!!!
+			}
+			//else {actor mo = spawn ("candlestick",curpos); mo.bnogravity = true;} //EPIC WIN !!!!!!!!!!!!
+			//For 3D positioning. Move down points that can't be directly reached due to the callers' height.
+			If (Full3D && (CurPos.Z + Height) > CeilingZ)
+				Zs[I] = CeilingZ-Height;
 		}
 		SightTarget.Destroy();
 		

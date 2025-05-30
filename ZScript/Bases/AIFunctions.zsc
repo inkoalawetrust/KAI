@@ -586,8 +586,19 @@ Extend Class KAI_Actor
 		Bool Clockwise;
 		If (!KAI_Math.IsEmptyVector3 (Targ))
 		{
-			Clockwise = (DeltaAngle (Angle,GetAngleToPos(Targ,0)) > 0); //Check if the position you're fleeing from is to the left or right and go the opposite way.
-			console.printf ("deltaangle for obstacle avoidance direction is %.2f",DeltaAngle (Angle,CheckAngle));
+			vector3 leftVector = Quat.FromAngles(angle, pitch, 0) * (0,-1,0);
+			vector3 rightVector = Quat.FromAngles(angle, pitch, 0) * (0,1,0);
+			
+			vector3 dir = level.vec3diff(pos, targ).Unit();
+			
+			double leftDiff = dir dot leftVector;
+			double rightDiff = dir dot rightVector;
+
+			if(leftDiff > 0) console.printf("Left Side");
+			if(rightDiff > 0) console.printf("Right Side");
+			Clockwise = (RightDiff > 0);
+			//Clockwise = (DeltaAngle (Angle,GetAngleToPos(Targ,0)) > 0); //Check if the position you're fleeing from is to the left or right and go the opposite way.
+			//console.printf ("deltaangle for obstacle avoidance direction is %.2f",DeltaAngle (Angle,CheckAngle));
 			if (clockwise) console.printf ("kai_avoidobstacles: target is to the right of me, so ill run to the left");
 			else console.printf ("kai_avoidobstacles: target is to the left of me, so ill run to the right like normal");
 		}

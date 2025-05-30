@@ -436,7 +436,7 @@ Extend Class KAI_Actor
 		
 		
 		Vector3 ObstacleAvoidPos; Bool UseObstacleAvoidPos;
-		[ObstacleAvoidPos, UseObstacleAvoidPos] = KAI_AvoidObstacles (ExtraParams.ObstacleDist, ExtraParams.ObstacleSlices, Speed,RunPos);
+		[ObstacleAvoidPos, UseObstacleAvoidPos] = KAI_AvoidObstacles (ExtraParams.ObstacleDist, ExtraParams.ObstacleSlices, Radius,RunPos);
 		//Use the obstacle avoid pos if it's valid, and also not basically your current position, to prevent walking in place.
 		If (UseObstacleAvoidPos && !KAI_Math.IsEmptyVector3(ObstacleAvoidPos) && Level.Vec3Diff (ObstacleAvoidPos,Pos).Length() >= MeleeRange)
 		{if (kai_debugprintmessages)console.printf ("KAI_MoveAway(): Going to ObstacleAvoidPos %d %d %d",ObstacleAvoidPos);
@@ -569,11 +569,12 @@ Extend Class KAI_Actor
 		}
 	}
 	
-	//Fires a row of IsPosReachable checks around the actor to see if anything is blocking the actor that way. And returns the next best move position if so.
+	//Fires a row of IsPosReachable checks around the actor. And if the first check isn't blocked, returns which unblock avoid position is further from Targ.
+	//If there's no Targ, it just returns the first unblocked position it finds.
 	//CheckDist: How far away the checks extend.
 	//CheckSlices: How many checks are fired around the actor. (i.e at 16, it'll do one check per 22.5 degrees until it finds a reachable position).
 	//CheckSpacing: The spacing of the IsPosReachable checks.
-	//Targ: A position to check the angle to. If the coordinate is to the right of the caller, it'll fire traces right to left and vice versa. Useful when fleeing.
+	//Targ: If this isn't NaN, the function gets all valid checks, and picks the furthest one as the unblocked position for the actor to go to.
 	Vector3, Bool KAI_AvoidObstacles (Double CheckDist, Double CheckSlices, Double CheckSpacing, Vector3 Targ = (Double.NaN,Double.NaN,Double.NaN))
 	{
 		If (CheckDist <= 0 || CheckSlices <= 0) Return (Double.NaN, Double.NaN, Double.NaN), False;
@@ -582,27 +583,9 @@ Extend Class KAI_Actor
 		Vector3 CheckPos = (Vec2Angle (Radius+CheckDist,CheckAngle),0);
 		CheckPos.Z = GetZAt (CheckPos.X,CheckPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
 		
-		//By default, the checks run from right to left, this inverts the direction. For ensuring the actor still tries to move AWAY when running away.
-		Bool Clockwise;
-		If (!KAI_Math.IsEmptyVector3 (Targ))
-		{
-			vector3 leftVector = Quat.FromAngles(angle, pitch, 0) * (0,-1,0);
-			vector3 rightVector = Quat.FromAngles(angle, pitch, 0) * (0,1,0);
-			
-			vector3 dir = level.vec3diff(pos, targ).Unit();
-			
-			double leftDiff = dir dot leftVector;
-			double rightDiff = dir dot rightVector;
-
-			if(leftDiff > 0) console.printf("Left Side");
-			if(rightDiff > 0) console.printf("Right Side");
-			Clockwise = (RightDiff > 0);
-			//Clockwise = (DeltaAngle (Angle,GetAngleToPos(Targ,0)) > 0); //Check if the position you're fleeing from is to the left or right and go the opposite way.
-			//console.printf ("deltaangle for obstacle avoidance direction is %.2f",DeltaAngle (Angle,CheckAngle));
-			if (clockwise) console.printf ("kai_avoidobstacles: target is to the right of me, so ill run to the left");
-			else console.printf ("kai_avoidobstacles: target is to the left of me, so ill run to the right like normal");
-		}
+		Array <Double> Xs; Array <Double> Ys; Array <Double> Zs;
 		
+		Vector3 FinalPos = (Double.NaN,Double.NaN,Double.NaN);
 		//MAYDO: Make the code somehow ignore actors a vehicle can push away ? This would require reverting to using line traces.
 		If (CheckDist > 0 && CheckSlices > 0)
 		{
@@ -613,35 +596,60 @@ Extend Class KAI_Actor
 			{
 				If (IsPosReachable (CheckPos,spacing:CheckSpacing))
 				{
+					//Our current heading is good.
+					If (I == 0)
+						Return FinalPos, UseObstacleAvoidPos;
 					If (KAI_DebugObstacleAvoid) KAI_DebugPointDelay.KAI_TempPointSpawn(CheckPos,KAI_DebugObstacleAvoid);
-					Break;
+					
+					//Subtract the extra distance to check ahead of from the final move position.
+					CheckPos.XY = Vec2Angle (CheckDist,CheckAngle);
+					CheckPos.Z = GetZAt (CheckPos.X,CheckPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
+					
+					Xs.Push (CheckPos.X); Ys.Push (CheckPos.Y); Zs.Push (CheckPos.Z); //Epic GZDoom fail.
+					console.printf ("added reachable pos to array for later use");
 				}
-				If (KAI_DebugPrintMessages) Console.Printf ("%d %d %d isn't reachable, adjusting movepos",CheckPos);
-				If (KAI_DebugObstacleAvoid)
-				{
-					Let Debug = KAI_DebugPointDelay.KAI_TempPointSpawn(CheckPos,KAI_DebugObstacleAvoid);
-					If (Debug) Debug.A_SetTranslation ('KAI_DebugRed');
-				}
-				UseObstacleAvoidPos = True;
-				//There's an obstacle in front of this path, try another angle.
-				If (!Clockwise)
-					CheckAngle += 360/CheckSlices;
 				Else
-					CheckAngle -= 360/CheckSlices;
+				{
+					If (KAI_DebugPrintMessages) Console.Printf ("%d %d %d isn't reachable, adjusting movepos",CheckPos);
+					If (KAI_DebugObstacleAvoid)
+					{
+						Let Debug = KAI_DebugPointDelay.KAI_TempPointSpawn(CheckPos,KAI_DebugObstacleAvoid);
+						If (Debug) Debug.A_SetTranslation ('KAI_DebugRed');
+					}
+					UseObstacleAvoidPos = True;
+					//There's an obstacle in front of this path, try another angle.
+				}
+				CheckAngle += 360/CheckSlices; //Next angle.
 				CheckPos.XY = (Vec2Angle (Radius+CheckDist,CheckAngle));
 				CheckPos.Z = GetZAt (CheckPos.X,CheckPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
 			}
-			If (UseObstacleAvoidPos)
+			
+			If (!KAI_Math.IsEmptyVector3(Targ))
 			{
-				//Subtract the extra distance to check ahead of from the final move position.
-				CheckPos.XY = Vec2Angle (CheckDist,CheckAngle);
-				CheckPos.Z = GetZAt (CheckPos.X,CheckPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
+				Double FurthestDistance;
+				Vector3 CurPos;
+				For (Int I = Xs.Size()-1; I >= 0; I--)
+				{
+					CurPos = (Xs[I],Ys[I],Zs[I]); //Reconstruct each vector.
+					Double CurrentDistance = Level.Vec3Diff (Targ,CurPos).LengthSquared();
+					If (FurthestDistance < CurrentDistance)
+					{
+						FurthestDistance = CurrentDistance;
+						FinalPos = CurPos;
+					}
+				}
 			}
+			//No position to pick the furthest unblocked position from, so just return the first one.
 			Else
-				CheckPos = (Double.NaN, Double.NaN, Double.NaN);
+				Return (Xs[0],Ys[0],Zs[0]), UseObstacleAvoidPos;
 		}
 		
-		Return CheckPos, UseObstacleAvoidPos;
+		If (KAI_DebugObstacleAvoid && !KAI_Math.IsEmptyVector3(FinalPos))
+		{
+			Let Debug = KAI_DebugPointDelay.KAI_TempPointSpawn(FinalPos,KAI_DebugObstacleAvoid);
+			If (Debug) Debug.Scale *= 3;
+		}
+		Return FinalPos, UseObstacleAvoidPos;
 	}
 	
 	Enum FindMovePosFilters

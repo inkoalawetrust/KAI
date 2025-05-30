@@ -97,7 +97,7 @@ Default
 			//if (target)isposreachable(Target.poS);
 			//destroy();
 			
-			if (target) KAI_MoveAway(target,runrad:256,maxsteps:64,detourfactor:0.5,flags:0,kmaflags:KMA_STRAIGHT,extraparams:data);
+			if (target) KAI_MoveAway(target,runrad:256,maxsteps:32,detourfactor:0.5,flags:0,kmaflags:KMA_STRAIGHT,extraparams:data);
 			//A_Chase ("Melee",Null);
 		}
 		Loop;

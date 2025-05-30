@@ -436,7 +436,7 @@ Extend Class KAI_Actor
 		
 		
 		Vector3 ObstacleAvoidPos; Bool UseObstacleAvoidPos;
-		[ObstacleAvoidPos, UseObstacleAvoidPos] = KAI_AvoidObstacles (ExtraParams.ObstacleDist, ExtraParams.ObstacleSlices, Speed);
+		[ObstacleAvoidPos, UseObstacleAvoidPos] = KAI_AvoidObstacles (ExtraParams.ObstacleDist, ExtraParams.ObstacleSlices, Speed,RunPos);
 		//Use the obstacle avoid pos if it's valid, and also not basically your current position, to prevent walking in place.
 		If (UseObstacleAvoidPos && !KAI_Math.IsEmptyVector3(ObstacleAvoidPos) && Level.Vec3Diff (ObstacleAvoidPos,Pos).Length() >= MeleeRange)
 		{if (kai_debugprintmessages)console.printf ("KAI_MoveAway(): Going to ObstacleAvoidPos %d %d %d",ObstacleAvoidPos);
@@ -569,15 +569,29 @@ Extend Class KAI_Actor
 		}
 	}
 	
-	Vector3, Bool KAI_AvoidObstacles (Double CheckDist, Double CheckSlices, Double CheckSpacing)
+	//Fires a row of IsPosReachable checks around the actor to see if anything is blocking the actor that way. And returns the next best move position if so.
+	//CheckDist: How far away the checks extend.
+	//CheckSlices: How many checks are fired around the actor. (i.e at 16, it'll do one check per 22.5 degrees until it finds a reachable position).
+	//CheckSpacing: The spacing of the IsPosReachable checks.
+	//Targ: A position to check the angle to. If the coordinate is to the right of the caller, it'll fire traces right to left and vice versa. Useful when fleeing.
+	Vector3, Bool KAI_AvoidObstacles (Double CheckDist, Double CheckSlices, Double CheckSpacing, Vector3 Targ = (Double.NaN,Double.NaN,Double.NaN))
 	{
 		If (CheckDist <= 0 || CheckSlices <= 0) Return (Double.NaN, Double.NaN, Double.NaN), False;
 		Bool UseObstacleAvoidPos; //If on, the position passed in CheckPos will be used.
-		Double CheckAngle = (GetAngleToPos(NextMovePos,0)); //Try at the NextMovePos, unless blocked.
+		Double CheckAngle = GetAngleToPos(NextMovePos,0); //Try at the NextMovePos, unless blocked.
 		Vector3 CheckPos = (Vec2Angle (Radius+CheckDist,CheckAngle),0);
 		CheckPos.Z = GetZAt (CheckPos.X,CheckPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
-		//kai_lofraycast.visualizetracepath (pos.plusz(height/2),checkpos,level.vec3diff(pos.plusz(height/2),checkpos).length());
-		//if (kai_debugprintmessages) console.printf ("KAI_AvoidObstacles: NextMovePos %d %d %d, CheckPos %d %d %d",nextmovepos,checkpos);
+		
+		//By default, the checks run from right to left, this inverts the direction. For ensuring the actor still tries to move AWAY when running away.
+		Bool Clockwise;
+		If (!KAI_Math.IsEmptyVector3 (Targ))
+		{
+			Clockwise = (DeltaAngle (Angle,GetAngleToPos(Targ,0)) > 0); //Check if the position you're fleeing from is to the left or right and go the opposite way.
+			console.printf ("deltaangle for obstacle avoidance direction is %.2f",DeltaAngle (Angle,CheckAngle));
+			if (clockwise) console.printf ("kai_avoidobstacles: target is to the right of me, so ill run to the left");
+			else console.printf ("kai_avoidobstacles: target is to the left of me, so ill run to the right like normal");
+		}
+		
 		//MAYDO: Make the code somehow ignore actors a vehicle can push away ? This would require reverting to using line traces.
 		If (CheckDist > 0 && CheckSlices > 0)
 		{
@@ -598,7 +612,11 @@ Extend Class KAI_Actor
 					If (Debug) Debug.A_SetTranslation ('KAI_DebugRed');
 				}
 				UseObstacleAvoidPos = True;
-				CheckAngle += 360/CheckSlices; //There's an obstacle in front of this path, try another angle.
+				//There's an obstacle in front of this path, try another angle.
+				If (!Clockwise)
+					CheckAngle += 360/CheckSlices;
+				Else
+					CheckAngle -= 360/CheckSlices;
 				CheckPos.XY = (Vec2Angle (Radius+CheckDist,CheckAngle));
 				CheckPos.Z = GetZAt (CheckPos.X,CheckPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
 			}

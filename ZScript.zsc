@@ -89,10 +89,10 @@ Default
 			//KAI_Wander(32,1024,256);
 			//Test the obstacle avoidance code.
 			KAIMoveParams data;
-			//data.cornerdist = 384;
-			//data.cornerdiv = 16;
+			data.cornerdist = 384;
+			data.cornerdiv = 16;
 			data.obstacledist = 256;
-			data.obstacleslices = 16;
+			data.obstacleslices = 32;
 			
 			//if (target)isposreachable(Target.poS);
 			//destroy();

@@ -296,7 +296,6 @@ Extend Class KAI_Actor
 		//3D velocity based movement
 		//TODO:
 		//Account for the CantLeaveFloorPic stuff.
-		//Probably still keep an FCheckPosition struct around as we'll still likely need to use CheckPosition().
 		//Include the vehicle pushing and crushing code. And also make VehiclePushActors accept 3D coordinates instead, why did I make it a Vector2 when I planned this for months?
 		//Use movecount = Int(random(16,32)*DetourFactor) and stuff for making the flying actor bounce off obstacles (With custom code I need to figure out).
 		//On the above note, also include support for CHF_STOPIFBLOCKED.
@@ -304,13 +303,46 @@ Extend Class KAI_Actor
 		//CREDIT: Boondorl and RaveYard for helping me get this fucking god forsaken math to mostly work.
 		Else
 		{
-			NextPitch = GetPitchToPos(TargetPos,PitchLimit);
-			If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D: NextPitch is %.2f,",NextPitch);
-			Vel *= KMT_3D_DecelWrongVector (TargetPos); //Decelerate from wrong velocities, like when an explosion blasts the actor off-course.
-			Vector3 F3DVel = KAI_Math.AngleToVector3D (NextAngle,-NextPitch,Speed); //Generate velocity that reaches the target over time (Or instantly).
-			KMT_3D_SpeedLimit (Speed*3,F3DVel); //HACK: Magic number to make the total vel length cap ACTUALLY match the speed property.
-			//KAI_LOFRaycast.VisualizeTracePath (Pos,Level.Vec3Offset(Pos,Vel),128,1);
-			If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D: Velocity is %.2f %.2f %.2f, length %.2f",Vel,Vel.Length());
+			If (!MoveCount)
+			{
+				NextPitch = GetPitchToPos(TargetPos,PitchLimit);
+				If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D: NextPitch is %.2f,",NextPitch);
+				Vel *= KMT_3D_DecelWrongVector (TargetPos); //Decelerate from wrong velocities, like when an explosion blasts the actor off-course.
+				Vector3 F3DVel = KAI_Math.AngleToVector3D (NextAngle,-NextPitch,Speed); //Generate velocity that reaches the target over time (Or instantly).
+				KMT_3D_SpeedLimit (Speed*3,F3DVel); //HACK: Magic number to make the total vel length cap ACTUALLY match the speed property.
+				//KAI_LOFRaycast.VisualizeTracePath (Pos,Level.Vec3Offset(Pos,Vel),128,1);
+				If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D: Velocity is %.2f %.2f %.2f, length %.2f",Vel,Vel.Length());
+			}
+			//We were blocked, so spaz out a little.
+			Else
+			{
+				Vel *= KMT_3D_DecelWrongVector (TargetPos); //Decelerate from wrong velocities, like when an explosion blasts the actor off-course.
+				Vector3 F3DVel = KAI_Math.AngleToVector3D (NextAngle,0,Speed); //Generate velocity that reaches the target over time (Or instantly).
+				KMT_3D_SpeedLimit (Speed*3,F3DVel); //HACK: Magic number to make the total vel length cap ACTUALLY match the speed property.
+			}
+			
+			//This next move is blocked.
+			If (KMT_3D_MoveBlocked())
+			{
+				MoveCount = Int(random(16,32)*DetourFactor);
+				//Bounce randomly like an idiot. Do have a minor bias for the last direction your turned though.
+				If (LastTurnDir == 0)
+				{
+					Double RNG = RandomPick (20,40,60,80,-20,-40,-60,-80);
+					NextAngle = LastAngle + RNG;
+					LastTurnDir = RNG > 0 ? 1 : -1;
+				}
+				Else
+				{
+					Double RNG;
+					//If (Random)
+					If (LastTurnDir == 1)
+						RNG = RandomPick (20,40,60,80);
+					Else If (LastTurnDir == -1)
+						RNG = RandomPick (-20,-40,-60,-80);
+					NextAngle += RNG;
+				}
+			}
 		}
 		
 		//face movement direction
@@ -320,6 +352,15 @@ Extend Class KAI_Actor
 			If (Flags & KMT_3D)
 				Pitch = -NextPitch;
 		}
+	}
+	
+	Protected Bool KMT_3D_MoveBlocked()
+	{
+		Vector3 RealPos = Pos;
+		SetZ (Pos.Z+Vel.Z); //Z is separate.
+		Bool Res = CheckMove (Pos.XY+Vel.XY);
+		SetZ (RealPos.Z);
+		Return !Res;
 	}
 	
 	//Handle slowing down the actor based on just how far its' current velocity is from the target position, i.e if it fully faces away, it grinds to a halt.

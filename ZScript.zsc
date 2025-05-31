@@ -42,7 +42,6 @@ Maybe also add an OnBodyPartHit callback for projectiles to use. Such as to make
 
 //TODO:
 //Add 3D obstacle avoidance for KMT_3D actors by firing a sphere of traces around and getting a total vector to avoid.
-//For the corner code in MoveAway(), add extra up and down checks for flyers too.
 //Add code for moving KMT_3D actors up or down when it's near lowered ceilings or raised floors by checking in front of them.
 
 //DEBUG DEBUG DEBUG

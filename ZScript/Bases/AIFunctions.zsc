@@ -434,7 +434,6 @@ Extend Class KAI_Actor
 			Return;
 		}
 		
-		
 		Vector3 ObstacleAvoidPos; Bool UseObstacleAvoidPos;
 		[ObstacleAvoidPos, UseObstacleAvoidPos] = KAI_AvoidObstacles (ExtraParams.ObstacleDist, ExtraParams.ObstacleSlices, Radius,RunPos);
 		//Use the obstacle avoid pos if it's valid, and also not basically your current position, to prevent walking in place.
@@ -459,6 +458,57 @@ Extend Class KAI_Actor
 		}
 		
 		Actor SightTarget = Other;
+		
+		//Check if the flying NPC could potentially hide at its' ceiling or floor height. If both have no LOS to the target (And are close enough), then whichever is closest.
+		If (ExtraParams.KMAHidePlaneDist && SightTarget.CheckSight(Self,SF_IGNOREWATERBOUNDARY))
+		{
+			Double Dist = Abs(ExtraParams.KMAHidePlaneDist);
+			Double RealZ = Pos.Z;
+			
+			//So we can map which ones are good, AND closest if both the floor and ceiling are good.
+			Vector2 FloorGood, CeilGood;
+			
+			Console.printf ("floor dist %.2f, ceiling dist %.2f",Pos.Z - FloorZ,CeilingZ - (Pos.Z+Height));
+			//Floor isn't too far down.
+			If (Pos.Z - FloorZ <= Dist)
+			{
+				SetZ (FloorZ);
+				//Can see us on the floor, bad.
+				If (!SightTarget.CheckSight (Self,SF_IGNOREWATERBOUNDARY))
+					FloorGood = (True,Pos.Z - FloorZ);
+				SetZ (RealZ);
+			}
+			else console.printf ("floor is too far down");
+			
+			//Ceiling isn't too far up.
+			If (CeilingZ - (Pos.Z+Height) <= Dist)
+			{
+				SetZ (CeilingZ);
+				If (!SightTarget.CheckSight (Self,SF_IGNOREWATERBOUNDARY))
+					CeilGood = (True,CeilingZ - (Pos.Z+Height));
+				SetZ (RealZ);
+			}else console.printf ("ceiling is too far up");
+			
+			//Only return whichever's if both aren't invalid.
+			If (FloorGood.X || CeilGood.X)
+			{
+				Double FinalZ;
+				//If only one wasn't beyond the threshold, pick that one.
+				If (FloorGood.X || !CeilGood.X) FinalZ = FloorZ;
+				Else If (!FloorGood.X && CeilGood.X) FinalZ = CeilingZ;
+				Else If (FloorGood.X && CeilGood.X)
+				{
+					Double Smallest = Min (FloorGood.Y,CeilGood.Y);
+					If (Smallest ~== FloorGood.Y)
+						FinalZ = FloorZ;
+					Else
+						FinalZ = CeilingZ;
+				}
+				NextMovePos = (Pos.XY,FinalZ);
+				Return;
+			}
+		}
+		
 		Bool DoCornerCheck = (ExtraParams.CornerDist > 0 && (ExtraParams.CornerDiv > 0 || ExtraParams.CornerDiv == -1));
 		If (!SightTarget && DoCornerCheck) SightTarget = Spawn ("KAI_TempPoint",TargPos); //Spawn a debug point to check the sight of a TargPos instead for running from a coordinate.
 		
@@ -558,7 +608,10 @@ Extend Class KAI_Actor
 	}
 	
 	//Works similar to its' 2D/land counterpart. Except that it fires a fan of checks around the caller. To allow it to also find vertical and diagonal corners.
-	//IDEA: Add variables to make it at the top or bottom, and also run counterclockwise?
+	//Targ, Divisions, Distance: Works like its' 2D counterpart.
+	//Slices: The slices that the clock-like pattern around the caller is split to. Similar to the slices in KAI_AvoidObstacles().
+	//StartUp: By default the checks are fired from under the actor, this makes them start from above them. For biasing the check towards the ceiling instead.
+	//Counterlockwise: By default the checks move left to right like a clock, this inverts that. For biasing the check towards the right.
 	Vector3 KAI_CheckCorners3D (Actor Targ, UInt Slices, UInt Divisions, Double Distance, Bool StartUp = False, Bool Counterclockwise = False)
 	{
 		If (Targ.CheckSight(Self,SF_IGNOREWATERBOUNDARY))
@@ -570,10 +623,9 @@ Extend Class KAI_Actor
 			If (StartUp)
 				Offs.Z = Abs(Offs.Z);
 			
-			
 			//Rotate the "clock".
 			For (Int I = 0; I < Slices; I++)
-			{console.printf ("processing slide %d out of %d",i,slices);
+			{
 				Double CRoll = Offs.Z*I;
 				If (Counterclockwise)
 					CRoll = -CRoll;
@@ -1422,6 +1474,7 @@ Struct KAIMoveParams
 	Double RunRad; //The radius around which additional points should be generated.
 	Int MaxSteps; //How many steps trying to move to the current retreat position can the caller take before it picks a new location to run to.
 	Int KMAFlags; //The functions' own flags, check the MoveAwayFlags enum for a list of them and what they do.
+	Double KMAHidePlaneDist; //If non-0. KMA will check the callers' ceiling and floor heights. And see if they could hide at whichever is closest, if they're under this threshold.
 	
 	//Additional parameters that need to be passed through this struct to KAI_MoveAway().
 	Double CornerDist; //How far away on the left and right sides should the corner running code check around the caller? If this is 0 or less, this is disabled.

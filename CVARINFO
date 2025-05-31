@@ -5,3 +5,4 @@ Server Bool KAI_DebugPrintGroupEvents = False; //Print NPC group event info like
 Server Bool KAI_DebugNextMovePos = False; //Show a KAI_DebugPoint over every NextMovePos on all NPCs spawned after this CVAR is set.
 Server Bool KAI_DebugPrintFlyers = False; //Show debug messages for KMT_3D movement.
 Server Int	KAI_DebugObstacleAvoid = 0; //Show debug visualizations for KAI_AvoidObstacles. Controls how long the visualizations last too.
+Server Int	KAI_Debug3DCornerCheck = 0; //Show all the points for KAI_AvoidObstacles3D().

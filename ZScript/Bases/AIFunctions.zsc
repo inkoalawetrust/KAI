@@ -467,7 +467,13 @@ Extend Class KAI_Actor
 		Console.Printf ("CornerCheck %d, checksight %d",docornercheck,CheckSight(SightTarget,SF_IGNOREWATERBOUNDARY));
 		If (DoCornerCheck)
 		{
-			Vector3 CornerPos = KAI_CheckCorners (SightTarget,ExtraParams.CornerDiv,ExtraParams.CornerDist);
+			If (ExtraParams.CornerSlices == 0)
+				ExtraParams.CornerSlices = 4;
+			Vector3 CornerPos;
+			If (!(Flags & KMT_3D))
+				CornerPos = KAI_CheckCorners (SightTarget,ExtraParams.CornerDiv,ExtraParams.CornerDist);
+			Else
+				CornerPos = KAI_CheckCorners3D (SightTarget,ExtraParams.CornerSlices,ExtraParams.CornerDiv,ExtraParams.CornerDist);
 			//We have a corner from where we are not visible against whatever we're running from, run back there.
 			If (!KAI_Math.IsEmptyVector3(CornerPos))
 			{
@@ -497,82 +503,110 @@ Extend Class KAI_Actor
 		}
 	}
 	
-	Vector3 KAI_CheckCorners (Actor Targ, Int Divisions, Double Distance)
+	//Checks to the left and right of the caller for a position from where Targ can't see them. And returns it.
+	//Targ: The actor (Or rather, the coordinate in general) from which we are running from, used for sight checks.
+	//Divisions: How many split steps from the callers' origin to the left/rightmost position are done. i.e 32 steps with a distance of 512 is on check every 16MU.
+	//Distance: The left/rightmost distance from the actor checked.
+	Vector3 KAI_CheckCorners (Actor Targ, UInt Divisions, Double Distance)
 	{
-		
-		If (CheckSight(Targ,SF_IGNOREWATERBOUNDARY))
+		//If we already have no line of sight to whatever we're supposed to be running from then well...
+		If (Targ.CheckSight(Self,SF_IGNOREWATERBOUNDARY))
 		{
+			//Project a line of checks from the origin of the calling actor all the way out to the maximum length of CornerDist. Finding the closest corner.
 			Vector3 RealPos = Pos;
 			Double CheckLength = Distance;
+			Double Division = (Distance/Divisions);
 			console.printf ("doing corner check");
+			
 			//Check your left.
 			Vector3 LeftPos;
-			If (Divisions == -1) //Use exact old behavior
+			/*Note: If I = 0 and I < Distance. Then the first check is ran at the current NPC position instead of Division MU away,
+			and the max distance away is skipped (i.e if the ckeck is set to check 394 MU on each side with a division of 12, it checks only 352MU away, AKA 384-32)*/
+			For (Double I = Division; I < Distance+Division; I += Division)
 			{
-				LeftPos = Vec3Angle (CheckLength,Angle-90);
+				LeftPos = Vec3Angle (I,Angle-90);
+				If (KAI_DebugPrintMessages) console.printf ("left corner check is %.2f MU away from actual pos",level.vec3diff (leftpos,pos).length());
 				SetOrigin (LeftPos,False);
 				//I think CheckSight() is literally cheaper than IsPosReachable() so run these checks first.
 				Bool LeftSight = Targ.CheckSight (Self,SF_IGNOREWATERBOUNDARY);
 				SetOrigin (RealPos, False);
-				If (!LeftSight && IsPosReachable (LeftPos,ignoreactors:True))
+				If (!LeftSight && Level.Vec3Diff (Pos,LeftPos).Length() >= MeleeRange && IsPosReachable (LeftPos,spacing:Speed,ignoreactors:True))
 				{
 					If (KAI_DebugPrintMessages) Console.Printf ("KAI_MoveAway(): KMA_USECORNERS: Running behind my left corner.");
 					Return LeftPos; //Move to the left.
 				}
 			}
-			Else
-			{
-				//Project a line of checks from the origin of the calling actor all the way out to the maximum length of CornerDist. Finding the closest corner.
-				Double Division = (Distance/Divisions);
-				/*Note: If I = 0 and I < Distance. Then the first check is ran at the current NPC position instead of Division MU away,
-				and the max distance away is skipped (i.e if the ckeck is set to check 394 MU on each side with a division of 12, it checks only 352MU away, AKA 384-32)*/
-				For (Double I = Division; I < Distance+Division; I += Division)
-				{
-					LeftPos = Vec3Angle (I,Angle-90);
-					If (KAI_DebugPrintMessages) console.printf ("left corner check is %.2f MU away from actual pos",level.vec3diff (leftpos,pos).length());
-					SetOrigin (LeftPos,False);
-					//I think CheckSight() is literally cheaper than IsPosReachable() so run these checks first.
-					Bool LeftSight = Targ.CheckSight (Self,SF_IGNOREWATERBOUNDARY);
-					SetOrigin (RealPos, False);
-					If (!LeftSight && Level.Vec3Diff (Pos,LeftPos).Length() >= MeleeRange && IsPosReachable (LeftPos,spacing:Speed,ignoreactors:True))
-					{
-						If (KAI_DebugPrintMessages) Console.Printf ("KAI_MoveAway(): KMA_USECORNERS: Running behind my left corner.");
-						Return LeftPos; //Move to the left.
-					}
-				}
-			}
 			
 			//Check your right.
 			Vector3 RightPos;
-			If (Divisions == -1) //Use exact old behavior
+			For (Double I = Division; I < Distance+Division; I += Division)
 			{
-				RightPos = Vec3Angle (CheckLength,Angle+90);
+				RightPos = Vec3Angle (I,Angle+90);
+				If (KAI_DebugPrintMessages) console.printf ("right corner check is %.2f MU away from actual pos",level.vec3diff (rightpos,pos).length());
 				SetOrigin (RightPos,False);
 				//I think CheckSight() is literally cheaper than IsPosReachable() so run these checks first.
 				Bool RightSight = Targ.CheckSight (Self,SF_IGNOREWATERBOUNDARY);
 				SetOrigin (RealPos, False);
-				If (!RightSight && IsPosReachable (RightPos,spacing:Speed,ignoreactors:True))
+				If (!RightSight && Level.Vec3Diff (Pos,RightPos).Length() > MeleeRange && IsPosReachable (RightPos,spacing:Speed,ignoreactors:True))
 				{
 					If (KAI_DebugPrintMessages) Console.Printf ("KAI_MoveAway(): KMA_USECORNERS: Running behind my right corner.");
-					Return RightPos; //Move to the right.
+					Return RightPos; //Move to the left.
 				}
 			}
-			Else
-			{
-				//Project a line of checks from the origin of the calling actor all the way out to the maximum length of CornerDist. Finding the closest corner.
+		}
+		Return (Double.NaN, Double.NaN, Double.NaN);
+	}
+	
+	//Works similar to its' 2D/land counterpart. Except that it fires a fan of checks around the caller. To allow it to also find vertical and diagonal corners.
+	//IDEA: Add variables to make it at the top or bottom, and also run counterclockwise?
+	Vector3 KAI_CheckCorners3D (Actor Targ, UInt Slices, UInt Divisions, Double Distance, Bool StartUp = False, Bool Counterclockwise = False)
+	{
+		If (Targ.CheckSight(Self,SF_IGNOREWATERBOUNDARY))
+		{
+			Vector3 RealPos = Pos;
+			
+			Double Offset = 360/Slices;
+			Vector3 Offs = (0,0,-Offset);
+			If (StartUp)
+				Offs.Z = Abs(Offs.Z);
+			
+			
+			//Rotate the "clock".
+			For (Int I = 0; I < Slices; I++)
+			{console.printf ("processing slide %d out of %d",i,slices);
+				Double CRoll = Offs.Z*I;
+				If (Counterclockwise)
+					CRoll = -CRoll;
+				Quat Base = Quat.FromAngles (GetAngleToPos(Targ.Pos,0),0,CRoll);
+				Vector3 Dest;
+				//Offs.Y += Offs.Y; //Increment for every slice.
 				Double Division = (Distance/Divisions);
-				For (Double I = Division; I < Distance+Division; I += Division)
+				Vector3 Rotated = Base * (0,0,Division);
+				
+				//Check slice.
+				Int Iter;
+				For (Double D = Division; D < Distance+Division; D += Division)
 				{
-					RightPos = Vec3Angle (I,Angle+90);
-					If (KAI_DebugPrintMessages) console.printf ("right corner check is %.2f MU away from actual pos",level.vec3diff (rightpos,pos).length());
-					SetOrigin (RightPos,False);
-					//I think CheckSight() is literally cheaper than IsPosReachable() so run these checks first.
-					Bool RightSight = Targ.CheckSight (Self,SF_IGNOREWATERBOUNDARY);
-					SetOrigin (RealPos, False);
-					If (!RightSight && Level.Vec3Diff (Pos,RightPos).Length() > MeleeRange && IsPosReachable (RightPos,spacing:Speed,ignoreactors:True))
+					Iter++;
+					Vector3 CheckPos;
+					
+					Dest = Level.Vec3Offset (Pos,Rotated*Iter);
+					
+					//This is out of bounds, get rid of it for performance.
+					If (!Level.IsPointInLevel(Dest))
+						Continue;
+					
+					CheckPos = Dest;
+					SetOrigin (Dest,False);
+					Bool Sight = Targ.CheckSight(Self,SF_IGNOREWATERBOUNDARY);
+					SetOrigin (RealPos,False);
+					If (KAI_Debug3DCornerCheck)
+						KAI_DebugPointDelay.KAI_TempPointSpawn(CheckPos,KAI_Debug3DCornerCheck);
+					
+					If (!Sight && Level.Vec3Diff (Pos,CheckPos).Length() > MeleeRange && IsPosReachable3D (CheckPos,spacing:Radius*2,ignoreactors:True))
 					{
-						If (KAI_DebugPrintMessages) Console.Printf ("KAI_MoveAway(): KMA_USECORNERS: Running behind my right corner.");
-						Return RightPos; //Move to the left.
+						If (KAI_DebugPrintMessages) Console.Printf ("KAI_MoveAway(): KMA_USECORNERS: Running behind 3D corner.");
+						Return CheckPos; 
 					}
 				}
 			}
@@ -1392,8 +1426,7 @@ Struct KAIMoveParams
 	//Additional parameters that need to be passed through this struct to KAI_MoveAway().
 	Double CornerDist; //How far away on the left and right sides should the corner running code check around the caller? If this is 0 or less, this is disabled.
 	Int CornerDiv;	//How many additional fractional checks should the corner running code do? i.e divinding a CornerDist of 100 by 10 to check every 10 MU.
-					/*If this set to 0, the mechanic isn't used by the function at all, if set to -1, it only checks the end point that is CornerDist MU to the
-					left or right of the caller. Which is how the check used to work when I had first coded it, for some fucking reason.*/
+	Int CornerSlices; //Used by KMA when using KMT_3D movement. Determines how many slices to use for checking corners in a clock-like pattern.
 	Double ObstacleDist; //How far ahead should the actor check for obstacles to try moving around from? If set to 0 or less, no obstacle avoidance occurs.
 	Int ObstacleSlices; //How many reachability checks should be done around a 360 degree circle? i.e setting this to 16 checks in increments of 22.5 degrees around.
 }

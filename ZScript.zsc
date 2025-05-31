@@ -120,7 +120,7 @@ Default
 }
 
 Class TestCaco : KAI_Actor Replaces Cacodemon
-{default {speed 6;+NOGRAVITY;-solid+nodamage+float+lookallaround}
+{default {speed 6;+NOGRAVITY;-solid+nodamage/*+float*/+lookallaround}
 	States
 	{
 		Spawn:
@@ -137,10 +137,17 @@ Class TestCaco : KAI_Actor Replaces Cacodemon
 				//KAI_Wander (anglelimit:40,flags:KMT_3D,pitchlimit:40);
 				KAIMoveParams Params;
 				Params.PitchLimit = 40; //Pass pitch limit for KAI_MoveAway.
-				Params.cornerdist = 384;
+				Params.cornerdist = 512;
 				Params.cornerdiv = 16;
-				Params.obstacledist = 256;
-				Params.obstacleslices = 16;
+				Params.CornerSlices = 8;
+				//Params.obstacledist = 256;
+				//Params.obstacleslices = 16;
+				//Check 3D corner checking.
+				/*If (Target)
+				{
+					KAI_CheckCorners3D (Target,8,params.cornerdiv,params.cornerdist,true,true);
+					A_FaceTarget();
+				}*/
 				//Test to see how the corner taking works with KMT_3D.
 				If (Target)
 					KAI_MoveAway (Target,128,flags:KMT_3D,kmaflags:KMA_STRAIGHT,extraparams:Params);

@@ -88,10 +88,10 @@ Default
 			//KAI_Wander(32,1024,256);
 			//Test the obstacle avoidance code.
 			KAIMoveParams data;
-			data.cornerdist = 384;
-			data.cornerdiv = 16;
-			data.obstacledist = 256;
-			data.obstacleslices = 32;
+			//data.cornerdist = 384;
+			//data.cornerdiv = 16;
+			//data.obstacledist = 256;
+			//data.obstacleslices = 32;
 			
 			//if (target)isposreachable(Target.poS);
 			//destroy();
@@ -150,7 +150,7 @@ Class TestCaco : KAI_Actor Replaces Cacodemon
 				}*/
 				//Test to see how the corner taking works with KMT_3D.
 				If (Target)
-					KAI_MoveAway (Target,128,flags:KMT_3D,kmaflags:KMA_STRAIGHT,extraparams:Params);
+					KAI_MoveAway (Target,128,detourfactor:4,flags:KMT_3D,kmaflags:KMA_STRAIGHT,extraparams:Params);
 				//console.printf ("the players' angle is %.2f, pitch %.2f",players[consoleplayer].mo.angle,players[consoleplayer].mo.pitch);
 				//If (Target) IsPosReachable3D (Target.Pos);
 			}

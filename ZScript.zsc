@@ -119,7 +119,7 @@ Default
 }
 
 Class TestCaco : KAI_Actor Replaces Cacodemon
-{default {speed 6;+NOGRAVITY;-solid+nodamage/*+float*/+lookallaround}
+{default {speed 6;floatspeed 0.5;+NOGRAVITY;+nodamage/*+float*/+lookallaround}
 	States
 	{
 		Spawn:
@@ -132,13 +132,14 @@ Class TestCaco : KAI_Actor Replaces Cacodemon
 			}
 			HEAD A 1
 			{
-				//KAI_MoveTowards (Tracer.Pos,anglelimit:0,flags:KMT_3D,pitchlimit:0);
+				If (Target)
+					KAI_MoveTowards (Target.Pos,anglelimit:0,flags:KMT_3D,pitchlimit:0);
 				//KAI_Wander (anglelimit:40,flags:KMT_3D,pitchlimit:40);
 				KAIMoveParams Params;
 				Params.PitchLimit = 40; //Pass pitch limit for KAI_MoveAway.
-				//Params.cornerdist = 512;
-				//Params.cornerdiv = 16;
-				//Params.CornerSlices = 8;
+				Params.cornerdist = 256;
+				Params.cornerdiv = 8;
+				Params.CornerSlices = 8;
 				Params.KMAHidePlaneDist = 768;
 				//Params.obstacledist = 256;
 				//Params.obstacleslices = 16;
@@ -149,8 +150,8 @@ Class TestCaco : KAI_Actor Replaces Cacodemon
 					A_FaceTarget();
 				}*/
 				//Test to see how the corner taking works with KMT_3D.
-				If (Target)
-					KAI_MoveAway (Target,128,detourfactor:4,flags:KMT_3D,kmaflags:KMA_STRAIGHT,extraparams:Params);
+				//If (Target)
+				//	KAI_MoveAway (Target,128,detourfactor:4,flags:KMT_3D,kmaflags:KMA_STRAIGHT,extraparams:Params);
 				//console.printf ("the players' angle is %.2f, pitch %.2f",players[consoleplayer].mo.angle,players[consoleplayer].mo.pitch);
 				//If (Target) IsPosReachable3D (Target.Pos);
 			}

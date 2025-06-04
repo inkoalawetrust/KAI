@@ -371,6 +371,23 @@ Mixin Class KAI_CheckFunctions
 
 		return null;
 	}
+	
+	//Get the 3D floor that the specified control sector (Model) projects at the specified sector (Where).
+	//Used to make sense of AActor's Blocking3DFloor which returns the control sector itself for some asinine reason.
+	Static ClearScope F3DFloor Get3DFloorFromModel (Sector Model, Sector Where)
+	{
+		If (!Model || !Where)
+			{console.printf ("model %p, where %p",model,where);Return Null;}
+		console.printf ("floorcount %d",where.get3dfloorcount());
+		For (Int I = 0; I < Where.Get3DFloorCount(); I++)
+		{
+			F3DFloor FFloor = Where.Get3DFloor(I);
+			console.printf ("iterating 3d floor %p at sector %p, index %d",ffloor,where,i);
+			If (FFloor && FFloor.Flags & F3DFloor.FF_EXISTS && FFloor.Model == Model)
+				Return FFloor;
+		}
+		Return Null;
+	}
 }
 
 //This is the base class for making custom LineTracer-based line of fire checks for actors.

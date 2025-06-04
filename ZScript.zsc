@@ -141,6 +141,8 @@ Class TestCaco : KAI_Actor Replaces Cacodemon
 				Params.cornerdiv = 8;
 				Params.CornerSlices = 8;
 				Params.KMAHidePlaneDist = 768;
+				if (target)
+					console.printf ("target is at sector %p",cursector);
 				//Params.obstacledist = 256;
 				//Params.obstacleslices = 16;
 				//Check 3D corner checking.

@@ -137,7 +137,7 @@ Extend Class KAI_Actor
 	
 	//Makes the actor move towards the specified position.
 	//TODO: Add a check for if a vehicles' turret would collide with the next move. And probably find a way to call it recursively for turrets on turrets.
-	//CREDIT: Written by Custodian. Modified and expanded by me (inkoalawetrust).
+	//CREDIT: Original 2D A_Chase-like movement written by Custodian (Beyond Sunset creator). Modified and expanded by me (inkoalawetrust).
 	//TargetPos: The position to move to.
 	//DetourFactor: How long the actor is allowed to move in a direction after hitting an obstacle, before heading straight for the target again.
 	//AngleLimit: How much the actor can turn per step. Used to not have it snap back 180 or anything like that.
@@ -180,7 +180,7 @@ Extend Class KAI_Actor
 		
 		//MoveCount is greater than 0 when avoiding an obstacle
 		if (MoveCount)
-		{console.printf ("move count %d",movecount);
+		{
 			MoveCount--;
 		}
 		else
@@ -314,7 +314,7 @@ Extend Class KAI_Actor
 			}
 			
 			Double ZClimb;
-			//Climb up or down from obstacle we hit. Replicates standard MF_FLOAT behavior for point-to-point movement.
+			//Climb up or down from obstacle we hit. Improved version of standard MF_FLOAT behavior for point-to-point movement.
 			If (KMT_3D_ScaleObstacle(Level.Vec3Offset(Pos,F3DVel),ZClimb))
 			{
 				//Climb position is higher than us, go up.
@@ -406,10 +406,8 @@ Extend Class KAI_Actor
 	}
 	
 	//Is there a scalable obstacle in front of the flier? If the answer is yes. It also has a Z value that can be set by reference for what Z to move to.
-	//BUG: Right now it can't properly figure out how to scale a steep slope from front to back. You know, since slopes are cursed. Will need a way to get the higher and lowest slope!
+	//BUG: Right now it can't properly figure out how to scale a steep slope from front to back. You know, since slopes are cursed. Will need a way to get the higher and lowest slope points!
 	//TODO:
-	//Add (Explicit) support for 3D floors using similar logic to actors, but ZAtPoint for the top and bottom of the obstacle.
-	//Add support for blocking 3D middle textures and railings.
 	//Add dedicated slope support by checking if a secplane it bumped to is sloped, and moving the actor along its' normal.
 	Protected Bool KMT_3D_ScaleObstacle (Vector3 Where, Double &TargetZ)
 	{
@@ -420,13 +418,17 @@ Extend Class KAI_Actor
 		Bool CanScale;
 		If (!Res)
 		{
+			Double Padding = 64; //HACK: Don't fucking get stuck bouncing up and down at the vertical corner of obstacles.
+			
 			//We hit a two sided "ceiling" (Blocking I think) line, meaning there is a back sector to get the height of.
 			//Unless that line is not even blocking us.
 			If (BlockingLine && BlockingLine.Flags & Line.ML_TWOSIDED)
 			{console.printf ("hello! I hit a line!");
 				Line Blk = BlockingLine;
+				Sector TargSec = Blk.BackSector == CurSector ? Blk.FrontSector : Blk.BackSector;
+				console.printf ("blocking3dfloor %p",blocking3dfloor);
 				//We hit a line with a lowered ceiling or raised floor in it.
-				If (!(Blk.Flags & Line.ML_3DMIDTEX))
+				If (!(Blk.Flags & Line.ML_3DMIDTEX) && !Blocking3DFloor)
 				{
 					Sector TargSec = Blk.BackSector == CurSector ? Blk.FrontSector : Blk.BackSector;
 					Double CeilHeight = TargSec.CeilingPlane.ZAtPoint(Where.XY);
@@ -450,18 +452,53 @@ Extend Class KAI_Actor
 					}
 				}
 				//The two sided line we hit is a 3D middle texture.
-				Else
+				Else If (Blk.Flags & Line.ML_3DMIDTEX && !Blocking3DFloor)
 				{
 					Double Top, Bottom; Bool Valid;
 					Int WhatSide = Level.PointOnLineSide (Where.XY,Blk,True);
 					[Valid, Top, Bottom] = Blk.GetMidTexturePosition (WhatSide);
-					
+					console.printf ("scaling 3d midtex");
 					Double Targ; Bool Down;
+					[Targ, Down] = KMT_3D_GetObstacleClimbPos ((Top,Bottom,Top-Bottom),(CeilingZ,FloorZ),(Where.XY,RealPos.Z));
+					If (Targ == Targ)
+					{
+						TargetZ = Targ;
+						TargetZ += Down ? -Padding : Padding;
+						console.printf ("padded targetz is %.2f, down is %d",targetz,down);
+						CanScale = True;
+					}
+				}
+				//The line we hit is part of a 3D floor maybe?
+				//BUG: When a flyer climbs down a 3D floor while the target stands above the flyer, they will have a stroke when touching the 3DFloor ceiling.
+				//No, checking if FFloor.Bottom or whatever doesn't do jack nor shit.
+				Else If (Blocking3DFloor)
+				{
+					Sector TargSec = Blk.BackSector == CurSector ? Blk.FrontSector : Blk.BackSector;
+					F3DFloor FFloor = Get3DFloorFromModel (Blocking3DFloor,TargSec);
+					console.printf ("blocking3d floor %p, blockingceiling %p, blockingfloor %p",blocking3dfloor,blockingceiling,blockingfloor);
+					If (FFloor)
+					{
+						Double Top = FFloor.Top.ZAtPoint(Where.XY);
+						Double Bottom = FFloor.Bottom.ZAtPoint(Where.XY);
+						Console.printf ("we hit a 3d floor, whose control sector is %p and its' bottom is %.2f",Blocking3DFloor,bottom);
+						Double CeilingHeight = FFloor.Target.HighestCeilingAt(Where.XY);
+						Double FloorHeight = FFLoor.Target.LowestFloorAt(Where.XY);
+						
+						Double Targ; Bool Down;
+						[Targ, Down] = KMT_3D_GetObstacleClimbPos ((Top,Bottom,Top-Bottom),(CeilingHeight,FloorHeight),(Where.XY,RealPos.Z));
+						//Valid return AND we can fit through.
+						If (Targ == Targ)// && Top <= CeilingHeight-Height && Bottom >= FloorHeight+Height)
+						{
+							TargetZ = Targ;
+							TargetZ += Down ? -Padding : Padding;
+							console.printf ("padded targetz is %.2f, down is %d",targetz,down);
+							CanScale = True;
+						}
+					}
 				}
 			}
 			
 			//We hit a blocking actor.
-			Double Padding = 64; //HACK: Don't fucking get stuck bouncing up and down at the vertical corner of obstacles.
 			If (!MovementBlockingLine && BlockingMobj && !(BlockingMobj.Z+BlockingMobj.Height <= Pos.Z) && !(BlockingMobj.Z >= Pos.Z+Height))
 			{CONSOLE.PRINTF ("not over blocker %d, not under blocker %d | self z %.2f, blocker height %.2f",!(BlockingMobj.Z+BlockingMobj.Height <= Pos.Z),!(BlockingMobj.Z >= Pos.Z+Height),pos.z,blockingmobj.pos.z+blockingmobj.height);
 				Double Targ; Bool Down;
@@ -506,12 +543,12 @@ Extend Class KAI_Actor
 		Bool GoingDown;
 		
 		//Can't climb up over. Either cuz the ceiling is fully blocked by the blocker or the gap is just too small to go through.
-		If (BlockBottom+Height >= SectorHeights.X-Height || KMT_3D_MoveBlocked((CheckPos.XY,Up)))
-			NoTop = True;
+		If (BlockBottom+BlockHeight >= SectorHeights.X-Height || KMT_3D_MoveBlocked((CheckPos.XY,Up)))
+			{NoTop = True;console.printf ("cant go up");}
 		
 		//Can't go under the blocker, for the same reason as above but with the floor instead.
 		If (BlockBottom <= SectorHeights.Y+Height || KMT_3D_MoveBlocked((CheckPos.XY,Down)))
-			NoBottom = True;
+			{NoBottom = True;console.printf ("cant go down");}
 		console.printf ("notop %d, nobottom %d",notop,nobottom);
 		//Can only go up.
 		If (!NoTop && NoBottom)

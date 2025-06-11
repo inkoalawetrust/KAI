@@ -40,10 +40,6 @@ Maybe also add an OnBodyPartHit callback for projectiles to use. Such as to make
 */
 /*Make some kind of target priority queue system, or something ? Like, for having NPCs optionally target multiple enemies.*/
 
-//TODO:
-//Add 3D obstacle avoidance for KMT_3D actors by firing a sphere of traces around and getting a total vector to avoid.
-//Add code for moving KMT_3D actors up or down when it's near lowered ceilings or raised floors by checking in front of them.
-
 //DEBUG DEBUG DEBUG
 class TestPinky : KAI_Actor Replaces Demon
 {
@@ -90,8 +86,11 @@ Default
 			KAIMoveParams data;
 			//data.cornerdist = 384;
 			//data.cornerdiv = 16;
-			//data.obstacledist = 256;
-			//data.obstacleslices = 32;
+			//data.obstacledist = 128;
+			//data.obstacleslices = 16;
+			//data.obstaclediv = 16;
+			//data.obstaclethreshold = 5;
+			//data.obstaclemagnitude = -2;
 			
 			//if (target)isposreachable(Target.poS);
 			//destroy();
@@ -119,7 +118,7 @@ Default
 }
 
 Class TestCaco : KAI_Actor Replaces Cacodemon
-{default {speed 6;floatspeed 0.5;+NOGRAVITY;+nodamage/*+float*/+lookallaround}
+{default {speed 6;floatspeed 0.5;+NOGRAVITY;+nodamage/*+float*/+lookallaround;maxslopesteepness 0;}
 	States
 	{
 		Spawn:
@@ -129,20 +128,29 @@ Class TestCaco : KAI_Actor Replaces Cacodemon
 				If (Targ) Tracer = Targ;
 				//A_LookEx(LOF_NOJUMP);
 				Target = Players[ConsolePlayer].Mo;
+				
+				//destroy();
 			}
 			HEAD A 1
 			{
-				If (Target)
-					KAI_MoveTowards (Target.Pos,anglelimit:0,flags:KMT_3D,pitchlimit:0);
+				//If (Target)
+				//	KAI_MoveTowards (Target.Pos,anglelimit:0,flags:KMT_3D,pitchlimit:0);
 				//KAI_Wander (anglelimit:40,flags:KMT_3D,pitchlimit:40);
 				KAIMoveParams Params;
 				Params.PitchLimit = 40; //Pass pitch limit for KAI_MoveAway.
-				Params.cornerdist = 256;
-				Params.cornerdiv = 8;
-				Params.CornerSlices = 8;
-				Params.KMAHidePlaneDist = 768;
-				if (target)
-					console.printf ("target is at sector %p",cursector);
+				//Params.cornerdist = 256;
+				//Params.cornerdiv = 8;
+				//Params.CornerSlices = 8;
+				//Params.KMAHidePlaneDist = 768;
+				
+				Params.obstacledist = (Radius*2)*4;
+				Params.obstacleslices = 8;
+				Params.obstaclediv = 3;
+				Params.obstaclethreshold = 1;
+				Params.obstaclemagnitude = -5;
+				//if (target)
+				//	console.printf ("target is at sector %p",cursector);
+				//kai_avoidobstacles3d (16,16,256,5,3);
 				//Params.obstacledist = 256;
 				//Params.obstacleslices = 16;
 				//Check 3D corner checking.
@@ -151,9 +159,9 @@ Class TestCaco : KAI_Actor Replaces Cacodemon
 					KAI_CheckCorners3D (Target,8,params.cornerdiv,params.cornerdist,true,true);
 					A_FaceTarget();
 				}*/
-				//Test to see how the corner taking works with KMT_3D.
-				//If (Target)
-				//	KAI_MoveAway (Target,128,detourfactor:4,flags:KMT_3D,kmaflags:KMA_STRAIGHT,extraparams:Params);
+				//Test to see how the obstacle avoiding works with KMT_3D.
+				If (Target)
+					KAI_MoveAway (Target,64,detourfactor:4,flags:KMT_3D,kmaflags:KMA_STRAIGHT,extraparams:Params);
 				//console.printf ("the players' angle is %.2f, pitch %.2f",players[consoleplayer].mo.angle,players[consoleplayer].mo.pitch);
 				//If (Target) IsPosReachable3D (Target.Pos);
 			}

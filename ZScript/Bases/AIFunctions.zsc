@@ -406,9 +406,9 @@ Extend Class KAI_Actor
 	}
 	
 	//Is there a scalable obstacle in front of the flier? If the answer is yes. It also has a Z value that can be set by reference for what Z to move to.
-	//BUG: Right now it can't properly figure out how to scale a steep slope from front to back. You know, since slopes are cursed. Will need a way to get the higher and lowest slope points!
-	//TODO:
-	//Add dedicated slope support by checking if a secplane it bumped to is sloped, and moving the actor along its' normal.
+	//BUG:
+	//Right now it can't properly figure out how to scale a super steep slope from front to back. You know, since slopes are cursed. Will need a way to get the higher and lowest slope points!
+	//It can climb down a ceiling slope pillar. A pillar with a slope at the top, it treats it like an unknown blocking but of geometry and so returns false.
 	Protected Bool KMT_3D_ScaleObstacle (Vector3 Where, Double &TargetZ)
 	{
 		FCheckPosition Tm;
@@ -420,6 +420,23 @@ Extend Class KAI_Actor
 		{
 			Double Padding = 64; //HACK: Don't fucking get stuck bouncing up and down at the vertical corner of obstacles.
 			
+			If (BlockingFloor && BlockingFloor.FloorPlane.IsSlope())
+			{
+				//console.printf ("touching slope floor");
+				Vector3 Targ = BlockingFloor.FloorPlane.Normal.Unit() * Vel.Length();
+				TargetZ = Pos.Z+Targ.Z; //TargetZ is further up the slope.
+				console.printf ("climbing sloped floor at z %.2f",targetz);
+				CanScale = True;
+			}
+			Else If (BlockingCeiling && BlockingCeiling.CeilingPlane.IsSlope())
+			{
+				//console.printf ("touching slope floor");
+				Vector3 Targ = BlockingCeiling.CeilingPlane.Normal.Unit() * Vel.Length();
+				TargetZ = Pos.Z-Height-Targ.Z; //TargetZ is further down the slope.
+				console.printf ("climbing sloped ceiling at z %.2f",targetz);
+				CanScale = True;
+			}
+			
 			//We hit a two sided "ceiling" (Blocking I think) line, meaning there is a back sector to get the height of.
 			//Unless that line is not even blocking us.
 			If (BlockingLine && BlockingLine.Flags & Line.ML_TWOSIDED)
@@ -430,18 +447,34 @@ Extend Class KAI_Actor
 				//We hit a line with a lowered ceiling or raised floor in it.
 				If (!(Blk.Flags & Line.ML_3DMIDTEX) && !Blocking3DFloor)
 				{
-					Sector TargSec = Blk.BackSector == CurSector ? Blk.FrontSector : Blk.BackSector;
 					Double CeilHeight = TargSec.CeilingPlane.ZAtPoint(Where.XY);
 					Double FloorHeight = TargSec.FloorPlane.ZAtPoint(Where.XY);
 					Double TargSecHeight = CeilHeight - FloorHeight;
 					console.printf ("two sided line found, where %.2f %.2f, ceilheight %.2f, floorheight %.2f",where.xy,ceilheight,floorheight);
+					
+					//Handle slope ceilings and floors in the next sector, prevents "fun" cases of the flyer climbing down or up a raised slope pillar
+					//only to bump on the tip of the slope and fly off like a moron because it's an "obstacle".
+					If (FloorHeight > Pos.Z && TargSec.FloorPlane.IsSlope() && !(FloorHeight >= Pos.Z+MaxStepHeight))
+					{
+						Vector3 Targ = TargSec.FloorPlane.Normal.Unit() * Vel.Length();
+						TargetZ = Pos.Z+Targ.Z; //TargetZ is further up the slope.
+						//console.printf ("climbing sloped floor at z %.2f",targetz);
+						CanScale = True;
+					}
+					//Or ceiling.
+					Else If (CeilHeight < Pos.Z && TargSec.CeilingPlane.IsSlope() && !(CeilHeight <= Pos.Z-MaxStepHeight))
+					{
+						Vector3 Targ = TargSec.CeilingPlane.Normal.Unit() * Vel.Length();
+						TargetZ = Pos.Z-Height-Targ.Z; //TargetZ is further down the slope.
+						console.printf ("climbing sloped ceiling at z %.2f",targetz);
+						CanScale = True;
+						console.printf ("climbing sloped ceiling");
+					}
+					
+					//Nope, just a normal sector.
 					//Don't run if the ceiling is higher than the floor or the sector is fully sealed.
 					//Or if we are already over the "obstacle" to begin with.
-					if (!(FloorHeight >= CeilHeight))
-						console.printf ("this sector isn't fucked!");
-					if (TargSecHeight >= Height)
-						console.printf ("sector is tall enough for us to go through");
-					If (!(FloorHeight >= CeilHeight) && TargSecHeight >= Height && (FloorHeight > Pos.Z || CeilHeight < Pos.Z+Height))
+					Else If (!(FloorHeight >= CeilHeight) && TargSecHeight >= Height && (FloorHeight > Pos.Z || CeilHeight < Pos.Z+Height))
 					{
 						If (FloorHeight > Pos.Z) //Floor at XY is higher than we are, so we need to go up.
 							TargetZ = FloorHeight;
@@ -579,14 +612,16 @@ Extend Class KAI_Actor
 	}
 	
 	//Was the move at this position blocked?
-	Protected Bool KMT_3D_MoveBlocked (Vector3 Where)
+	//IgnoreCeiling: Don't count a move as blocked if it's just that it'll be over the ceiling. To prevent KMT_3D from stroking out when bumping against ceilings.
+	Protected Bool KMT_3D_MoveBlocked (Vector3 Where, Bool IgnoreCeiling = True)
 	{
 		Vector3 RealPos = Pos;
 		FCheckPosition Tm;
 		SetZ (Where.Z); //Z is separate.
 		Bool Res = CheckMove (Where.XY,tm:Tm);
+		If (IgnoreCeiling && Pos.Z+Height >= CeilingZ) Res = True;
 		SetZ (RealPos.Z);
-		If (Tm.StepThing) Res = False;
+		If (Tm.StepThing) Res = True;
 		Return !Res;
 	}
 	
@@ -619,6 +654,143 @@ Extend Class KAI_Actor
 		Double Acceleration = 1;
 		If (Delta < SpeedLimit) //Accelerate the actor, but never let them exceed the speed limit under their own motion.
 			Vel += ExtraVel * Min (SpeedLimit - Delta,Acceleration);
+	}
+	
+	//Returns a position for KMT_3D actors to head to avoid bumping into things. By averaging where a sphere of traces hit.
+	//HorzTraces: How many horizontal traces to fire in the sphere.
+	//VertTraces: Ditto but for vertical (Pitch) traces. If set to 0, the function operates in horizontal-only mode.
+	//Distance: How far each trace will go. Basically how far the actor checks for obstacles.
+	//Threshold: If the distance between the averaged coordinate and the actors' position is less than this. The function will return NaN.
+	//Magnitude: How much the averaged coordinate is moved from the origin. Useful to make the obstacle avoiding effect larger when firing a lot of (Or distant) traces for example.
+	//This function returns the averaged position of where every trace hit. And the average distance that every trace that was blocked by something went.
+	Vector3, Double KAI_AvoidObstacles3D (Int HorzTraces, Int VertTraces, Double Distance, Double Threshold = 5, Double Magnitude = 1)
+	{
+		If (Distance <= 0 || HorzTraces <= 0)
+			Return (Double.NaN,Double.NaN,Double.NaN), Double.NaN; 
+		//HACK: Fun hack to store the hit locations of each trace. Of course the trace data can't be put in an array since it too is a struct, that'd be too expensive anyway.
+		Array <Double> Xs; Array <Double> Ys; Array <Double> Zs;
+		Array <Double> Dists; Double DistSum; //For getting the average distance from all prematurely terminated traces made.
+		
+		Double Ang, Pit; //Angle and pitch to fire each trace at.
+		Pit = -90;
+		If (VertTraces <= 0) //Were firing in 2D mode.
+			Pit = 0;
+		Double HorzDiv = 360/HorzTraces;
+		Double VertDiv = VertTraces > 0 ? 180/VertTraces : 0;
+		
+		Bool StopHorz; //Used to make only one angle trace fire when firing straight up or down.
+		FLineTraceData Data;
+		FSpawnParticleParams Debug;
+		If (KAI_Debug3DObstacleCheck)
+		{
+			Debug.Color1 = "Green";
+			Debug.Style = STYLE_None;
+			Debug.Lifetime = KAI_Debug3DObstacleCheck;
+			Debug.Size = 4;
+			Debug.StartAlpha = 1;
+			Debug.FadeStep = -1;
+			Debug.Flags = SPF_FULLBRIGHT;
+		}
+		
+		//Run horizontal traces.
+		For (Int I = 0; I < HorzTraces; I++)
+		{
+			If (!StopHorz)
+			{
+				LineTrace (Normalize180(Ang),Distance,Pit,TRF_BLOCKSELF,0.1,data:Data);
+				If (KAI_Debug3DObstacleCheck)
+				{
+					If (Data.HitType != TRACE_HitNone){
+						Debug.Color1 = "Red";console.printf ("trace hit %d, that makes sense right?",data.hittype);}
+					Else
+						Debug.Color1 = "Green";
+					KAI_LOFRaycast.VisualizeTracePath (Pos,Data.HitLocation,Data.Distance,16,Debug);
+				}
+				
+				//Special treatment, treat hit skies as if we hit nothing and return a different HitLocation.
+				If (!(Data.HitSector && Data.HitSector.GetTexture(Data.SectorPlane) == SkyFlatNum))
+					{Xs.Push (Data.HitLocation.X); Ys.Push (Data.HitLocation.Y); Zs.Push (Data.HitLocation.Z);}
+				Else
+				{
+					Vector3 AltHitPos = Level.Vec3Offset(Pos,KAI_Math.AngleToVector3D (Ang,-Pit,Distance));
+					Xs.Push (AltHitPos.X); Ys.Push (AltHitPos.Y); Zs.Push (AltHitPos.Z);
+				}
+				If (Data.HitType != TRACE_HitNone && !(Data.HitSector && Data.HitSector.GetTexture(Data.SectorPlane) == SkyFlatNum))
+				{IF ((Data.HitSector && Data.HitSector.GetTexture(Data.SectorPlane) == SkyFlatNum)) CONSOLE.PRINTF ("FUCK YOU");
+					Dists.Push(Data.Distance);
+					DistSum += Data.Distance;
+				}
+				Ang += HorzDiv;
+			}
+			
+			If (Pit % 90 ~== 0 && Pit != 0)
+				StopHorz = True;
+			
+			//Run vertical trace for horizontal slice.
+			For (Int I = 0; I < VertTraces; I++)
+			{
+				LineTrace (Normalize180(Ang),Distance,Pit,TRF_BLOCKSELF,0.1,data:Data);
+				If (KAI_Debug3DObstacleCheck)
+				{
+					If (Data.HitType != TRACE_HitNone)
+						Debug.Color1 = "Red";
+					Else
+						Debug.Color1 = "Green";
+					KAI_LOFRaycast.VisualizeTracePath (Pos,Data.HitLocation,Data.Distance,16,Debug);
+				}
+				
+				//Special treatment, treat hit skies as if we hit nothing and return a different HitLocation.
+				If (!(Data.HitSector && Data.HitSector.GetTexture(Data.SectorPlane) == SkyFlatNum))
+					{Xs.Push (Data.HitLocation.X); Ys.Push (Data.HitLocation.Y); Zs.Push (Data.HitLocation.Z);}
+				Else
+				{
+					Vector3 AltHitPos = Level.Vec3Offset(Pos,KAI_Math.AngleToVector3D (Ang,-Pit,Distance));
+					Xs.Push (AltHitPos.X); Ys.Push (AltHitPos.Y); Zs.Push (AltHitPos.Z);
+				}
+				If (Data.HitType != TRACE_HitNone && !(Data.HitSector && Data.HitSector.GetTexture(Data.SectorPlane) == SkyFlatNum))
+				{;
+					Dists.Push(Data.Distance);
+					DistSum += Data.Distance;
+				}
+				Pit += VertDiv;
+				If (!(Pit % 90 ~== 0 && Pit != 0))
+					StopHorz = False;
+			}
+		}
+		
+		Vector3 Sum, Average;
+		//Add sums of vector components.
+		For (Int I = 0; I < Xs.Size(); I++)
+		{
+			Sum.X += Xs[I]; Sum.Y += Ys[I]; Sum.Z += Zs[I];
+		}
+		
+		//Average all coordinates. Use ValidAngs instead of HorzDiv to filter out angles that were done because they were aiming straight up or down.
+		Average.X = Sum.X/Xs.Size(); Average.Y = Sum.Y/Ys.Size(); Average.Z = Sum.Z/Zs.Size();
+		Double AvgDist = DistSum != 0 ? (DistSum/Dists.Size()) : Double.NaN;
+		//Set magnitude on positioning relative to the origin. Negative magnitudes scale between the value specified and 1, based on the distance param and averaged second return.
+		If (Magnitude < 0 && AvgDist == AvgDist)
+		{
+			Double Old = Abs(Magnitude);
+			Magnitude = KAI_Math.LinearMap (AvgDist,0,Distance,Abs(Magnitude),1);
+			If (KAI_Debug3DObstacleCheck)
+				Console.Printf ("Dynamic magnitude is %.2f with a max of %.2f",magnitude,old);
+		}
+		Vector3 RelAv = Level.Vec3Diff (Pos,Average)*Abs(Magnitude);
+		Average = Level.Vec3Offset (Pos,RelAv);
+		
+		If (!KAI_Debug3DObstacleCheck)
+		{
+			Console.Printf ("Sum of all coordinates is %.2f %.2f %.2f, average is %.2f %.2f %.2f, actual pos is %.2f %.2f %.2f",Sum,Average,Pos);
+			If (Dists.Size() != 0) Console.Printf ("Average distance of all traces that were blocked is %.2f",DistSum/Dists.Size());
+			KAI_DebugPointDelay.KAI_TempPointSpawn(Average,KAI_Debug3DObstacleCheck);
+		}
+		
+		//The average is too close to the current position.
+		If (Threshold > 0 && Level.Vec3Diff (Pos,Average).Length() < Threshold)
+			Return (Double.NaN,Double.NaN,Double.NaN), Double.NaN;
+		Else
+			Return Average, AvgDist;
 	}
 	
 	//Makes the NPC wander around aimlessly.
@@ -687,7 +859,10 @@ Extend Class KAI_Actor
 			/*Default_Params.CornerDist = 0;
 			Default_Params.CornerDiv = 0;
 			Default_Params.ObstacleDist = 0.0;
-			Default_Params.ObstacleSlices = 0.0;*/
+			Default_Params.ObstacleSlices = 0;
+			Default_Params.ObstacleDiv = 0;
+			Default_Params.ObstacleThreshold = 5;
+			Default_Params.ObstacleMagnitude = 1;*/
 			Default_Params.PitchLimit = 40;
 			KAI_MoveAway (Other, Attempts, RunRad, MaxSteps, DetourFactor, AngleLimit, ChaseFlags, Flags, KMAFlags, TargPos, Default_Params);
 			Return;
@@ -702,25 +877,55 @@ Extend Class KAI_Actor
 			Return;
 		}
 		
-		Vector3 ObstacleAvoidPos; Bool UseObstacleAvoidPos;
-		[ObstacleAvoidPos, UseObstacleAvoidPos] = KAI_AvoidObstacles (ExtraParams.ObstacleDist, ExtraParams.ObstacleSlices, Radius,RunPos);
-		//Use the obstacle avoid pos if it's valid, and also not basically your current position, to prevent walking in place.
-		If (UseObstacleAvoidPos && !KAI_Math.IsEmptyVector3(ObstacleAvoidPos) && Level.Vec3Diff (ObstacleAvoidPos,Pos).Length() >= MeleeRange)
-		{if (kai_debugprintmessages)console.printf ("KAI_MoveAway(): Going to ObstacleAvoidPos %d %d %d",ObstacleAvoidPos);
-			NextMovePos = ObstacleAvoidPos;
-			Return;
+		Vector3 ObstacleAvoidPos;
+		//2D obstacle avoidance
+		If (!(Flags & KMT_3D))
+		{
+			Bool UseObstacleAvoidPos;
+			[ObstacleAvoidPos, UseObstacleAvoidPos] = KAI_AvoidObstacles (ExtraParams.ObstacleDist, ExtraParams.ObstacleSlices, Radius,RunPos);
+			//Use the obstacle avoid pos if it's valid, and also not basically your current position, to prevent walking in place.
+			If (UseObstacleAvoidPos && !KAI_Math.IsEmptyVector3(ObstacleAvoidPos) && Level.Vec3Diff (ObstacleAvoidPos,Pos).Length() >= MeleeRange)
+			{
+				If (KAI_DebugPrintMessages) Console.Printf ("KAI_MoveAway(): Going to ObstacleAvoidPos %d %d %d",ObstacleAvoidPos);
+				NextMovePos = ObstacleAvoidPos;
+				Return;
+			}
+		}
+		//3D obstacle avoidance at the position we are running towards. Or rather, firing a trace at the position and seeing what it hits along the way.
+		Else
+		{
+			Vector3 RealPos = Pos;
+			
+			If (!KAI_Math.IsEmptyVector3 (NextMovePos))
+			{
+				Double DistToPos = Level.Vec3Diff(Pos,NextMovePos).Length();
+				FLineTraceData Data;
+				LineTrace (GetAngleToPos (NextMovePos,0),DistToPos,GetPitchToPos (NextMovePos,0),TRF_BLOCKSELF,0.1,data:Data);
+				Vector3 Crap = Level.Vec3Diff (Pos,Data.HitLocation).Unit();
+				SetOrigin (Level.Vec3Offset(Pos, Crap * (DistToPos - 0.1)),True);
+				//console.printf ("origin is now %.2f %.2f %.2f, hit location is %.2f %.2f %.2f",pos,data.hitlocation);
+			}
+			//Shortest KAI function call.
+			ObstacleAvoidPos = KAI_AvoidObstacles3D (ExtraParams.ObstacleSlices,ExtraParams.ObstacleDiv,ExtraParams.ObstacleDist,ExtraParams.ObstacleThreshold,ExtraParams.ObstacleMagnitude);
+			SetOrigin (RealPos,True);
+			
+			//Got position to move towards to evade obstacles.
+			If (!KAI_Math.IsEmptyVector3(ObstacleAvoidPos))
+				NextMovePos = ObstacleAvoidPos;
 		}
 		
 		//If there's already a prior position to move to, begin moving there instead. Until within melee range of that position.
 		If (!KAI_Math.IsEmptyVector3 (NextMovePos) && NewPosStepCount <= MaxSteps && Level.Vec3Diff (Pos,NextMovePos).Length() >= MeleeRange)
-		{if (kai_debugprintmessages)console.printf ("KAI_MoveAway(): Walking to NextMovePos %d %d %d",nextmovepos);
+		{
+			If (KAI_DebugPrintMessages) Console.Printf ("KAI_MoveAway(): Walking to NextMovePos %d %d %d",nextmovepos);
 			KAI_MoveTowards (NextMovePos, DetourFactor, AngleLimit, ChaseFlags, Flags,ExtraParams.PitchLimit);
 			NewPosStepCount++;
 			Return;
 		}
 		//Once the position is reached, empty the the NextMovePos vector;
 		Else
-		{if (kai_debugprintmessages)console.printf ("movepos reached, nulling");
+		{
+			If (KAI_DebugPrintMessages) Console.Printf ("movepos reached, nulling");
 			NextMovePos = (Double.NaN,Double.NaN,Double.NaN);
 			NewPosStepCount = 0;
 		}
@@ -736,7 +941,6 @@ Extend Class KAI_Actor
 			//So we can map which ones are good, AND closest if both the floor and ceiling are good.
 			Vector2 FloorGood, CeilGood;
 			
-			Console.printf ("floor dist %.2f, ceiling dist %.2f",Pos.Z - FloorZ,CeilingZ - (Pos.Z+Height));
 			//Floor isn't too far down.
 			If (Pos.Z - FloorZ <= Dist)
 			{
@@ -746,7 +950,6 @@ Extend Class KAI_Actor
 					FloorGood = (True,Pos.Z - FloorZ);
 				SetZ (RealZ);
 			}
-			else console.printf ("floor is too far down");
 			
 			//Ceiling isn't too far up.
 			If (CeilingZ - (Pos.Z+Height) <= Dist)
@@ -755,7 +958,7 @@ Extend Class KAI_Actor
 				If (!SightTarget.CheckSight (Self,SF_IGNOREWATERBOUNDARY))
 					CeilGood = (True,CeilingZ - (Pos.Z+Height));
 				SetZ (RealZ);
-			}else console.printf ("ceiling is too far up");
+			}
 			
 			//Only return whichever's if both aren't invalid.
 			If (FloorGood.X || CeilGood.X)
@@ -782,7 +985,6 @@ Extend Class KAI_Actor
 		
 		//MAYDO: Add a boolean flag for ExtraParams (And KAI_CheckCorners()) that makes blocking actors also qualify as cover?
 		//Try to run behind corners.
-		Console.Printf ("CornerCheck %d, checksight %d",docornercheck,CheckSight(SightTarget,SF_IGNOREWATERBOUNDARY));
 		If (DoCornerCheck)
 		{
 			If (ExtraParams.CornerSlices == 0)
@@ -844,10 +1046,10 @@ Extend Class KAI_Actor
 			{
 				LeftPos = Vec3Angle (I,Angle-90);
 				If (KAI_DebugPrintMessages) console.printf ("left corner check is %.2f MU away from actual pos",level.vec3diff (leftpos,pos).length());
-				SetOrigin (LeftPos,False);
+				SetOrigin (LeftPos, True);
 				//I think CheckSight() is literally cheaper than IsPosReachable() so run these checks first.
 				Bool LeftSight = Targ.CheckSight (Self,SF_IGNOREWATERBOUNDARY);
-				SetOrigin (RealPos, False);
+				SetOrigin (RealPos, True);
 				If (!LeftSight && Level.Vec3Diff (Pos,LeftPos).Length() >= MeleeRange && IsPosReachable (LeftPos,spacing:Speed,ignoreactors:True))
 				{
 					If (KAI_DebugPrintMessages) Console.Printf ("KAI_MoveAway(): KMA_USECORNERS: Running behind my left corner.");
@@ -861,10 +1063,10 @@ Extend Class KAI_Actor
 			{
 				RightPos = Vec3Angle (I,Angle+90);
 				If (KAI_DebugPrintMessages) console.printf ("right corner check is %.2f MU away from actual pos",level.vec3diff (rightpos,pos).length());
-				SetOrigin (RightPos,False);
+				SetOrigin (RightPos, True);
 				//I think CheckSight() is literally cheaper than IsPosReachable() so run these checks first.
 				Bool RightSight = Targ.CheckSight (Self,SF_IGNOREWATERBOUNDARY);
-				SetOrigin (RealPos, False);
+				SetOrigin (RealPos, True);
 				If (!RightSight && Level.Vec3Diff (Pos,RightPos).Length() > MeleeRange && IsPosReachable (RightPos,spacing:Speed,ignoreactors:True))
 				{
 					If (KAI_DebugPrintMessages) Console.Printf ("KAI_MoveAway(): KMA_USECORNERS: Running behind my right corner.");
@@ -917,9 +1119,9 @@ Extend Class KAI_Actor
 						Continue;
 					
 					CheckPos = Dest;
-					SetOrigin (Dest,False);
+					SetOrigin (Dest,True);
 					Bool Sight = Targ.CheckSight(Self,SF_IGNOREWATERBOUNDARY);
-					SetOrigin (RealPos,False);
+					SetOrigin (RealPos,True);
 					If (KAI_Debug3DCornerCheck)
 						KAI_DebugPointDelay.KAI_TempPointSpawn(CheckPos,KAI_Debug3DCornerCheck);
 					
@@ -1157,13 +1359,13 @@ Extend Class KAI_Actor
 			{If (KAI_DebugPrintMessages)console.printf ("i can't walk to %d %d %d",targetpos);
 				bDontInterpolate = Interp;
 				bThruActors = ThruActs;
-				SetOrigin (OldPos,False);
+				SetOrigin (OldPos,True);
 				Return False;
 			}
 		}
 		bDontInterpolate = Interp;
 		bThruActors = ThruActs;
-		SetOrigin (OldPos,False);
+		SetOrigin (OldPos,True);
 		Return True; //No TryMove call returned false.
 	}
 	
@@ -1198,13 +1400,13 @@ Extend Class KAI_Actor
 			{
 				If (KAI_DebugPrintMessages) Console.Printf ("IsPosReachable3D(): %.2f %.2f %.2f is blocking %p",CheckPos,Self);
 				bThruActors = ThruActs;
-				SetOrigin(OldPos,False);
+				SetOrigin(OldPos,True);
 				Return False;
 			}
 		}
 		
 		bThruActors = ThruActs;
-		SetOrigin(OldPos,False);
+		SetOrigin(OldPos,True);
 		Return True;
 	}
 	
@@ -1750,4 +1952,7 @@ Struct KAIMoveParams
 	Int CornerSlices; //Used by KMA when using KMT_3D movement. Determines how many slices to use for checking corners in a clock-like pattern.
 	Double ObstacleDist; //How far ahead should the actor check for obstacles to try moving around from? If set to 0 or less, no obstacle avoidance occurs.
 	Int ObstacleSlices; //How many reachability checks should be done around a 360 degree circle? i.e setting this to 16 checks in increments of 22.5 degrees around.
+	Int ObstacleDiv; //Used by AvoidObstacles3D, how many vertical (Pitch) slices should the check have?
+	Double ObstacleThreshold; //Ditto, makes KMA ignore any positions that are closer to the actors' current position than this threshold distance, i.e to ignore noise.
+	Double ObstacleMagnitude; //Ditto, makes KMA increase just how extreme the averaged position to head to is, negative values make it use a special linear scaling factor.
 }

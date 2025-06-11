@@ -297,7 +297,7 @@ Class KAI_Actor : Actor Abstract
 		Else
 		{
 			Bool IgnoringPlayers = (!IgnoreDontFollowPlayers && bDontFollowPlayers);
-			//Handle making marines follow group leaders, player-led groups take special precedence, such as the one players create when they order a marine to do something.
+			//Handle making NPCs follow group leaders, player-led groups take special precedence, such as the one players create when they order a marine to do something.
 			KAI_NPCGroup MainGroup;
 			If ((MainGroup = GetFirstPlayerNPCGroup(IgnoringPlayers)) && MainGroup && MainGroup.Leader != Self)
 			{

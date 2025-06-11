@@ -136,6 +136,7 @@ Extend Class KAI_Actor
 	Vector3 ZigZagPos;
 	
 	//Makes the actor move towards the specified position.
+	//DOCUMENT: Write about KMT_3D, will probably also need its' own section on the smooth movement page. And to be listed as a whole feature.
 	//TODO: Add a check for if a vehicles' turret would collide with the next move. And probably find a way to call it recursively for turrets on turrets.
 	//CREDIT: Original 2D A_Chase-like movement written by Custodian (Beyond Sunset creator). Modified and expanded by me (inkoalawetrust).
 	//TargetPos: The position to move to.
@@ -300,6 +301,14 @@ Extend Class KAI_Actor
 		//CREDIT: Boondorl and RaveYard for helping me get this fucking god forsaken math to mostly work.
 		Else
 		{
+			Bool NoStockMovement;
+			//Check if the actor flies with custom code
+			If (bCustomFlyer)
+				NoStockMovement = CustomFlyingMovement (TargetPos, DetourFactor, AngleLimit, ChaseFlags, Flags, PitchLimit);
+			
+			//No custom flying movement (Or there is but it complements you)? Then run.
+			If (!NoStockMovement)
+			{
 			Bool Moved;
 			Vector3 F3DVel;
 			Vel *= KMT_3D_DecelWrongVector (TargetPos); //Decelerate from wrong velocities, like when an explosion blasts the actor off-course.
@@ -394,6 +403,7 @@ Extend Class KAI_Actor
 			//Actually move.
 			KMT_3D_SpeedLimit (Speed*3,F3DVel); //HACK: Magic number to make the total vel length cap ACTUALLY match the speed property.
 			If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D: Velocity is %.2f %.2f %.2f, length %.2f",Vel,Vel.Length());
+			}
 		}
 		
 		//face movement direction
@@ -406,6 +416,7 @@ Extend Class KAI_Actor
 	}
 	
 	//Is there a scalable obstacle in front of the flier? If the answer is yes. It also has a Z value that can be set by reference for what Z to move to.
+	
 	//BUG:
 	//Right now it can't properly figure out how to scale a super steep slope from front to back. You know, since slopes are cursed. Will need a way to get the higher and lowest slope points!
 	//It can climb down a ceiling slope pillar. A pillar with a slope at the top, it treats it like an unknown blocking but of geometry and so returns false.
@@ -532,11 +543,11 @@ Extend Class KAI_Actor
 			}
 			
 			//We hit a blocking actor.
-			If (!MovementBlockingLine && BlockingMobj && !(BlockingMobj.Z+BlockingMobj.Height <= Pos.Z) && !(BlockingMobj.Z >= Pos.Z+Height))
-			{CONSOLE.PRINTF ("not over blocker %d, not under blocker %d | self z %.2f, blocker height %.2f",!(BlockingMobj.Z+BlockingMobj.Height <= Pos.Z),!(BlockingMobj.Z >= Pos.Z+Height),pos.z,blockingmobj.pos.z+blockingmobj.height);
+			If (!MovementBlockingLine && BlockingMobj && !(BlockingMobj.Pos.Z+BlockingMobj.Height <= Pos.Z) && !(BlockingMobj.Pos.Z >= Pos.Z+Height))
+			{
 				Double Targ; Bool Down;
 				//Three little vectors jumping on the bed.
-				[Targ, Down] = KMT_3D_GetObstacleClimbPos ((BlockingMobj.Z+BlockingMobj.Height,BlockingMobj.Z,BlockingMobj.Height),(BlockingMobj.CeilingZ,BlockingMobj.FloorZ),(Where.XY,RealPos.Z));
+				[Targ, Down] = KMT_3D_GetObstacleClimbPos ((BlockingMobj.Pos.Z+BlockingMobj.Height,BlockingMobj.Pos.Z,BlockingMobj.Height),(BlockingMobj.CeilingZ,BlockingMobj.FloorZ),(Where.XY,RealPos.Z));
 				If (Targ == Targ) //Not a NaN return. We can get over this actor.
 				{
 					TargetZ = Targ;
@@ -556,7 +567,7 @@ Extend Class KAI_Actor
 	//SectorHeights: The heights of the sector, to check if the obstacle blocks the sector by being at or beyond these heights. X is ceiling, Y is floor.
 	//CheckPos: The position we're doing the check from. To check if the caller running this function would be blocked try to traverse this nondescript obstacle.
 	//			The XY coordinates are used for the collision check for the hypthetical movement. But Z should be the ACTUAL current height of the actor.
-	//BUG: The trivial height checks (Not running if the caller is entire below or above the obstacle), don't run.
+	//BUG: The trivial height checks (Not running if the caller is entirely below or above the obstacle), don't run.
 	Private Double, Bool KMT_3D_GetObstacleClimbPos (Vector3 ObsBounds, Vector2 SectorHeights, Vector3 CheckPos)
 	{
 		Double BlockTop = ObsBounds.X;//+ObsBounds.Z;
@@ -657,6 +668,7 @@ Extend Class KAI_Actor
 	}
 	
 	//Returns a position for KMT_3D actors to head to avoid bumping into things. By averaging where a sphere of traces hit.
+	//DOCUMENT: This'll be a fucking doozy to document. TL;DR: Trial and error the parameters with the debug CVAR, ideally use this per tick to propel the actor instead of using it like KAI_MoveAway() does.
 	//HorzTraces: How many horizontal traces to fire in the sphere.
 	//VertTraces: Ditto but for vertical (Pitch) traces. If set to 0, the function operates in horizontal-only mode.
 	//Distance: How far each trace will go. Basically how far the actor checks for obstacles.
@@ -700,8 +712,8 @@ Extend Class KAI_Actor
 				LineTrace (Normalize180(Ang),Distance,Pit,TRF_BLOCKSELF,0.1,data:Data);
 				If (KAI_Debug3DObstacleCheck)
 				{
-					If (Data.HitType != TRACE_HitNone){
-						Debug.Color1 = "Red";console.printf ("trace hit %d, that makes sense right?",data.hittype);}
+					If (Data.HitType != TRACE_HitNone)
+						Debug.Color1 = "Red";
 					Else
 						Debug.Color1 = "Green";
 					KAI_LOFRaycast.VisualizeTracePath (Pos,Data.HitLocation,Data.Distance,16,Debug);
@@ -1078,6 +1090,7 @@ Extend Class KAI_Actor
 	}
 	
 	//Works similar to its' 2D/land counterpart. Except that it fires a fan of checks around the caller. To allow it to also find vertical and diagonal corners.
+	//DOCUMENT: Obviously.
 	//Targ, Divisions, Distance: Works like its' 2D counterpart.
 	//Slices: The slices that the clock-like pattern around the caller is split to. Similar to the slices in KAI_AvoidObstacles().
 	//StartUp: By default the checks are fired from under the actor, this makes them start from above them. For biasing the check towards the ceiling instead.
@@ -1094,7 +1107,7 @@ Extend Class KAI_Actor
 				Offs.Z = Abs(Offs.Z);
 			
 			//Rotate the "clock".
-			For (Int I = 0; I < Slices; I++)
+			For (UInt I = 0; I < Slices; I++)
 			{
 				Double CRoll = Offs.Z*I;
 				If (Counterclockwise)
@@ -1370,6 +1383,7 @@ Extend Class KAI_Actor
 	}
 	
 	//Called in place of the stock one for flying actors.
+	//DOCUMENT: No shit, kinda important for flyers.
 	//Works similarly to the normal one. Except that it relies on a row of CheckPosition() calls instead of moving the actor forward.
 	Bool IsPosReachable3D (Vector3 TargetPos, Double DistCutoff = 0, Double Spacing = 0, Bool IgnoreActors = False)
 	{

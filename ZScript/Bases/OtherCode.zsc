@@ -211,7 +211,10 @@ Mixin Class KAI_CheckFunctions
 	{
 		If (!Other) Return False;
 		
-		If (!Other.Player && Other.bFloat) // Flying monster.
+		If (!Other.Player && Other.bFloat) //Flying non-KAI monster. Or it is a KAI monster and just has +FLOAT too lol.
+			Return True;
+		//Flying KAI NPC, or one who isn't marked is flying... but is marked as having custom flying logic for KMT_3D.
+		Else If (Other Is "KAI_Actor" && (KAI_Actor(Other).bIsFlyer || KAI_Actor(Other).bCustomFlyer))
 			Return True;
 		Else If (Other.Player) //Flying player
 		{

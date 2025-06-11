@@ -322,6 +322,14 @@ Class KAI_Actor : Actor Abstract
 	//HACK: The deflection funnel has to be a function return instead of passed by reference because GZDoom is broken and doesn't support that for vectors.
 	Virtual Vector4 OnProjectileDeflect (Actor Projectile, Int &FailChance, Double &DamFac, Double &VelFac, Vector4 Funnel){Return Funnel;}
 	
+	//Allows for overriding (Or, adding to, if you want?) KAI_MoveTowards() handling of KMT_3D. For creating custom point-to-point flying, if you don't like the built-in logic.
+	//If the function returns true, it will not run the original flying logic. Allowing you to totally override it. +CUSTOMFLYER NEEDS TO BE TRUE TO CALL THIS VIRTUAL.
+	//All the MANY parameters are the KAI_MoveTowards() parameters/
+	Virtual Bool CustomFlyingMovement (Vector3 TargetPos, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0, Double PitchLimit = 40)
+	{
+		Return False;
+	}
+	
 	//Actor properties and flags.
 	Int ThreatLevelThreshold; //If another actors' threat level is at or over this threshold, then the NPC should do some action (Like run away, or be more likely to use stronger attacks).
 	Int ThreatLevel; //The NPCs' predetermined threat level. In its basic form it can be used as just a static value. But you could also dynamically change it, e.g based on what attacks your NPC currently has available.
@@ -346,7 +354,8 @@ Class KAI_Actor : Actor Abstract
 	FlagDef NoTargetPrediction : NPCFlags, 0; //The NPC will not calculate its' targets' movement and lead its' shots.
 	FlagDef MovesWithVelocity : NPCFlags, 1; //Specifies that the NPC moves using real momentum, like players. For the target prediction code, does nothing else on its' own.
 	FlagDef IgnoreOrders : NPCFlags, 2; //The NPC ignores orders.
-	FlagDef IsFlyer : NPCFlags, 3; //This NPC flies.
+	FlagDef IsFlyer : NPCFlags, 3; //This NPC flies. DOCUMENT: Write about this, and how IsFlying() checks for it, and also how you should turn it on for flyers. And also MoveWithVelocity if you're using the default movement code.
+	FlagDef CustomFlyer : NPCFlags, 4; //If on, KMT_3D on KAI_MoveTowards() becomes overridable.
 	
 	//Actor variables
 	Array <State> AttackStates; //Can be used to store all of the attack state labels an actor has. Such as for actors with multiple attacks besides a missile and melee attack, like vanilla monsters only have.

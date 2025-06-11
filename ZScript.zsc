@@ -118,7 +118,9 @@ Default
 }
 
 Class TestCaco : KAI_Actor Replaces Cacodemon
-{default {speed 6;floatspeed 0.5;+NOGRAVITY;+nodamage/*+float*/+lookallaround;maxslopesteepness 0;}
+{default {speed 6;floatspeed 0.5;+NOGRAVITY;+nodamage/*+float*/+lookallaround;maxslopesteepness 0;+kai_actor.isflyer}
+override bool customflyingmovement(Vector3 TargetPos, Double DetourFactor, Double AngleLimit, Int ChaseFlags, Int Flags, Double PitchLimit)
+{console.printf("epic extra flight");return false;}
 	States
 	{
 		Spawn:

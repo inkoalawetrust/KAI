@@ -14,7 +14,7 @@
 
 Version "4.13.0"
 
-//CUSTOM CODE TAGS: (Temporary list !)
+//CUSTOM CODE TAGS:
 //DOCUMENT: This bit of code needs documentation.
 //PLAYTEST: The code has been written, but not tested, so it might be buggy.
 //URGENT: This is something urgent, likely a bugfix, some really visible debug code I don't want to appear in-game etcetera.
@@ -146,10 +146,12 @@ override bool customflyingmovement(Vector3 TargetPos, Double DetourFactor, Doubl
 				//Params.KMAHidePlaneDist = 768;
 				
 				Params.obstacledist = (Radius*2)*4;
-				Params.obstacleslices = 8;
-				Params.obstaclediv = 3;
-				Params.obstaclethreshold = 1;
-				Params.obstaclemagnitude = -5;
+				Params.obstacleslices = 16;
+				Params.obstaclediv = 16;
+				Params.obstaclethreshold = 5;
+				Params.obstaclemagnitude = 1;
+				Params.Obstaclespeed = 0.1;
+				params.obstaclemindist = radius*1.1;
 				//if (target)
 				//	console.printf ("target is at sector %p",cursector);
 				//kai_avoidobstacles3d (16,16,256,5,3);

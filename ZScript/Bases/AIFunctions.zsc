@@ -136,7 +136,6 @@ Extend Class KAI_Actor
 	Vector3 ZigZagPos;
 	
 	//Makes the actor move towards the specified position.
-	//DOCUMENT: Write about KMT_3D, will probably also need its' own section on the smooth movement page. And to be listed as a whole feature.
 	//TODO: Add a check for if a vehicles' turret would collide with the next move. And probably find a way to call it recursively for turrets on turrets.
 	//CREDIT: Original 2D A_Chase-like movement written by Custodian (Beyond Sunset creator). Modified and expanded by me (inkoalawetrust).
 	//TargetPos: The position to move to.
@@ -297,7 +296,6 @@ Extend Class KAI_Actor
 		//3D velocity based movement
 		//TODO:
 		//Include the vehicle pushing and crushing code. And also make VehiclePushActors accept 3D coordinates instead, why did I make it a Vector2 when I planned this for months?
-		//Add an optional flag to either the function or KAI_Actor proper that when enabled, allows the use of a virtual override for 3D movement.
 		//CREDIT: Boondorl and RaveYard for helping me get this fucking god forsaken math to mostly work.
 		Else
 		{
@@ -416,8 +414,6 @@ Extend Class KAI_Actor
 	}
 	
 	//Is there a scalable obstacle in front of the flier? If the answer is yes. It also has a Z value that can be set by reference for what Z to move to.
-	
-	//BUG:
 	//Right now it can't properly figure out how to scale a super steep slope from front to back. You know, since slopes are cursed. Will need a way to get the higher and lowest slope points!
 	//It can climb down a ceiling slope pillar. A pillar with a slope at the top, it treats it like an unknown blocking but of geometry and so returns false.
 	Protected Bool KMT_3D_ScaleObstacle (Vector3 Where, Double &TargetZ)
@@ -674,8 +670,9 @@ Extend Class KAI_Actor
 	//Distance: How far each trace will go. Basically how far the actor checks for obstacles.
 	//Threshold: If the distance between the averaged coordinate and the actors' position is less than this. The function will return NaN.
 	//Magnitude: How much the averaged coordinate is moved from the origin. Useful to make the obstacle avoiding effect larger when firing a lot of (Or distant) traces for example.
+	//MinDist: If any trace hits something closer to the actor than this distance, return that there's nothing to avoid.
 	//This function returns the averaged position of where every trace hit. And the average distance that every trace that was blocked by something went.
-	Vector3, Double KAI_AvoidObstacles3D (Int HorzTraces, Int VertTraces, Double Distance, Double Threshold = 5, Double Magnitude = 1)
+	Vector3, Double KAI_AvoidObstacles3D (Int HorzTraces, Int VertTraces, Double Distance, Double Threshold = 5, Double Magnitude = 1, Double MinDist = 0)
 	{
 		If (Distance <= 0 || HorzTraces <= 0)
 			Return (Double.NaN,Double.NaN,Double.NaN), Double.NaN; 
@@ -728,7 +725,9 @@ Extend Class KAI_Actor
 					Xs.Push (AltHitPos.X); Ys.Push (AltHitPos.Y); Zs.Push (AltHitPos.Z);
 				}
 				If (Data.HitType != TRACE_HitNone && !(Data.HitSector && Data.HitSector.GetTexture(Data.SectorPlane) == SkyFlatNum))
-				{IF ((Data.HitSector && Data.HitSector.GetTexture(Data.SectorPlane) == SkyFlatNum)) CONSOLE.PRINTF ("FUCK YOU");
+				{
+					If (MinDist > 0 && MinDist > Data.Distance)
+						Return (Double.NaN,Double.NaN,Double.NaN), Double.NaN; 
 					Dists.Push(Data.Distance);
 					DistSum += Data.Distance;
 				}
@@ -760,7 +759,9 @@ Extend Class KAI_Actor
 					Xs.Push (AltHitPos.X); Ys.Push (AltHitPos.Y); Zs.Push (AltHitPos.Z);
 				}
 				If (Data.HitType != TRACE_HitNone && !(Data.HitSector && Data.HitSector.GetTexture(Data.SectorPlane) == SkyFlatNum))
-				{;
+				{
+					If (MinDist > 0 && MinDist > Data.Distance)
+						Return (Double.NaN,Double.NaN,Double.NaN), Double.NaN; 
 					Dists.Push(Data.Distance);
 					DistSum += Data.Distance;
 				}
@@ -889,11 +890,10 @@ Extend Class KAI_Actor
 			Return;
 		}
 		
-		Vector3 ObstacleAvoidPos;
 		//2D obstacle avoidance
 		If (!(Flags & KMT_3D))
 		{
-			Bool UseObstacleAvoidPos;
+			Vector3 ObstacleAvoidPos; Bool UseObstacleAvoidPos;
 			[ObstacleAvoidPos, UseObstacleAvoidPos] = KAI_AvoidObstacles (ExtraParams.ObstacleDist, ExtraParams.ObstacleSlices, Radius,RunPos);
 			//Use the obstacle avoid pos if it's valid, and also not basically your current position, to prevent walking in place.
 			If (UseObstacleAvoidPos && !KAI_Math.IsEmptyVector3(ObstacleAvoidPos) && Level.Vec3Diff (ObstacleAvoidPos,Pos).Length() >= MeleeRange)
@@ -903,34 +903,25 @@ Extend Class KAI_Actor
 				Return;
 			}
 		}
-		//3D obstacle avoidance at the position we are running towards. Or rather, firing a trace at the position and seeing what it hits along the way.
-		Else
-		{
-			Vector3 RealPos = Pos;
-			
-			If (!KAI_Math.IsEmptyVector3 (NextMovePos))
-			{
-				Double DistToPos = Level.Vec3Diff(Pos,NextMovePos).Length();
-				FLineTraceData Data;
-				LineTrace (GetAngleToPos (NextMovePos,0),DistToPos,GetPitchToPos (NextMovePos,0),TRF_BLOCKSELF,0.1,data:Data);
-				Vector3 Crap = Level.Vec3Diff (Pos,Data.HitLocation).Unit();
-				SetOrigin (Level.Vec3Offset(Pos, Crap * (DistToPos - 0.1)),True);
-				//console.printf ("origin is now %.2f %.2f %.2f, hit location is %.2f %.2f %.2f",pos,data.hitlocation);
-			}
-			//Shortest KAI function call.
-			ObstacleAvoidPos = KAI_AvoidObstacles3D (ExtraParams.ObstacleSlices,ExtraParams.ObstacleDiv,ExtraParams.ObstacleDist,ExtraParams.ObstacleThreshold,ExtraParams.ObstacleMagnitude);
-			SetOrigin (RealPos,True);
-			
-			//Got position to move towards to evade obstacles.
-			If (!KAI_Math.IsEmptyVector3(ObstacleAvoidPos))
-				NextMovePos = ObstacleAvoidPos;
-		}
 		
 		//If there's already a prior position to move to, begin moving there instead. Until within melee range of that position.
 		If (!KAI_Math.IsEmptyVector3 (NextMovePos) && NewPosStepCount <= MaxSteps && Level.Vec3Diff (Pos,NextMovePos).Length() >= MeleeRange)
 		{
 			If (KAI_DebugPrintMessages) Console.Printf ("KAI_MoveAway(): Walking to NextMovePos %d %d %d",nextmovepos);
 			KAI_MoveTowards (NextMovePos, DetourFactor, AngleLimit, ChaseFlags, Flags,ExtraParams.PitchLimit);
+			//3D obstacle avoidance.
+			If (Flags & KMT_3D)
+			{
+				//Shortest KAI function call.
+				Vector3 ObsVec = KAI_AvoidObstacles3D (ExtraParams.ObstacleSlices,ExtraParams.ObstacleDiv,ExtraParams.ObstacleDist,ExtraParams.ObstacleThreshold,ExtraParams.ObstacleMagnitude,ExtraParams.ObstacleMinDist);
+				//Obstacle(s) nearby, so independently propel us to the averaged position the function gave us.
+				If (!KAI_Math.IsEmptyVector3(ObsVec))
+				{
+					Vector3 ObsVel = KAI_Math.AngleToVector3D (GetAngleToPos (ObsVec,0),-GetPitchToPos(ObsVec,0),ExtraParams.ObstacleSpeed);
+					KMT_3D_SpeedLimit (Speed*3,ObsVel);
+					console.printf ("moving away from obstacle");
+				}
+			}
 			NewPosStepCount++;
 			Return;
 		}
@@ -1090,7 +1081,6 @@ Extend Class KAI_Actor
 	}
 	
 	//Works similar to its' 2D/land counterpart. Except that it fires a fan of checks around the caller. To allow it to also find vertical and diagonal corners.
-	//DOCUMENT: Obviously.
 	//Targ, Divisions, Distance: Works like its' 2D counterpart.
 	//Slices: The slices that the clock-like pattern around the caller is split to. Similar to the slices in KAI_AvoidObstacles().
 	//StartUp: By default the checks are fired from under the actor, this makes them start from above them. For biasing the check towards the ceiling instead.
@@ -1383,7 +1373,6 @@ Extend Class KAI_Actor
 	}
 	
 	//Called in place of the stock one for flying actors.
-	//DOCUMENT: No shit, kinda important for flyers.
 	//Works similarly to the normal one. Except that it relies on a row of CheckPosition() calls instead of moving the actor forward.
 	Bool IsPosReachable3D (Vector3 TargetPos, Double DistCutoff = 0, Double Spacing = 0, Bool IgnoreActors = False)
 	{
@@ -1969,4 +1958,6 @@ Struct KAIMoveParams
 	Int ObstacleDiv; //Used by AvoidObstacles3D, how many vertical (Pitch) slices should the check have?
 	Double ObstacleThreshold; //Ditto, makes KMA ignore any positions that are closer to the actors' current position than this threshold distance, i.e to ignore noise.
 	Double ObstacleMagnitude; //Ditto, makes KMA increase just how extreme the averaged position to head to is, negative values make it use a special linear scaling factor.
+	Double ObstacleSpeed; //The speed at which AvoidObstacles3D pushes the caller away from obstacles.
+	Double ObstacleMinDist; //If any trace from AvoidObstacles3D hits something closer than this distance, the function returns NaN. Useful if you want the avoidance to give up if far too close anyway.
 }

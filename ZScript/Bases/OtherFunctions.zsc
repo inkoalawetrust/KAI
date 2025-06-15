@@ -30,6 +30,7 @@ Extend Class KAI_Actor
 			TPOnly = GetTeleportMoveDivision();
 			//console.printf ("tponly is %.3f %.3f %.3f",tponly.x,tponly.y,tponly.z);
 			Vector3 FakeVel = Level.Vec3Offset (TPOnly,Target.Vel);
+			FakeVel = Level.Vec3Offset (FakeVel,InaccuracyOffset); //Factor in inaccuracy.
 			//console.printf ("fakevel is %.3f %.3f %.3f",fakevel.xy,fakevel.z);
 			Target.Vel = FakeVel;
 			Projectile.VelIntercept (Target);

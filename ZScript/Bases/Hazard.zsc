@@ -264,6 +264,51 @@ Extend Class KAI_Actor
 		
 		Return Hazard.Position;
 	}
+	
+	HazardInfo GetNearestHazard (Array<HazardInfo> HazardList)
+	{
+		Double ClosestDist = INT.MAX;
+		HazardInfo Closest;
+		
+		ForEach (CurHaz : HazardList)
+		{
+			If (CurHaz)
+			{
+				If (CurHaz.Flags & HazardInfo.HAZ_SECTOR) //The first hazard found in the same sector as you is the closest.
+					Return CurHaz;
+				
+				Double Dist = GetHazardDistance (CurHaz);
+				If (Dist < ClosestDist)
+				{
+					ClosestDist = Dist;
+					Closest = CurHaz;
+				}
+			}
+		}
+		
+		Return Closest;
+	}
+	
+	HazardInfo GetStrongestHazard (Array<HazardInfo> HazardList)
+	{
+		Int StrongestHaz = HazardInfo.HAZARD_HARMLESS;
+		HazardInfo Strongest;
+		
+		ForEach (CurHaz : HazardList)
+		{
+			If (CurHaz)
+			{
+				Int Strength = CurHaz.Level;
+				If (Strength > StrongestHaz)
+				{
+					StrongestHaz = Strength;
+					Strongest = CurHaz;
+				}
+			}
+		}
+		
+		Return Strongest;
+	}
 }
 
 //Stock hazard zone, emits a hazard every tic based on the initial arguments passed.
@@ -416,57 +461,59 @@ Class KAI_SectorHazard : Actor
 	{
 		Super.Tick ();
 		
-		If (!IsFrozen() && !bDormant)
+		If (!IsFrozen() && !bDormant && CurSector.ThingList)
 		{
 			Hazard.Position = Pos; //Just in case it moves.
 			
-			int i;
-			For (Actor CurMo = CurSector.ThingList; CurMo != Null; CurMo = CurMo.SNext)
+			Actor CurMo = CurSector.ThingList;
+			If (CurMo)
 			{
-				If (!CurMo || IsDead (CurMo))
-					Continue;
-				
-				KAI_DataToken Token; //If this isn't null, we're dealing with a non-KAI_Actor that has a token we can give the hazard to.
-				If (!(CurMo Is "KAI_Actor") &&
-				//AND you also don't have a KAI_DataToken.
-				! (Token = KAI_DataToken(CurMo.FindInventory ("KAI_DataToken"))) ) //Note: Unreadable arcane magic.
-					Continue;
-				
-				If (Token && !Token.bAvoidHazards)
-					Continue;
-				
-				If (Token) //We didn't find a KAI_Actor, but they have a token.
-					CurMo = Token.Owner;
-				
-				If (Flags & SECHAZ_NOAIR && IsFlying (CurMo) || Flags & SECHAZ_NOGROUND && !IsFlying (CurMo))
-					Continue;
-				
-				Bool Skip;
-				If (!Token)
+				While (CurMo = CurMo.SNext)
 				{
-					//Don't give duplicate hazard entries if the NPC already got this one.
-					ForEach (CurHaz : KAI_Actor(CurMo).Hazards)
+					If (!CurMo || IsDead (CurMo))
+						Continue;
+					
+					KAI_DataToken Token; //If this isn't null, we're dealing with a non-KAI_Actor that has a token we can give the hazard to.
+					If (!(CurMo Is "KAI_Actor") &&
+					//AND you also don't have a KAI_DataToken.
+					! (Token = KAI_DataToken(CurMo.FindInventory ("KAI_DataToken"))) ) //Note: Unreadable arcane magic.
+						Continue;
+					
+					If (Token && !Token.bAvoidHazards)
+						Continue;
+					
+					If (Token) //We didn't find a KAI_Actor, but they have a token.
+						CurMo = Token.Owner;
+					
+					If (Flags & SECHAZ_NOAIR && IsFlying (CurMo) || Flags & SECHAZ_NOGROUND && !IsFlying (CurMo))
+						Continue;
+					
+					Bool Skip;
+					If (!Token)
 					{
-						If (HazardInfo.AreHazardsIdentical (Hazard, CurHaz))
-							Skip = True;
+						//Don't give duplicate hazard entries if the NPC already got this one.
+						ForEach (CurHaz : KAI_Actor(CurMo).Hazards)
+						{
+							If (HazardInfo.AreHazardsIdentical (Hazard, CurHaz))
+								Skip = True;
+						}
 					}
-				}
-				Else
-				{
-					//Ditto, but for KAI_DataTokens
-					ForEach (CurHaz : KAI_DataToken(Token).Hazards)
+					Else
 					{
-						If (HazardInfo.AreHazardsIdentical (Hazard, CurHaz))
-							Skip = True;
+						//Ditto, but for KAI_DataTokens
+						ForEach (CurHaz : KAI_DataToken(Token).Hazards)
+						{
+							If (HazardInfo.AreHazardsIdentical (Hazard, CurHaz))
+								Skip = True;
+						}
 					}
+					
+					If (Skip)
+						Continue;
+					
+					If (CurMo Is "KAI_Actor") KAI_Actor(CurMo).Hazards.Push (Hazard);
+					Else Token.Hazards.Push(Hazard);
 				}
-				
-				If (Skip)
-					Continue;
-				
-				If (CurMo Is "KAI_Actor") KAI_Actor(CurMo).Hazards.Push (Hazard);
-				Else Token.Hazards.Push(Hazard);
-				CurMo = CurMo.SNext;
 			}
 		}
 	}

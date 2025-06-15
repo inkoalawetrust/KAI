@@ -12,7 +12,7 @@
      \|__|        \/__/                            \/__/             ~~           \|__|        \/__/        \|__|              
 ===============================================================================================================================*/
 
-Version "4.13.0"
+Version "4.14.0"
 
 //CUSTOM CODE TAGS:
 //DOCUMENT: This bit of code needs documentation.
@@ -41,7 +41,7 @@ Maybe also add an OnBodyPartHit callback for projectiles to use. Such as to make
 /*Make some kind of target priority queue system, or something ? Like, for having NPCs optionally target multiple enemies.*/
 
 //DEBUG DEBUG DEBUG
-class TestPinky : KAI_Actor Replaces Demon
+class TestPinky : KAI_Actor// Replaces Demon
 {
 Default
 	{
@@ -135,8 +135,8 @@ override bool customflyingmovement(Vector3 TargetPos, Double DetourFactor, Doubl
 			}
 			HEAD A 1
 			{
-				//If (Target)
-				//	KAI_MoveTowards (Target.Pos,anglelimit:0,flags:KMT_3D,pitchlimit:0);
+				If (Target)
+					KAI_MoveTowards (Target.Pos,anglelimit:0,flags:KMT_3D,pitchlimit:0);
 				//KAI_Wander (anglelimit:40,flags:KMT_3D,pitchlimit:40);
 				KAIMoveParams Params;
 				Params.PitchLimit = 40; //Pass pitch limit for KAI_MoveAway.
@@ -164,8 +164,8 @@ override bool customflyingmovement(Vector3 TargetPos, Double DetourFactor, Doubl
 					A_FaceTarget();
 				}*/
 				//Test to see how the obstacle avoiding works with KMT_3D.
-				If (Target)
-					KAI_MoveAway (Target,64,detourfactor:4,flags:KMT_3D,kmaflags:KMA_STRAIGHT,extraparams:Params);
+				//If (Target)
+				//	KAI_MoveAway (Target,64,detourfactor:4,flags:KMT_3D,kmaflags:KMA_STRAIGHT,extraparams:Params);
 				//console.printf ("the players' angle is %.2f, pitch %.2f",players[consoleplayer].mo.angle,players[consoleplayer].mo.pitch);
 				//If (Target) IsPosReachable3D (Target.Pos);
 			}

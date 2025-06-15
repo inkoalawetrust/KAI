@@ -375,6 +375,27 @@ Mixin Class KAI_CheckFunctions
 		return null;
 	}
 	
+	//Return the 3D floor that this coordinate is inside of, if any.
+	Static ClearScope F3DFloor IsInside3DFloor (Vector3 Where, Double Height, Bool IgnoreSwimmable = False)
+	{
+		Sector Sec = Level.PointInSector (Where.XY);
+		
+		If (!Sec)
+			Return Null;
+		
+		For (Int I = 0; I < Sec.Get3DFloorCount(); I++)
+		{
+			F3DFloor FF = Sec.Get3DFloor(I);
+			If (!(FF.Flags & F3DFloor.FF_EXISTS) || IgnoreSwimmable && (FF.Flags & F3DFloor.FF_SWIMMABLE))
+				Continue;
+
+			If (Where.Z+Height > FF.Bottom.ZAtPoint(Where.XY) && Where.Z < FF.Top.ZAtPoint(Where.XY))
+				Return FF;
+		}
+		console.printf ("no 3d floor found, that's right !!!!!!!!");
+		Return Null;
+	}
+	
 	//Get the 3D floor that the specified control sector (Model) projects at the specified sector (Where).
 	//Used to make sense of AActor's Blocking3DFloor which returns the control sector itself for some asinine reason.
 	Static ClearScope F3DFloor Get3DFloorFromModel (Sector Model, Sector Where)
@@ -390,6 +411,37 @@ Mixin Class KAI_CheckFunctions
 				Return FFloor;
 		}
 		Return Null;
+	}
+	
+	//Returns if the current sector is under some kind of detectable hazard, like hurt floors and crushers.
+	//Also allows for passing who the check is for, to for example discern between player and NPC harming floors.
+	Static ClearScope Bool IsHarmfulSector (Sector Sec, Actor Whom = Null)
+	{
+		If (!Sec)
+			Return False;
+		
+		//Ceiling has a crusher that's coming down.
+		If (Sec.CeilingData && Ceiling(Sec.CeilingData) && Ceiling(Sec.CeilingData).IsCrusher() && Ceiling(Sec.CeilingData).GetDirection() == Ceiling.DirDown)
+			Return True;
+		
+		//URGENT: GZDoom confuses "floor" the thinker with floor() the math built-in. Whenever that is fixed, add a crushing FLOOR check!
+		//NOTE: Platforms can crush, but only if things are getting in the way, so return true for that would go against the spirit of the function.
+		
+		If (Whom && Sec.DamageAmount)
+		{
+			//Players are hurt by hurt floors.
+			If (Whom.Player && (Whom.Pos.Z <= Whom.FloorZ || Sec.MoreFlags & Sector.SECMF_HARMINAIR))
+				Return True;
+			If (Sec.Flags & Sector.SECF_KILLMONSTERS && Whom.bIsMonster)
+				Return True;
+			//NPC actor in hurt floor that affects them.
+			If (!Whom.Player && Sec.MoreFlags & Sector.SECMF_HURTMONSTERS)
+			{
+				If (Whom.Pos.Z <= Whom.FloorZ || Sec.MoreFlags & Sector.SECMF_HARMINAIR)
+					Return True;
+			}
+		}
+		Return False;
 	}
 }
 

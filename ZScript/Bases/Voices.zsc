@@ -90,7 +90,7 @@ Extend Class KAI_Actor
 		Int RNG = Random(0,Yapping.Size()-1);
 		Sound Snd = Yapping[RNG];
 		A_StartSound (Snd,Channel,CHANF_OVERLAP,Volume,Attenuation);
-		console.printf ("playing %s, %d",snd,IsActorPlayingSound (Channel,Yapping[RNG]));
+		//console.printf ("playing %s, %d",snd,IsActorPlayingSound (Channel,Yapping[RNG]));
 		Return IsActorPlayingSound (Channel,Yapping[RNG]);
 	}
 }
@@ -119,7 +119,7 @@ Extend Class KAI_EventHandler
 			Let Parser = New("ScriptScanner");
 			Parser.OpenLumpNum(CurrentLump);
 			FilePath = Wads.GetlumpFullName(CurrentLump);
-			console.printf ("getstring is %d, %s| filestring %s",parser.GetString(),parser.GetStringContents(),FilePath); parser.unget();
+			//console.printf ("getstring is %d, %s| filestring %s",parser.GetString(),parser.GetStringContents(),FilePath); parser.unget();
 			
 			//Parse NPC voice definitions.
 			While (Parser.GetString())
@@ -136,7 +136,7 @@ Extend Class KAI_EventHandler
 					//No duplicate voice names allowed.
 					If (FindDuplicateVoice(Voice.Name))
 						ThrowAbortException("KAI_VOICES: %s is a duplicate voice name!",Voice.Name);
-					console.printf ("voice name is %s",voice.name);
+					//console.printf ("voice name is %s",voice.name);
 					
 					//Get the built-in voice types
 					parser.GetString(); // Skip the { (Opening bracket)
@@ -148,7 +148,7 @@ Extend Class KAI_EventHandler
 						If (Compare("}",Parser.GetStringContents())) Break; // End of voice  definition block
 						
 						Name VoiceType = Parser.GetStringContents(); //Get built-in voice type.
-						console.printf ("parsed voice type is %s",voicetype);
+						//console.printf ("parsed voice type is %s",voicetype);
 						Switch (VoiceType)
 						{
 							Case 'See':

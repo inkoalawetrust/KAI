@@ -16,28 +16,28 @@ Extend Class KAI_Actor
 	{
 		Double Dist;
 		
-		If (!Target || CurSector.Flags & Sector.SECF_NOATTACK)
+		If (!Other || CurSector.Flags & Sector.SECF_NOATTACK)
 			Return False;
 		
 		Dist = (!(Flags & CMR_3DDISTANCE) ? Distance2D (Other) : Distance3D (Other));
 		If (Range < 0) Range = MeleeRange;
 		
-		If (Dist >= Range + Target.Radius)
+		If (Dist >= Range + Other.Radius)
 			Return False;
 		
-		If (Target == Goal)
+		If (Other == Goal)
 			Return True;
 		
 		If (!bNoVerticalMeleeRange)
 		{
-			If (Target.Pos.Z > Pos.Z+Height) Return False;
-			If (Pos.Z+Height < Target.Pos.Z) Return False;
+			If (Other.Pos.Z > Pos.Z+Height) Return False;
+			If (Pos.Z+Height < Other.Pos.Z) Return False;
 		}
 		
 		If (IsFriend (Other))
 			Return False;
 		
-		If (!CheckSight (Target))
+		If (!CheckSight (Other))
 			Return False;
 		
 		Return True;
@@ -123,6 +123,185 @@ Extend Class KAI_Actor
 		If (!(ExtraFlags & KAIL_NOTEMPSTAND)) bStandStill = Stand;
 	}
 	
+	Enum KAIChaseFlags
+	{
+		KAIC_FRIENDSIDLE	= 1 << 0, //Basically the opposite of CHF_DONTIDLE. Friendly KAI monsters will ALSO idle like monsters do when they have nothing to chase.
+		KAIC_ZIGZAG			= 1 << 1, //Zig-zag on your way to the target. Passed to KAI_MoveTowards().
+		KAIC_IGNOREHAZARDS	= 1 << 2, //Don't avoid hazards regardless of bAvoidHazards.
+	}
+	
+	//IDEA: Actually integrate some KAI features into this generic function, whatever I CAN reasonably integrate into one function.
+	//MAYBE having KAI_Humanoid callers able to run up to and use emplacements.
+	
+	//Basic generic chase function for making NPCs go up to their target pointer and attack it. Literally just A_Chase() lite.
+	//Melee: An arbitrary state override to go to for melee attacks.
+	//Missile: Ditto but for ranged attacks.
+	//Wait: When patrolling, the idle state they go to once reachING a point where the actor is supposed to stop.
+	//Flags: The vanilla A_Chase flags to use.
+	//FlagsEx: The KAI_Chase flags to use.
+	//RetreatRange: If a powerful target (One with a threat level over the callers' ThreatLevelThreshod) is over this range, run away unless we're fearless.
+	//StrafeDist: Used by the Hexen strafe logic, the target must be at least this close for the NPC to strafe with CHF_FASTCHASE.
+	Void KAI_Chase (StateLabel Melee = Null, StateLabel Missile = Null, StateLabel Wait = Null, Int Flags = 0, KAIChaseFlags FlagsEx = 0, Double RetreatRange = 0, Double StrafeDist = 64*10, String Voice = "", KAIMoveParams Extra = Null)
+	{
+		//HACK: Pass default detail params.
+		If (!Extra)
+		{
+			KAIMoveParams Params;
+			//Params.TargetPos //No need to use that... unless I decide to allow for position overrides I guess?
+			Params.DetourFactor = 1;
+			Params.AngleLimit = 45; //Set it high by default.
+			Params.PitchLimit = 0; //No pitch limit.
+			//Params.ChaseFlags = ; //Don't need this, that's what the Flags parameter is for.
+			//Params.Flags = ; //Ditto, we just expose a few flags like KMT_ZIGZAG and maybe KMT_NOLINEUSE.
+			//Retreating parameters
+			Params.Attempts = 8;
+			Params.RunRad = Radius+64;
+			Params.MaxSteps = 16;
+			Params.KMAFlags = 0; //Up to you to do KMA_STRAIGHT if you wanna.
+			//Everything else are parameters for KMA's built-in support for AvoidObstacles(3D) and CheckCorners(3D), so totally optional.
+			
+			KAI_Chase (Melee, Missile, Wait, Flags, FlagsEx, RetreatRange, StrafeDist, Voice, Params);
+			Return;
+		}
+		
+		KAI_Voice Yapper = KAIHandler ? KAIHandler.GetNPCVoice(Voice) : Null;
+		
+		//ZScript exports of different segments of GZDooms' native AI code. This is the stuff not needed for movement.
+		KAI_Chase_PreChecks(Flags);
+		Bool PreTarg = Target;
+		KAI_Chase_FriendsAttackPlayerEnemies(Flags); //If friendly, attack anything that attacked our player. Unless busy already.
+		KAI_Chase_Retarget(Flags,FlagsEx & KAIC_FRIENDSIDLE); //Look for new target if we have none right now.
+		If (!PreTarg && Target && Yapper && !IsActorPlayingSound (CHAN_VOICE)) //We have seen an enemy from within KAI_Chase() itself.
+		{
+			If (Target.Player && Yapper.PlayerSee.Size())
+				SayVoiceLine (VOICE_PLAYERSEE,Yapper);
+			Else
+				SayVoiceLine (VOICE_SEE,Yapper);
+				
+		}
+		KAI_Chase_HandleActiveSound(Flags); //rawr xd
+		
+		//Necromancy
+		If (Flags & CHF_RESURRECT && A_CheckForResurrection())
+		{
+			If (Yapper && !IsActorPlayingSound (CHAN_VOICE)) SayVoiceLine (VOICE_ALLYREVIVE,Yapper);
+			Return;
+		}
+		
+		Bool RunAway = (!bNoFear && (IsFrightening (Target) || bFrightened)); //Run away from spooky actors, or maybe we're just a little bitch.
+		Double Aggro = MissileChanceMult; //Because it can be temporarily raised to make the NPC far less aggressive when trying to run away with bAvoidMelee.
+		//if (runaway) console.printf ("oooh, very scary!");
+		
+		//Only move to the target if we, you know, have one. What to do if there is none is handed by KAI_Chase_Retarget().
+		If (Target && !(Flags & CHF_DONTMOVE))
+		{
+			//If we're set to run away from targets over our threat threshold that get too close, do so.
+			If (!bNoFear && Target != Goal && !RunAway && RetreatRange > 0 && ThreatLevelThreshold != THREAT_ASSESS && Distance3DSquared(Target) <= RetreatRange*RetreatRange &&
+			AssessThreatLevel(Target, True) >= ThreatLevelThreshold && CheckSight (Target,SF_IGNOREWATERBOUNDARY))
+				RunAway = True;
+			
+			If (RunAway && Yapper && Random (0,255) < 1 && !IsActorPlayingSound (CHAN_VOICE))
+			{
+				If (Target.Player && Yapper.PlayerFear.Size())
+					SayVoiceLine (VOICE_PLAYERFEAR,Yapper);
+				Else
+					SayVoiceLine (VOICE_FEAR,Yapper);
+			}
+			
+			KAI_Chase_HandleStrafing (Target,Flags,False,StrafeDist);
+			
+			Int KMT = (FlagsEx & KAIC_ZIGZAG) ? KMT_ZIGZAG : 0; //Pass KMT_ZIGZAG on.
+			If (IsFlying(Self)) //They fly now !?
+				KMT |= KMT_3D; //They fly now.
+			If (RunAway && KMT & KMT_ZIGZAG)
+				KMT &= ~KMT_ZIGZAG; //Don't zigzag when retreating.
+			KMT |= KMT_CHASEGOAL;
+			
+			Bool MovedAlready;
+			If (bAvoidHazards && !(Flags & KAIC_IGNOREHAZARDS))
+			{
+				Int KMAFlags = Extra.KMAFlags; If (!(KMT & KMT_3D)) KMAFlags |= KMA_STRAIGHT;
+				//Run from generic harmful sectors. Takes precedence.
+				If (IsHarmfulSector (CurSector,Self))
+				{
+					KMT &= ~KMT_ZIGZAG; KMT &= ~KMT_CHASEGOAL; //Don't zigzag or chase your goal when retreating.
+					Vector3 RunPos = (CurSector.CenterSpot,0); //Run from sector center.
+					RunPos.Z = GetZAt (RunPos.X,RunPos.Y);
+					KAI_MoveAway (Null,Extra.Attempts,Extra.RunRad,Extra.MaxSteps,Extra.DetourFactor,Extra.AngleLimit,Flags,KMT,KMAFlags,RunPos,extraparams:Extra);
+					MovedAlready = True;
+				}
+				//And also from KAI hazard areas.
+				Else If (Hazards.Size())
+				{
+					KMT &= ~KMT_ZIGZAG; KMT &= ~KMT_CHASEGOAL; //Don't zigzag or chase your goal when retreating.
+					Vector3 HazPos = GetHazardOriginPos (GetNearestHazard(Hazards));
+					Speed *= 2;
+					KAI_MoveAway (Null,Extra.Attempts,Extra.RunRad,Extra.MaxSteps,Extra.DetourFactor,Extra.AngleLimit,Flags,KMT,KMAFlags,HazPos,extraparams:Extra);
+					Speed /= 2;
+					If (!KAI_Math.IsEmptyVector3(HazPos)) MovedAlready = True;
+				}
+				If (MovedAlready)
+				{
+					MissileChanceMult = 4; //Busy trying to live.
+					//Yap about hazards.
+					If (Yapper && Random (0,255) < 2 && !IsActorPlayingSound (CHAN_VOICE))
+						SayVoiceLine (VOICE_HAZARD,Yapper);
+				}
+			}
+			
+			Bool B;
+			If (!MovedAlready)
+				[B,MovedAlready] = KAI_Chase_PatrolHandling (Wait,Extra.DetourFactor,Extra.AngleLimit,Flags,KMT,Extra.PitchLimit); //Handle ZDoom patrol routes.
+			
+			//Avoid melee attackers.
+			If (Target && (bAvoidMelee || Level.Info.Flags3 & LEVEL3_AVOIDMELEE))
+			{
+				Bool IsMeleeAttacker;
+				If (!Target.Player && Target.MeleeState) //Melee NPC
+				{
+					Double Dist = (Target.MeleeRange + Target.Radius)*2;
+					IsMeleeAttacker = Distance3DSquared (Target) < Dist*Dist;
+				}
+				Else If (Target.Player && Target.Player.ReadyWeapon && Target.Player.ReadyWeapon.bMeleeWeapon) //Melee player
+					IsMeleeAttacker = Distance3dSquared(Target) <= 192*192;
+				
+				//Run straight away, regardless of other KMAFlags.
+				If (IsMeleeAttacker)
+				{
+					MissileChanceMult = 3; //Far less likely to attack so we can fuck off.
+					Int KMAFlags = Extra.KMAFlags; KMAFlags |= KMA_STRAIGHT;
+					KAI_MoveAway (Target,Extra.Attempts,Extra.RunRad,Extra.MaxSteps,Extra.DetourFactor,Extra.AngleLimit,Flags,KMT,KMAFlags,extraparams:Extra);
+					MovedAlready = True;
+				}
+			}
+			
+			If (!MovedAlready && Target)
+			{
+				If (!RunAway)
+					KAI_MoveTowards (Target.Pos,Extra.DetourFactor,Extra.AngleLimit,Flags,KMT,Extra.PitchLimit);
+				//Running away from something, this is fully customizable, including being able to pass parameters for AvoidObstacles(3D) and CheckCorners(3D).
+				Else
+					KAI_MoveAway (Target,Extra.Attempts,Extra.RunRad,Extra.MaxSteps,Extra.DetourFactor,Extra.AngleLimit,Flags,KMT,Extra.KMAFlags,extraparams:Extra);
+			}
+		}
+		
+		//Decide to attack using the virtuals. But only if not patrolling.
+		State RealMelee = MeleeState;
+		State RealRange = MissileState;
+		//Use custom attack state overrides.
+		If (Melee) MeleeState = FindState(Melee,True);
+		If (Missile) MissileState = FindState(Missile,True);
+		
+		If (Target != Goal && CanAttack() && ShouldAttack())
+		{
+			MissileChanceMult = Aggro;
+			MeleeState = RealMelee; //Set states back now that the check is done.
+			MissileState = RealRange;
+			Return;
+		}
+		MissileChanceMult = Aggro;
+	}
+	
 	Enum KAIMoveTowardsFlags
 	{
 		KMT_CHASEGOAL 	= 1 << 0, //If the caller has a goal pointer, and the bChaseGoal flag on. It will follow the goal instead of the TargetPos.
@@ -136,7 +315,9 @@ Extend Class KAI_Actor
 	Vector3 ZigZagPos;
 	
 	//Makes the actor move towards the specified position.
-	//TODO: Add a check for if a vehicles' turret would collide with the next move. And probably find a way to call it recursively for turrets on turrets.
+	//TODO:
+	//Add a check for if a vehicles' turret would collide with the next move. And probably find a way to call it recursively for turrets on turrets.
+	//One day I should probably add support for vanilla style 8-directional movement. Maybe even 16 angle movement.
 	//CREDIT: Original 2D A_Chase-like movement written by Custodian (Beyond Sunset creator). Modified and expanded by me (inkoalawetrust).
 	//TargetPos: The position to move to.
 	//DetourFactor: How long the actor is allowed to move in a direction after hitting an obstacle, before heading straight for the target again.
@@ -155,7 +336,7 @@ Extend Class KAI_Actor
 		//Handle making the NPC zig zag in a manner similar to KAI_MoveAway.
 		If (Flags & KMT_ZIGZAG)
 		{
-			If (NewPosStepCount <= 64 && Level.Vec3Diff (Pos,ZigZagPos).Length() >= MeleeRange)
+			If (NewPosStepCount <= 32 && Level.Vec3Diff (Pos,ZigZagPos).Length() >= MeleeRange)
 			{
 				If (!KAI_Math.IsEmptyVector3 (ZigZagPos))
 					TargetPos = ZigZagPos;
@@ -1039,7 +1220,6 @@ Extend Class KAI_Actor
 			Vector3 RealPos = Pos;
 			Double CheckLength = Distance;
 			Double Division = (Distance/Divisions);
-			console.printf ("doing corner check");
 			
 			//Check your left.
 			Vector3 LeftPos;
@@ -1117,8 +1297,8 @@ Extend Class KAI_Actor
 					
 					Dest = Level.Vec3Offset (Pos,Rotated*Iter);
 					
-					//This is out of bounds, get rid of it for performance.
-					If (!Level.IsPointInLevel(Dest))
+					//This is out of bounds, or inside a 3D floor, get rid of it for performance.
+					If (!Level.IsPointInLevel(Dest) || IsInside3DFloor (Dest,Height,True))
 						Continue;
 					
 					CheckPos = Dest;
@@ -1128,7 +1308,7 @@ Extend Class KAI_Actor
 					If (KAI_Debug3DCornerCheck)
 						KAI_DebugPointDelay.KAI_TempPointSpawn(CheckPos,KAI_Debug3DCornerCheck);
 					
-					If (!Sight && Level.Vec3Diff (Pos,CheckPos).Length() > MeleeRange && IsPosReachable3D (CheckPos,spacing:Radius*2,ignoreactors:True))
+					If (!Sight && Level.Vec3Diff (Pos,CheckPos).Length() > MeleeRange && IsPosReachable3D (CheckPos,spacing:Radius*2,ignoreactors:True,no3dfloors:True))
 					{
 						If (KAI_DebugPrintMessages) Console.Printf ("KAI_MoveAway(): KMA_USECORNERS: Running behind 3D corner.");
 						Return CheckPos; 
@@ -1235,7 +1415,7 @@ Extend Class KAI_Actor
 	//CheckRad: What is the maximum radius around which random positions can be produced ?
 	//Filter: What position are we looking for exactly ? Look above for a list of filters. These are NOT to be used as flags that stack !
 	//Full3D: Generate fully 3D positions instead of alligning Z to the floor. For flying actors.
-	Vector3 FindRandomMovePos (Vector3 RelativeTo = (Double.NaN, Double.NaN, Double.NaN), Int Attempts = 32, Double CheckRad = 128, Int Filter = FRMP_FURTHEST, bool Full3D = False)
+	Vector3 FindRandomMovePos (Vector3 RelativeTo = (Double.NaN, Double.NaN, Double.NaN), Int Attempts = 32, Double CheckRad = 128, Int Filter = FRMP_FURTHEST, Bool Full3D = False)
 	{
 		If (Filter == 0) Filter = FRMP_FURTHEST;
 		
@@ -1248,6 +1428,17 @@ Extend Class KAI_Actor
 		{
 			CurPos = Vec3Offset (FRandom(CheckRad,-CheckRad),FRandom(CheckRad,-CheckRad),Full3D ? FRandom(CheckRad,-CheckRad) : 0);
 			If (!Full3D) CurPos.Z = GetZAt (CurPos.X,CurPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
+			Else
+			{
+				/*Double ZAt = GetZAt (CurPos.X,CurPos.Y,0,GZF_ABSOLUTEPOS);
+				Double ZAtCeil = GetZAt (CurPos.X,CurPos.Y,0,GZF_ABSOLUTEPOS|GZF_CEILING);
+				//Too far up.
+				If (ZAt >= CurPos.Z)
+					CurPos.Z = ZAt + 0.1;
+				//Too far down.
+				Else If (ZAtCeil <= CurPos.Z + Height)
+					CurPos.Z = ZAtCeil - Height - 0.1;*/
+			}
 			Xs.Push (CurPos.X); Ys.Push (CurPos.Y); Zs.Push (CurPos.Z); //Epic GZDoom fail.
 		}
 		
@@ -1257,7 +1448,7 @@ Extend Class KAI_Actor
 			CurPos = (Xs[I],Ys[I],Zs[I]); //Reconstruct each vector.
 			SightTarget.SetXYZ (CurPos); //Move the target to the pos for the visibility check.
 			//If it's out of bounds, not visible, or can't be walked to. We can't go there. So remove that potential position.
-			If (!Level.IsPointInLevel (CurPos) || !CheckSight(SightTarget,SF_IGNOREVISIBILITY) || !IsPosReachable (CurPos))
+			If (!Level.IsPointInLevel (CurPos) || Full3D && IsInside3DFloor (CurPos,Height,True) ||  !CheckSight(SightTarget,SF_IGNOREVISIBILITY) || !IsPosReachable (CurPos,full3d:Full3D))
 			{
 				Xs.Delete (I); Ys.Delete(I); Zs.Delete(I);
 			}
@@ -1374,7 +1565,8 @@ Extend Class KAI_Actor
 	
 	//Called in place of the stock one for flying actors.
 	//Works similarly to the normal one. Except that it relies on a row of CheckPosition() calls instead of moving the actor forward.
-	Bool IsPosReachable3D (Vector3 TargetPos, Double DistCutoff = 0, Double Spacing = 0, Bool IgnoreActors = False)
+	//No3DFloors: If any of the intermediate positions hit a 3D floor, fail automatically. Since the function normally treats solid 3D floors as traversable.
+	Bool IsPosReachable3D (Vector3 TargetPos, Double DistCutoff = 0, Double Spacing = 0, Bool IgnoreActors = False, Bool No3DFloors = False)
 	{
 		Vector3 OldPos = Pos;
 		Bool ThruActs = bThruActors;
@@ -1399,7 +1591,7 @@ Extend Class KAI_Actor
 			Vector3 CheckPos = Level.Vec3Offset (OldPos,Path*I);
 			SetZ (CheckPos.Z); //Set the Z position before the check so CheckPosition's janky ass will hopefully not shit the bed.
 			//Spawn ("KAI_DebugPoint",CheckPos);
-			If (!CheckPosition(CheckPos.XY,False,Data))
+			If (!CheckPosition(CheckPos.XY,False,Data) || No3DFloors && IsInside3DFloor (CheckPos,Height,True))
 			{
 				If (KAI_DebugPrintMessages) Console.Printf ("IsPosReachable3D(): %.2f %.2f %.2f is blocking %p",CheckPos,Self);
 				bThruActors = ThruActs;
@@ -1811,7 +2003,7 @@ Extend Class KAI_Actor
 					If (!Target)
 					{
 						If (!(Flags & CHF_DONTMOVE))
-							KAI_Wander();
+							KAI_Wander(flags:IsFlying(Self) ? KMT_3D : 0);
 					}
 				}
 				Else
@@ -1822,10 +2014,11 @@ Extend Class KAI_Actor
 	}
 	
 	//This is an important one for every chase function of every NPC type. It handles going to patrol points and then heading to the next point in the route.
+	//BUG: It seems that patrolling monsters ignore patrol point delays when they see an enemy. However that seems to also be a bug in the original logic so maybe I'll keep it as is.
 	//WaitState: The statelabel for the actor to go to if it finds a delayed patrol point. If none is specified, it calls SetState().
 	//The rest of the parameters here are what is passed to KAI_MoveTowards
 	//This function returns 2 booleans. The first returns true if the goal was changed to the next one in the route, and the second returns true if the actor moved to the goal.
-	Bool, Bool KAI_Chase_PatrolHandling (StateLabel WaitState = Null, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0)
+	Bool, Bool KAI_Chase_PatrolHandling (StateLabel WaitState = Null, Double DetourFactor = 1.0, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0, Double PitchLimit = 40)
 	{
 		If (Target == Goal || bChaseGoal && Goal != Null)
 		{
@@ -1878,7 +2071,7 @@ Extend Class KAI_Actor
 			//We have a goal, go to it.
 			If (Goal && Goal == Target)
 			{
-				KAI_MoveTowards (Goal.Pos,DetourFactor,AngleLimit,ChaseFlags,Flags);
+				KAI_MoveTowards (Goal.Pos,DetourFactor,AngleLimit,ChaseFlags,Flags,PitchLimit);
 				Return False, True;
 			}
 		}
@@ -1916,7 +2109,7 @@ Extend Class KAI_Actor
 				FastChaseStrafeCount = 0;
 				Vel.X = Vel.Y = 0;
 				If ((ForceStrafe || Random[pr_chase](0,255) < 100) && Distance2D(StrafeTarget) < StrafeRange)
-				{
+				{console.printf ("strafing");
 					Double Ang = AngleTo (StrafeTarget);
 					If (Random[pr_chase](0,255) < 128) Ang += 90;
 					Else Ang -= 90;

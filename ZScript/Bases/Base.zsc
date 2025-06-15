@@ -5,6 +5,172 @@ Class KAI_MixinActor : Actor Abstract
 	Mixin KAI_UniversalFunctions;
 	Mixin KAI_CheckFunctions;
 }
+
+Class KAI_TestImp : KAI_Humanoid Replaces DoomImp
+{
+	Default
+	{
+		Health 60;
+		Radius 20;
+		Height 56;
+		Mass 100;
+		Speed 8;
+		PainChance 200;
+		Monster;
+		+FLOORCLIP
+		SeeSound "imp/sight";
+		PainSound "imp/pain";
+		DeathSound "imp/death";
+		ActiveSound "imp/active";
+		HitObituary "$OB_IMPHIT";
+		Obituary "$OB_IMP";
+		Tag "$FN_IMP";
+		+AvoidMelee;
+		+AvoidHazards;
+		//MissileChanceMult 2;
+		KAI_Actor.ThreatLevelThreshold THREAT_UNSTOPPABLE;
+	}
+	//Syayates <--- Dyslexia
+	States
+	{
+		Spawn:
+			TROO AB 10 KAI_Look(ExtraFlags:KAIL_CHASETARGET);
+			Loop;
+		See:
+			TROO AABBCCDD 3
+			{
+				KAIMoveParams Params;
+				Params.DetourFactor = 1;
+				Params.AngleLimit = 45;
+				Params.PitchLimit = 0;
+				
+				Params.Attempts = 8;
+				Params.RunRad = Radius+64;
+				Params.MaxSteps = 16;
+				Params.KMAFlags = 0;
+				
+				//Params.CornerDist = 192;
+				//Params.CornerDiv = 8;
+				
+				Params.ObstacleDist = 128;
+				Params.ObstacleDiv = 6;
+				Params.ObstacleSlices = 8;
+				
+				KAI_Chase(flags:CHF_RESURRECT,flagsex:KAIC_ZIGZAG,retreatrange:768,voice:"HECU",extra:params);
+			}
+			Loop;
+		Melee:
+		Missile:
+			TROO EF 8 A_FaceTarget();
+			TROO G 6 A_TroopAttack();
+			Goto See;
+		Pain:
+			TROO H 2;
+			TROO H 2 A_Pain;
+			Goto See;
+		Death:
+			TROO I 8;
+			TROO J 8 A_Scream;
+			TROO K 6;
+			TROO L 6 A_NoBlocking;
+			TROO M -1;
+			Stop;
+		XDeath:
+			TROO N 5;
+			TROO O 5 A_XScream;
+			TROO P 5;
+			TROO Q 5 A_NoBlocking;
+			TROO RST 5;
+			TROO U -1;
+			Stop;
+		Raise:
+			TROO ML 8;
+			TROO KJI 6;
+			Goto See;
+	}
+}
+
+Class KAI_TestCaco : KAI_Creature Replaces Cacodemon
+{
+	Default
+	{
+		Health 400;
+		Radius 31;
+		Height 56;
+		Mass 400;
+		Speed 3;
+		PainChance 128;
+		Monster;
+		/*+FLOAT*/ +NOGRAVITY +KAI_Actor.IsFlyer +KAI_Actor.MovesWithVelocity
+		KAI_Actor.ThreatLevelThreshold THREAT_VERYDANGEROUS;
+		+AvoidMelee
+		SeeSound "caco/sight";
+		PainSound "caco/pain";
+		DeathSound "caco/death";
+		ActiveSound "caco/active";
+		Obituary "$OB_CACO";
+		HitObituary "$OB_CACOHIT";
+		Tag "$FN_CACO";
+		MissileChanceMult 6;
+	}
+	States
+	{
+		Spawn:
+			HEAD A 10 A_Look;
+			Loop;
+		See:
+			HEAD A 3
+			{
+				KAIMoveParams Params;
+				Params.DetourFactor = 1;
+				Params.AngleLimit = 45;
+				Params.PitchLimit = 15;
+				
+				Params.Attempts = 8;
+				Params.RunRad = Radius+64;
+				Params.MaxSteps = 16;
+				Params.KMAFlags = 0;
+				
+				Params.CornerDist = 192;
+				Params.CornerDiv = 8;
+				Params.CornerSlices = 8;
+				
+				Params.ObstacleDist = 128;
+				Params.ObstacleDiv = 6;
+				Params.ObstacleSlices = 8;
+				Params.ObstacleMagnitude = -2;
+				Params.ObstacleThreshold = 10;
+				Params.ObstacleSpeed = 2;
+				Params.ObstacleMinDist = Radius*1.2;
+				
+				KAI_Chase (flags:CHF_RESURRECT|CHF_DONTIDLE,flagsex:0,extra:params,retreatrange:512,voice:"HECU");
+			}
+			Loop;
+		Missile:
+			HEAD B 5 A_FaceTarget;
+			HEAD C 5 A_FaceTarget;
+			HEAD D 5 BRIGHT A_HeadAttack;
+			Goto See;
+		Pain:
+			HEAD E 3;
+			HEAD E 3 A_Pain;
+			HEAD F 6;
+			Goto See;
+		Death:
+			HEAD G 8;
+			HEAD H 8 A_Scream;
+			HEAD I 8;
+			HEAD J 8;
+			HEAD K 8 A_NoBlocking;
+			HEAD L -1 A_SetFloorClip;
+			Stop;
+		Raise:
+			HEAD L 8 A_UnSetFloorClip;
+			HEAD KJIHG 8;
+			Goto See;
+	}
+}
+
 Class KAI_Actor : Actor Abstract
 {
 	Default
@@ -42,7 +208,8 @@ Class KAI_Actor : Actor Abstract
 		//These should be empty.
 		NextMovePos = (Double.NaN, Double.NaN, Double.NaN);
 		LastEnemyPosition = (Double.NaN, Double.NaN, Double.NaN);
-		CurrentEnemyPosition = (Double.NaN,Double.NaN,Double.NaN); 
+		CurrentEnemyPosition = (Double.NaN,Double.NaN,Double.NaN);
+		ZigZagPos = (Double.NaN,Double.NaN,Double.NaN);
 		If (KAI_DebugNextMovePos) DebugPoint = Spawn ("KAI_DebugPoint",Pos);
 		//Initialize inaccuracy.
 		NextInaccuracyOffset = (FRandom (Inaccuracy.X,-Inaccuracy.X),FRandom (Inaccuracy.Y,-Inaccuracy.Y),FRandom (Inaccuracy.Z,-Inaccuracy.Z));
@@ -104,7 +271,7 @@ Class KAI_Actor : Actor Abstract
 		//TODO: Probably add a flag that disables the updating, so that people can add their own logic, without making an expensive virtual.
 		If (bAvoidHazards && !IsDead(Self) && GetAge() % (GameTicRate/2) == 0)
 		{
-			//In the meantime though, at least until I make such a flag, the NextMovePos will be handled here too.
+			//In the meantime though, at least until I make such a flag, the NextMovePos for the debug point will be handled here too.
 			If (DebugPoint)
 				DebugPoint.SetOrigin (KAI_Math.IsEmptyVector3(NextMovePos) ? Pos : NextMovePos,True);
 			For (Int I = Hazards.Size()-1; I >= 0; I--)
@@ -122,7 +289,6 @@ Class KAI_Actor : Actor Abstract
 	because it allows default user variable values to be set for actors that are spawned in-game as well, not just ones placed in UDB*/
 	Virtual Void UserVariableDefaults(){}
 	
-	//PLAYTEST: I have not actually playtested if the default CanAttack() and ShouldAttack() code works like the native code. Since my own NPCs just override it.
 	//Used by the chase functions of each NPC type to check for all the different methods each actor has to attack.
 	Virtual Bool CanAttack()
 	{

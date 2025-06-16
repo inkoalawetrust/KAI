@@ -379,6 +379,8 @@ Extend Class KAI_Actor
 		//Normal 2D TryMove() movement.
 		If (!(Flags & KMT_3D))
 		{
+			bInFloat = False; //Just in case.
+			
 			//absolute position of next movement
 			vector2 NextPos = Vec2Angle(speed, NextAngle, True);
 			FCheckPosition Move;
@@ -480,6 +482,9 @@ Extend Class KAI_Actor
 		//CREDIT: Boondorl and RaveYard for helping me get this fucking god forsaken math to mostly work.
 		Else
 		{
+			//HACK: P_Move() disables this flag after successful steps, so always have it on when taking flying steps in case an NPC uses both TryMove() and KMT.
+			//As for what this flag does, it stops +FLOAT actors from changing their Z coordinate directly to match the height of their target.
+			bInFloat = True;
 			Bool NoStockMovement;
 			//Check if the actor flies with custom code
 			If (bCustomFlyer)
@@ -1428,17 +1433,6 @@ Extend Class KAI_Actor
 		{
 			CurPos = Vec3Offset (FRandom(CheckRad,-CheckRad),FRandom(CheckRad,-CheckRad),Full3D ? FRandom(CheckRad,-CheckRad) : 0);
 			If (!Full3D) CurPos.Z = GetZAt (CurPos.X,CurPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
-			Else
-			{
-				/*Double ZAt = GetZAt (CurPos.X,CurPos.Y,0,GZF_ABSOLUTEPOS);
-				Double ZAtCeil = GetZAt (CurPos.X,CurPos.Y,0,GZF_ABSOLUTEPOS|GZF_CEILING);
-				//Too far up.
-				If (ZAt >= CurPos.Z)
-					CurPos.Z = ZAt + 0.1;
-				//Too far down.
-				Else If (ZAtCeil <= CurPos.Z + Height)
-					CurPos.Z = ZAtCeil - Height - 0.1;*/
-			}
 			Xs.Push (CurPos.X); Ys.Push (CurPos.Y); Zs.Push (CurPos.Z); //Epic GZDoom fail.
 		}
 		
@@ -2109,7 +2103,7 @@ Extend Class KAI_Actor
 				FastChaseStrafeCount = 0;
 				Vel.X = Vel.Y = 0;
 				If ((ForceStrafe || Random[pr_chase](0,255) < 100) && Distance2D(StrafeTarget) < StrafeRange)
-				{console.printf ("strafing");
+				{
 					Double Ang = AngleTo (StrafeTarget);
 					If (Random[pr_chase](0,255) < 128) Ang += 90;
 					Else Ang -= 90;

@@ -101,8 +101,8 @@ Class KAI_TestCaco : KAI_Creature Replaces Cacodemon
 		Speed 3;
 		PainChance 128;
 		Monster;
-		/*+FLOAT*/ +NOGRAVITY +KAI_Actor.IsFlyer +KAI_Actor.MovesWithVelocity
-		KAI_Actor.ThreatLevelThreshold THREAT_VERYDANGEROUS;
+		+FLOAT +NOGRAVITY +KAI_Actor.IsFlyer +KAI_Actor.MovesWithVelocity
+		KAI_Actor.ThreatLevelThreshold THREAT_VERYDANGEROUS; +InFloat
 		+AvoidMelee
 		SeeSound "caco/sight";
 		PainSound "caco/pain";
@@ -142,7 +142,7 @@ Class KAI_TestCaco : KAI_Creature Replaces Cacodemon
 				Params.ObstacleThreshold = 10;
 				Params.ObstacleSpeed = 2;
 				Params.ObstacleMinDist = Radius*1.2;
-				
+				//binfloat = true;
 				KAI_Chase (flags:CHF_RESURRECT|CHF_DONTIDLE,flagsex:0,extra:params,retreatrange:512,voice:"HECU");
 			}
 			Loop;

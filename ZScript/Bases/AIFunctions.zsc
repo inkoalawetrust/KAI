@@ -844,9 +844,8 @@ Extend Class KAI_Actor
 		}
 		Double Delta = Vel Dot ExtraVel;
 		If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D_Speedlimit() Delta is %.2f",Delta);
-		Double Acceleration = 1;
 		If (Delta < SpeedLimit) //Accelerate the actor, but never let them exceed the speed limit under their own motion.
-			Vel += ExtraVel * Min (SpeedLimit - Delta,Acceleration);
+			Vel += ExtraVel * Min (SpeedLimit - Delta,FlightAcceleration);
 	}
 	
 	//Returns a position for KMT_3D actors to head to avoid bumping into things. By averaging where a sphere of traces hit.

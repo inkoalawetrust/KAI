@@ -186,6 +186,7 @@ Class KAI_Actor : Actor Abstract
 		Obituary "%o managed to be killed by an abstract class, congratulations %o, we are all very proud of you. Or maybe a modder forgot to define a custom obituary.";
 		KAI_Actor.InaccuracyFrequency 0.1;
 		KAI_Actor.ActorFollowDist 64;
+		KAI_Actor.FlightAcceleration 1;
 		
 		//Flags
 		Monster; //Of course.
@@ -506,6 +507,8 @@ Class KAI_Actor : Actor Abstract
 	Property Inaccuracy : Inaccuracy; //TODO: Make this be affected by SHADOW and SHADOWBLOCK actors, and the Shadow penalty factors.
 	Double InaccuracyFrequency; //How fast does the inaccuracy property shift ?
 	Property InaccuracyFrequency : InaccuracyFrequency;
+	Double FlightAcceleration; //Used by KMT_3D_SpeedLimit() to propel flying actors with arcane math I don't know.
+	Property FlightAcceleration : FlightAcceleration;
 	
 	//Deflection properties
 	Int DeflectionChance;

@@ -26,11 +26,10 @@ Class KAI_TestImp : KAI_Humanoid Replaces DoomImp
 		Obituary "$OB_IMP";
 		Tag "$FN_IMP";
 		+AvoidMelee;
-		+AvoidHazards;
-		//MissileChanceMult 2;
-		KAI_Actor.ThreatLevelThreshold THREAT_UNSTOPPABLE;
+		+AvoidHazards; //All KAI_Actors have this on by default but whatever.
+		KAI_Actor.ThreatLevelThreshold THREAT_DANGEROUS;
 	}
-	//Syayates <--- Dyslexia
+	//Syayates <--- Dyslexya
 	States
 	{
 		Spawn:
@@ -49,14 +48,14 @@ Class KAI_TestImp : KAI_Humanoid Replaces DoomImp
 				Params.MaxSteps = 16;
 				Params.KMAFlags = 0;
 				
-				//Params.CornerDist = 192;
-				//Params.CornerDiv = 8;
+				Params.CornerDist = 192;
+				Params.CornerDiv = 8;
 				
 				Params.ObstacleDist = 128;
 				Params.ObstacleDiv = 6;
 				Params.ObstacleSlices = 8;
 				
-				KAI_Chase(flags:CHF_RESURRECT,flagsex:KAIC_ZIGZAG,retreatrange:768,voice:"HECU",extra:params);
+				KAI_Chase(flags:CHF_RESURRECT,flagsex:KAIC_ZIGZAG,retreatrange:768,extra:params);
 			}
 			Loop;
 		Melee:
@@ -196,6 +195,7 @@ Class KAI_Actor : Actor Abstract
 	}
 	
 	Mixin KAI_CheckFunctions; //Of course all KAI NPCs have access to the library's check functions.
+	Mixin KAI_UniversalFunctions;
 	Actor DebugPoint; //A pointer to the debug point that shows where NextMovePos is when KAI_DebugNextMovePos is enabled.
 	
 	//=====|Virtual functions|=====\\

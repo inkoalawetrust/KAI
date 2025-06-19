@@ -501,7 +501,7 @@ Extend Class KAI_Actor
 			{
 				NextPitch = GetPitchToPos(TargetPos,PitchLimit);
 				If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D: NextPitch is %.2f,",NextPitch);
-				F3DVel = KAI_Math.AngleToVector3D (NextAngle,-NextPitch,Speed); //Generate velocity that reaches the target over time (Or instantly).
+				F3DVel = KAI_Math.AngleToVector3D (NextAngle,-NextPitch,FlightAcceleration); //Generate velocity that reaches the target over time (Or instantly).
 				//Check if move will be blocked.
 				Moved = !KMT_3D_MoveBlocked (Level.Vec3Offset(Pos,F3DVel));
 			}
@@ -531,7 +531,7 @@ Extend Class KAI_Actor
 				If (!(Flags & KMT_NOLINEUSE)) KAI_NPCUseLines();
 				MoveCount = Int(random(16,32)*DetourFactor);
 				NextAngle = GetAngleToPos(TargetPos,AngleLimit);
-				F3DVel = KAI_Math.AngleToVector3D (NextAngle,-NextPitch,Speed);
+				F3DVel = KAI_Math.AngleToVector3D (NextAngle,-NextPitch,FlightAcceleration);
 				Moved = !KMT_3D_MoveBlocked (Level.Vec3Offset(Pos,F3DVel));
 			}
 			
@@ -566,7 +566,7 @@ Extend Class KAI_Actor
 				{
 					NextAngle = LastAngle + (i * 48 * lastturndir);
 					
-					F3DVel = KAI_Math.AngleToVector3D (NextAngle,-NextPitch,Speed);
+					F3DVel = KAI_Math.AngleToVector3D (NextAngle,-NextPitch,FlightAcceleration);
 					//Check if next move would be blocked.
 					Moved = KMT_3D_MoveBlocked (Level.Vec3Offset(Pos,F3DVel));
 					If (!Moved)
@@ -576,7 +576,7 @@ Extend Class KAI_Actor
 					LastTurnDir *= -1;
 					
 					NextAngle = LastAngle + (i * 48 * lastturndir);
-					F3DVel = KAI_Math.AngleToVector3D (NextAngle,-NextPitch,Speed);
+					F3DVel = KAI_Math.AngleToVector3D (NextAngle,-NextPitch,FlightAcceleration);
 					//Check if next move would be blocked.
 					Moved = KMT_3D_MoveBlocked (Level.Vec3Offset(Pos,F3DVel));
 					If (!Moved)
@@ -585,7 +585,7 @@ Extend Class KAI_Actor
 			}
 			
 			//Actually move.
-			KMT_3D_SpeedLimit (Speed*3,F3DVel); //HACK: Magic number to make the total vel length cap ACTUALLY match the speed property.
+			KMT_3D_SpeedLimit (Speed,F3DVel);
 			If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D: Velocity is %.2f %.2f %.2f, length %.2f",Vel,Vel.Length());
 			}
 		}
@@ -819,6 +819,7 @@ Extend Class KAI_Actor
 	}
 	
 	//Handle slowing down the actor based on just how far its' current velocity is from the target position, i.e if it fully faces away, it grinds to a halt.
+	//IDEA: Aeugh, switch this to a system with controllable deceleration so it doesn't basically instantly slow down when fully blasted away (As an example).
 	//Used to make the actor decelerate and gets its' bearings again when  thrown of course by external forces like explosions.
 	//TargetPos: The desired position which there would be 0 deceleration returned if we headed straight for it.
 	Protected Double KMT_3D_DecelWrongVector (Vector3 TargetPos)
@@ -828,8 +829,9 @@ Extend Class KAI_Actor
 			TheVel = (0.001,0.001,0.001);
 		Double DistFromTarg = (TargetPos - Pos).Unit() Dot TheVel.Unit(); //Get how much the actor is currently facing away from the target position.
 		
+		If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D_DecelWrongVector(): Unprocessed DistFromTarg is %.2f",DistFromTarg);
 		//Map dot product between 0 (Not facing at all) and 1 (Facing the desired vector).
-		DistFromTarg = KAI_Math.LinearMap (DistFromTarg,-1,1,0.5,1);
+		DistFromTarg = KAI_Math.LinearMap (DistFromTarg,-1,1,FlightDecelFactor,1);
 		If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D_DecelWrongVector(): Actor facing away from target pos factor is %.2f",DistFromTarg);
 		Return DistFromTarg;
 	}
@@ -842,10 +844,19 @@ Extend Class KAI_Actor
 			Vel += ExtraVel;
 			Return;
 		}
-		Double Delta = Vel Dot ExtraVel;
-		If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D_Speedlimit() Delta is %.2f",Delta);
-		If (Delta < SpeedLimit) //Accelerate the actor, but never let them exceed the speed limit under their own motion.
-			Vel += ExtraVel * Min (SpeedLimit - Delta,FlightAcceleration);
+		
+		Vector3 NewVel = Vel + ExtraVel;
+		If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D_Speedlimit() Unmodified vel length will be %.2f, but SpeedLimit is %.2f",NewVel.Length(),SpeedLimit);
+		//If ExtraVel will put our velocity over the speed limit, decrement it in steps into a value that won't do that.
+		While (NewVel.Length() >= SpeedLimit && ExtraVel.Length() > 0.01)
+		{
+			//If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D_Speedlimit() Decrementing ExtraVel from %.2f",ExtraVel);
+			ExtraVel *= 0.99;
+			//If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D_Speedlimit() To %.2f",ExtraVel);
+			NewVel = Vel + ExtraVel;
+		}
+		
+		Vel += ExtraVel;
 	}
 	
 	//Returns a position for KMT_3D actors to head to avoid bumping into things. By averaging where a sphere of traces hit.
@@ -1103,7 +1114,7 @@ Extend Class KAI_Actor
 				If (!KAI_Math.IsEmptyVector3(ObsVec))
 				{
 					Vector3 ObsVel = KAI_Math.AngleToVector3D (GetAngleToPos (ObsVec,0),-GetPitchToPos(ObsVec,0),ExtraParams.ObstacleSpeed);
-					KMT_3D_SpeedLimit (Speed*3,ObsVel);
+					KMT_3D_SpeedLimit (Speed,ObsVel);
 					console.printf ("moving away from obstacle");
 				}
 			}
@@ -2015,7 +2026,7 @@ Extend Class KAI_Actor
 	{
 		If (Target == Goal || bChaseGoal && Goal != Null)
 		{
-			If (KAI_CheckMeleeRange(Goal))
+			If (KAI_CheckMeleeRange(Goal,flags: Flags & KMT_3D ? CMR_3DDISTANCE : 0))
 			{
 				//Credit: Kizoky: https://github.com/Kizoky/CPPtoZScript/blob/main/A_Chase.txt#L161-L212
 				// reached the goal
@@ -2059,6 +2070,7 @@ Extend Class KAI_Actor
 				}
 				bINCHASE = false;
 				goal = newgoal;
+				if (goal) spawn ("kai_debugpoint",goal.pos);
 				return True, False;
 			}
 			//We have a goal, go to it.

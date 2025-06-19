@@ -495,7 +495,7 @@ Extend Class KAI_Actor
 			{
 			Bool Moved;
 			Vector3 F3DVel;
-			Vel *= KMT_3D_DecelWrongVector (TargetPos); //Decelerate from wrong velocities, like when an explosion blasts the actor off-course.
+			KMT_3D_DecelWrongVector (TargetPos); //Decelerate from wrong velocities, like when an explosion blasts the actor off-course.
 			
 			//If (!MoveCount)
 			{
@@ -820,9 +820,9 @@ Extend Class KAI_Actor
 	
 	//Handle slowing down the actor based on just how far its' current velocity is from the target position, i.e if it fully faces away, it grinds to a halt.
 	//IDEA: Aeugh, switch this to a system with controllable deceleration so it doesn't basically instantly slow down when fully blasted away (As an example).
-	//Used to make the actor decelerate and gets its' bearings again when  thrown of course by external forces like explosions.
+	//Used to make the actor decelerate and gets its' bearings again when  thrown off course by external forces like explosions.
 	//TargetPos: The desired position which there would be 0 deceleration returned if we headed straight for it.
-	Protected Double KMT_3D_DecelWrongVector (Vector3 TargetPos)
+	Protected Void KMT_3D_DecelWrongVector (Vector3 TargetPos)
 	{
 		Vector3 TheVel = Vel;
 		If (TheVel == (0,0,0)) //Can't dot a vector of 0.
@@ -831,9 +831,11 @@ Extend Class KAI_Actor
 		
 		If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D_DecelWrongVector(): Unprocessed DistFromTarg is %.2f",DistFromTarg);
 		//Map dot product between 0 (Not facing at all) and 1 (Facing the desired vector).
-		DistFromTarg = KAI_Math.LinearMap (DistFromTarg,-1,1,FlightDecelFactor,1);
-		If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D_DecelWrongVector(): Actor facing away from target pos factor is %.2f",DistFromTarg);
-		Return DistFromTarg;
+		DistFromTarg = KAI_Math.LinearMap (DistFromTarg,-1,1,FlightWrongDirFactor,0);
+		Double Decel = FlightDeceleration*DistFromTarg; //Scale deceleration with how wrong our current heading is.
+		If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D_DecelWrongVector(): Actor facing away from target pos factor is %.2f, decel is %.2f",DistFromTarg,decel);
+		Vel += TheVel.Unit() * -Decel;
+		//Return DistFromTarg;
 	}
 	
 	//Limit the max speed that the actor reaches over time. If the vel length is too high, extra vel is zeroed out as well until the length goes below SpeedLimit.
@@ -844,6 +846,10 @@ Extend Class KAI_Actor
 			Vel += ExtraVel;
 			Return;
 		}
+		
+		//Absolute speed too high, slow down there cowboy.
+		If (Vel.Length() > SpeedLimit)
+			Vel += Vel.Unit() * -FlightDeceleration;
 		
 		Vector3 NewVel = Vel + ExtraVel;
 		If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D_Speedlimit() Unmodified vel length will be %.2f, but SpeedLimit is %.2f",NewVel.Length(),SpeedLimit);

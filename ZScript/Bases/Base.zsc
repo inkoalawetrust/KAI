@@ -187,7 +187,8 @@ Class KAI_Actor : Actor Abstract
 		KAI_Actor.InaccuracyFrequency 0.1;
 		KAI_Actor.ActorFollowDist 64;
 		KAI_Actor.FlightAcceleration 1.25;
-		KAI_Actor.FlightDecelFactor 0.85;
+		KAI_Actor.FlightDeceleration 1.25;
+		KAI_Actor.FlightWrongDirFactor 1;
 		
 		//Flags
 		Monster; //Of course.
@@ -508,9 +509,10 @@ Class KAI_Actor : Actor Abstract
 	Property Inaccuracy : Inaccuracy; //TODO: Make this be affected by SHADOW and SHADOWBLOCK actors, and the Shadow penalty factors.
 	Double InaccuracyFrequency; //How fast does the inaccuracy property shift ?
 	Property InaccuracyFrequency : InaccuracyFrequency;
-	Double FlightAcceleration, FlightDecelFactor; //Used by KMT_3D_SpeedLimit() to propel flying actors.
+	Double FlightAcceleration, FlightDeceleration, FlightWrongDirFactor; //Used by KMT_3D_SpeedLimit() to propel flying actors.
 	Property FlightAcceleration : FlightAcceleration;
-	Property FlightDecelFactor : FlightDecelFactor;
+	Property FlightDeceleration : FlightDeceleration;
+	Property FlightWrongDirFactor : FlightWrongDirFactor;
 	
 	//Deflection properties
 	Int DeflectionChance;

@@ -831,7 +831,7 @@ Extend Class KAI_Actor
 		
 		If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D_DecelWrongVector(): Unprocessed DistFromTarg is %.2f",DistFromTarg);
 		//Map dot product between 0 (Not facing at all) and 1 (Facing the desired vector).
-		DistFromTarg = KAI_Math.LinearMap (DistFromTarg,-1,1,FlightWrongDirFactor,0);
+		DistFromTarg = KAI_Math.LinearMap (DistFromTarg,-0.25,1,FlightWrongDirFactor,0);
 		Double Decel = FlightDeceleration*DistFromTarg; //Scale deceleration with how wrong our current heading is.
 		If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D_DecelWrongVector(): Actor facing away from target pos factor is %.2f, decel is %.2f",DistFromTarg,decel);
 		Vel += TheVel.Unit() * -Decel;

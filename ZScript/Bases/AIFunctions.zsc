@@ -859,7 +859,7 @@ Extend Class KAI_Actor
 		While (NewVel.Length() >= SpeedLimit && ExtraVel.Length() > 0.01)
 		{
 			//If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D_Speedlimit() Decrementing ExtraVel from %.2f",ExtraVel);
-			ExtraVel *= 0.99;
+			ExtraVel *= 0.97;
 			//If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D_Speedlimit() To %.2f",ExtraVel);
 			NewVel = Vel + ExtraVel;
 		}
@@ -1348,7 +1348,8 @@ Extend Class KAI_Actor
 	//CheckSlices: How many checks are fired around the actor. (i.e at 16, it'll do one check per 22.5 degrees until it finds a reachable position).
 	//CheckSpacing: The spacing of the IsPosReachable checks.
 	//Targ: If this isn't NaN, the function gets all valid checks, and picks the furthest one as the unblocked position for the actor to go to.
-	Vector3, Bool KAI_AvoidObstacles (Double CheckDist, Double CheckSlices, Double CheckSpacing, Vector3 Targ = (Double.NaN,Double.NaN,Double.NaN))
+	//Closest: If on, it will instead pick the position CLOSEST to Targ to go to.
+	Vector3, Bool KAI_AvoidObstacles (Double CheckDist, Double CheckSlices, Double CheckSpacing, Vector3 Targ = (Double.NaN,Double.NaN,Double.NaN), Bool Closest = False)
 	{
 		If (CheckDist <= 0 || CheckSlices <= 0) Return (Double.NaN, Double.NaN, Double.NaN), False;
 		Bool UseObstacleAvoidPos; //If on, the position passed in CheckPos will be used.
@@ -1399,16 +1400,34 @@ Extend Class KAI_Actor
 			
 			If (!KAI_Math.IsEmptyVector3(Targ))
 			{
-				Double FurthestDistance;
-				Vector3 CurPos;
-				For (Int I = Xs.Size()-1; I >= 0; I--)
+				If (!Closest)
 				{
-					CurPos = (Xs[I],Ys[I],Zs[I]); //Reconstruct each vector.
-					Double CurrentDistance = Level.Vec3Diff (Targ,CurPos).LengthSquared();
-					If (FurthestDistance < CurrentDistance)
+					Double FurthestDistance;
+					Vector3 CurPos;
+					For (Int I = Xs.Size()-1; I >= 0; I--)
 					{
-						FurthestDistance = CurrentDistance;
-						FinalPos = CurPos;
+						CurPos = (Xs[I],Ys[I],Zs[I]); //Reconstruct each vector.
+						Double CurrentDistance = Level.Vec3Diff (Targ,CurPos).LengthSquared();
+						If (FurthestDistance < CurrentDistance)
+						{
+							FurthestDistance = CurrentDistance;
+							FinalPos = CurPos;
+						}
+					}
+				}
+				Else
+				{
+					Double NearestDistance = INT.MAX;
+					Vector3 CurPos;
+					For (Int I = Xs.Size()-1; I >= 0; I--)
+					{
+						CurPos = (Xs[I],Ys[I],Zs[I]); //Reconstruct each vector.
+						Double CurrentDistance = Level.Vec3Diff (Targ,CurPos).LengthSquared();
+						If (NearestDistance > CurrentDistance)
+						{
+							NearestDistance = CurrentDistance;
+							FinalPos = CurPos;
+						}
 					}
 				}
 			}

@@ -392,7 +392,7 @@ Mixin Class KAI_CheckFunctions
 			If (Where.Z+Height > FF.Bottom.ZAtPoint(Where.XY) && Where.Z < FF.Top.ZAtPoint(Where.XY))
 				Return FF;
 		}
-		console.printf ("no 3d floor found, that's right !!!!!!!!");
+		
 		Return Null;
 	}
 	

@@ -495,7 +495,7 @@ Extend Class KAI_Actor
 			{
 			Bool Moved;
 			Vector3 F3DVel;
-			KMT_3D_DecelWrongVector (TargetPos); //Decelerate from wrong velocities, like when an explosion blasts the actor off-course.
+			If (!MoveCount) KMT_3D_DecelWrongVector (TargetPos); //Decelerate from wrong velocities, like when an explosion blasts the actor off-course. But not when we're SUPPOSED to be detouring.
 			
 			//If (!MoveCount)
 			{
@@ -522,7 +522,6 @@ Extend Class KAI_Actor
 				
 				//Returned that we moved (To not run the obstacle avoiding code.) If the coast is clear.
 				Moved = !KMT_3D_MoveBlocked (Level.Vec3Offset(Pos,F3DVel));
-				//console.printf ("did we move? %d",moved);
 			}
 
 			//if I hit an obstacle while avoiding another, try moving straight towards Other
@@ -564,6 +563,7 @@ Extend Class KAI_Actor
 				//find viable movement direction
 				for (double i = 1; i < 6; i++)
 				{
+					If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D: Flyer hit obstacle attampting to get around it");
 					NextAngle = LastAngle + (i * 48 * lastturndir);
 					
 					F3DVel = KAI_Math.AngleToVector3D (NextAngle,-NextPitch,FlightAcceleration);
@@ -586,7 +586,7 @@ Extend Class KAI_Actor
 			
 			//Actually move.
 			KMT_3D_SpeedLimit (Speed,F3DVel);
-			If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D: Velocity is %.2f %.2f %.2f, length %.2f",Vel,Vel.Length());
+			If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D: Velocity is %.2f %.2f %.2f, length %.2f, going to %.2f %.2f %.2f",Vel,Vel.Length(),TargetPos);
 			}
 		}
 		
@@ -615,35 +615,30 @@ Extend Class KAI_Actor
 			
 			If (BlockingFloor && BlockingFloor.FloorPlane.IsSlope())
 			{
-				//console.printf ("touching slope floor");
 				Vector3 Targ = BlockingFloor.FloorPlane.Normal.Unit() * Vel.Length();
 				TargetZ = Pos.Z+Targ.Z; //TargetZ is further up the slope.
-				console.printf ("climbing sloped floor at z %.2f",targetz);
 				CanScale = True;
 			}
 			Else If (BlockingCeiling && BlockingCeiling.CeilingPlane.IsSlope())
 			{
-				//console.printf ("touching slope floor");
 				Vector3 Targ = BlockingCeiling.CeilingPlane.Normal.Unit() * Vel.Length();
 				TargetZ = Pos.Z-Height-Targ.Z; //TargetZ is further down the slope.
-				console.printf ("climbing sloped ceiling at z %.2f",targetz);
 				CanScale = True;
 			}
 			
 			//We hit a two sided "ceiling" (Blocking I think) line, meaning there is a back sector to get the height of.
 			//Unless that line is not even blocking us.
 			If (BlockingLine && BlockingLine.Flags & Line.ML_TWOSIDED)
-			{console.printf ("hello! I hit a line!");
+			{
 				Line Blk = BlockingLine;
 				Sector TargSec = Blk.BackSector == CurSector ? Blk.FrontSector : Blk.BackSector;
-				console.printf ("blocking3dfloor %p",blocking3dfloor);
+				
 				//We hit a line with a lowered ceiling or raised floor in it.
 				If (!(Blk.Flags & Line.ML_3DMIDTEX) && !Blocking3DFloor)
 				{
 					Double CeilHeight = TargSec.CeilingPlane.ZAtPoint(Where.XY);
 					Double FloorHeight = TargSec.FloorPlane.ZAtPoint(Where.XY);
 					Double TargSecHeight = CeilHeight - FloorHeight;
-					console.printf ("two sided line found, where %.2f %.2f, ceilheight %.2f, floorheight %.2f",where.xy,ceilheight,floorheight);
 					
 					//Handle slope ceilings and floors in the next sector, prevents "fun" cases of the flyer climbing down or up a raised slope pillar
 					//only to bump on the tip of the slope and fly off like a moron because it's an "obstacle".
@@ -651,7 +646,6 @@ Extend Class KAI_Actor
 					{
 						Vector3 Targ = TargSec.FloorPlane.Normal.Unit() * Vel.Length();
 						TargetZ = Pos.Z+Targ.Z; //TargetZ is further up the slope.
-						//console.printf ("climbing sloped floor at z %.2f",targetz);
 						CanScale = True;
 					}
 					//Or ceiling.
@@ -659,9 +653,7 @@ Extend Class KAI_Actor
 					{
 						Vector3 Targ = TargSec.CeilingPlane.Normal.Unit() * Vel.Length();
 						TargetZ = Pos.Z-Height-Targ.Z; //TargetZ is further down the slope.
-						console.printf ("climbing sloped ceiling at z %.2f",targetz);
 						CanScale = True;
-						console.printf ("climbing sloped ceiling");
 					}
 					
 					//Nope, just a normal sector.
@@ -673,8 +665,9 @@ Extend Class KAI_Actor
 							TargetZ = FloorHeight;
 						Else If (CeilHeight < Pos.Z+Height) //Ditto but the ceiling is lower than us so go down.
 							TargetZ = CeilHeight-Height;
-						console.printf ("targetz is now %.2f",targetz);
-						CanScale = True;
+						
+						If (TargetZ == FloorHeight && IsPosReachable3D((Pos.XY,FloorHeight),0,Height,False,True) || TargetZ == CeilHeight-Height && IsPosReachable3D((Pos.XY,CeilHeight-Height),0,Height,False,True))
+							CanScale = True;
 					}
 				}
 				//The two sided line we hit is a 3D middle texture.
@@ -683,14 +676,13 @@ Extend Class KAI_Actor
 					Double Top, Bottom; Bool Valid;
 					Int WhatSide = Level.PointOnLineSide (Where.XY,Blk,True);
 					[Valid, Top, Bottom] = Blk.GetMidTexturePosition (WhatSide);
-					console.printf ("scaling 3d midtex");
+					
 					Double Targ; Bool Down;
 					[Targ, Down] = KMT_3D_GetObstacleClimbPos ((Top,Bottom,Top-Bottom),(CeilingZ,FloorZ),(Where.XY,RealPos.Z));
 					If (Targ == Targ)
 					{
 						TargetZ = Targ;
 						TargetZ += Down ? -Padding : Padding;
-						console.printf ("padded targetz is %.2f, down is %d",targetz,down);
 						CanScale = True;
 					}
 				}
@@ -701,12 +693,11 @@ Extend Class KAI_Actor
 				{
 					Sector TargSec = Blk.BackSector == CurSector ? Blk.FrontSector : Blk.BackSector;
 					F3DFloor FFloor = Get3DFloorFromModel (Blocking3DFloor,TargSec);
-					console.printf ("blocking3d floor %p, blockingceiling %p, blockingfloor %p",blocking3dfloor,blockingceiling,blockingfloor);
+					
 					If (FFloor)
 					{
 						Double Top = FFloor.Top.ZAtPoint(Where.XY);
 						Double Bottom = FFloor.Bottom.ZAtPoint(Where.XY);
-						Console.printf ("we hit a 3d floor, whose control sector is %p and its' bottom is %.2f",Blocking3DFloor,bottom);
 						Double CeilingHeight = FFloor.Target.HighestCeilingAt(Where.XY);
 						Double FloorHeight = FFLoor.Target.LowestFloorAt(Where.XY);
 						
@@ -717,7 +708,6 @@ Extend Class KAI_Actor
 						{
 							TargetZ = Targ;
 							TargetZ += Down ? -Padding : Padding;
-							console.printf ("padded targetz is %.2f, down is %d",targetz,down);
 							CanScale = True;
 						}
 					}
@@ -734,7 +724,6 @@ Extend Class KAI_Actor
 				{
 					TargetZ = Targ;
 					TargetZ += Down ? -Padding : Padding;
-					console.printf ("padded targetz is %.2f, down is %d",targetz,down);
 					CanScale = True;
 				}
 			}
@@ -770,31 +759,30 @@ Extend Class KAI_Actor
 		
 		//Can't climb up over. Either cuz the ceiling is fully blocked by the blocker or the gap is just too small to go through.
 		If (BlockBottom+BlockHeight >= SectorHeights.X-Height || KMT_3D_MoveBlocked((CheckPos.XY,Up)))
-			{NoTop = True;console.printf ("cant go up");}
+			NoTop = True;
 		
 		//Can't go under the blocker, for the same reason as above but with the floor instead.
 		If (BlockBottom <= SectorHeights.Y+Height || KMT_3D_MoveBlocked((CheckPos.XY,Down)))
-			{NoBottom = True;console.printf ("cant go down");}
-		console.printf ("notop %d, nobottom %d",notop,nobottom);
+			NoBottom = True;
+		
 		//Can only go up.
 		If (!NoTop && NoBottom)
-			{TargetZ = Up;console.printf ("its all uphill from here!");}
+			TargetZ = Up;
 		//Can only go down.
 		Else If (NoTop && !NoBottom)
 		{
 			TargetZ = Down;
 			GoingDown = True;
-			console.printf ("it's all downhill from here!");
 		}
 		//Can go either way, so pick whichever's closest.
 		Else If (!NoTop && !NoBottom)
 		{
 			//Top is closest.
 			If (CheckPos.Z >= BlockBottom+(BlockHeight/2))
-				{TargetZ = Up;console.printf ("going up");}
+				TargetZ = Up;
 			//Bottom is closer.
 			Else
-			{console.printf ("bottom is closer");
+			{
 				TargetZ = Down;
 				GoingDown = True;
 			}
@@ -812,9 +800,11 @@ Extend Class KAI_Actor
 		FCheckPosition Tm;
 		SetZ (Where.Z); //Z is separate.
 		Bool Res = CheckMove (Where.XY,tm:Tm);
+		//Colliding between a line and a 3D floor over our heads. Very specific scenario isn't it?
 		If (IgnoreCeiling && Pos.Z+Height >= CeilingZ) Res = True;
 		SetZ (RealPos.Z);
 		If (Tm.StepThing) Res = True;
+		If (BlockingLine && IsInside3DFloor (Where,Height,True)) Res = False;
 		Return !Res;
 	}
 	
@@ -829,7 +819,7 @@ Extend Class KAI_Actor
 		Vector3 TheVel = Vel;
 		If (TheVel == (0,0,0)) //Can't dot a vector of 0.
 			TheVel = (0.001,0.001,0.001);
-		Double DistFromTarg = (TargetPos - Pos).Unit() Dot TheVel.Unit(); //Get how much the actor is currently facing away from the target position.
+		Double DistFromTarg = Level.Vec3Diff(Pos,TargetPos).Unit() Dot TheVel.Unit(); //Get how much the actor is currently facing away from the target position.
 		
 		If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D_DecelWrongVector(): Unprocessed DistFromTarg is %.2f",DistFromTarg);
 		//Map dot product between 0 (Not facing at all) and 1 (Facing the desired vector).
@@ -843,15 +833,15 @@ Extend Class KAI_Actor
 	//Limit the max speed that the actor reaches over time. If the vel length is too high, extra vel is zeroed out as well until the length goes below SpeedLimit.
 	Protected Void KMT_3D_SpeedLimit (Double SpeedLimit, Vector3 ExtraVel)
 	{
+		//Absolute speed too high, slow down there cowboy.
+		If (Vel.Length() > SpeedLimit)
+			Vel += Vel.Unit() * -FlightDeceleration;
+		
 		If (SpeedLimit == 0) //Wheeeeee
 		{
 			Vel += ExtraVel;
 			Return;
 		}
-		
-		//Absolute speed too high, slow down there cowboy.
-		If (Vel.Length() > SpeedLimit)
-			Vel += Vel.Unit() * -FlightDeceleration;
 		
 		Vector3 NewVel = Vel + ExtraVel;
 		If (KAI_DebugPrintFlyers) Console.Printf ("KMT_3D_Speedlimit() Unmodified vel length will be %.2f, but SpeedLimit is %.2f",NewVel.Length(),SpeedLimit);

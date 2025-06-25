@@ -55,7 +55,7 @@ Class KAI_TestImp : KAI_Humanoid Replaces DoomImp
 				Params.ObstacleDiv = 6;
 				Params.ObstacleSlices = 8;
 				
-				KAI_Chase(flags:CHF_RESURRECT,flagsex:KAIC_ZIGZAG,retreatrange:768,extra:params);
+				KAI_Chase(flags:0,flagsex:KAIC_ZIGZAG,retreatrange:768,extra:params);
 			}
 			Loop;
 		Melee:

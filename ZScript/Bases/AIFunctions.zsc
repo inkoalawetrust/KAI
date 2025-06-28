@@ -1008,7 +1008,7 @@ Extend Class KAI_Actor
 	Void KAI_Wander (Int Attempts = 24, Double MoveRad = 256, Int MaxSteps = 72, Double DetourFactor = 0.5, Double AngleLimit = 10, Int ChaseFlags = 0, Int Flags = 0, Double PitchLimit = 40)
 	{
 		Int Friend = KAI_GetFriendPlayer();
-		If (!OnWander()) //Virtual callback
+		If (!bNoWanderVirtual && !OnWander()) //Virtual callback
 			Return;
 		
 		//Friendly monsters follow the player they work for by default.

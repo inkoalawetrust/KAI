@@ -310,7 +310,7 @@ Class KAI_BaseProjectile : FastProjectile
 		If (!bNoTrailLine || TrailDelay) Return;
 		Class<Actor> Trail = MissileName;
 		Actor Act;
-		If (Trail != Null)
+		If (Trail != Null && !TrailSprite)
 		{
 			Double HitZ = Pos.Z - 8;
 
@@ -325,6 +325,37 @@ Class KAI_BaseProjectile : FastProjectile
 			If (Act != Null)
 			{
 				ActorTrailSpawn (Act);
+				//These are handled by TrailSpawn().
+				/*If (bGetOwner && Target != Null)
+					Act.Target = Target;
+				Else
+					Act.Target = Self;
+				
+				Act.Angle = Angle;
+				Act.Pitch = Pitch;*/
+			}
+		}
+		//Use visual thinkers instead.
+		If (TrailSprite)
+		{
+			Double HitZ = Pos.Z - 8;
+
+			If (HitZ < FloorZ)
+			{
+				HitZ = FloorZ;
+			}
+			// Do not clip this offset to the floor.
+			HitZ += MissileHeight;
+			
+			KAI_Tracer Spr = KAI_Tracer(Level.SpawnVisualThinker(TrailSprite));
+			//Act = Spawn (Trail, (Pos.XY, HitZ), ALLOW_REPLACE);
+			If (Spr != Null)
+			{
+				Spr.Owner = Self;
+				//Spr.Scale = Spr.DefaultScale;
+				Spr.Flags |= SPF_LOCAL_ANIM;
+				Spr.Pos = Pos;
+				TrailSpawn (Spr);
 				//These are handled by TrailSpawn().
 				/*If (bGetOwner && Target != Null)
 					Act.Target = Target;

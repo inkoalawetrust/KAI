@@ -475,9 +475,7 @@ Class KAI_Actor : Actor Abstract
 			}
 			
 			If (IgnoringPlayers && Master && !IsDead(Master)) //We are ignoring the player, so just follow whoever the master is, unless it is set to your friendplayer for some reason.
-			{
 				Return Master.Pos, Master;
-			}
 			
 			Return Players[KAI_GetFriendPlayer()].Mo.Pos, Players[KAI_GetFriendPlayer()].Mo;
 		}
@@ -530,6 +528,7 @@ Class KAI_Actor : Actor Abstract
 	FlagDef IgnoreOrders : NPCFlags, 2; //The NPC ignores orders.
 	FlagDef IsFlyer : NPCFlags, 3; //This NPC flies.
 	FlagDef CustomFlyer : NPCFlags, 4; //If on, KMT_3D on KAI_MoveTowards() becomes overridable.
+	FlagDef NoWanderVirtual : NPCFlags, 5; //Do not call OnWander() when KAI_Wander() is called. Useful for performance if needed.
 	
 	//Actor variables
 	Array <State> AttackStates; //Can be used to store all of the attack state labels an actor has. Such as for actors with multiple attacks besides a missile and melee attack, like vanilla monsters only have.

@@ -309,7 +309,8 @@ Extend Class KAI_BaseVehicle
 	//TurnRadius: How wide the turns the vehicle takes are, the smaller the number the bigger the turn. Default is 10 degrees per step.
 	//FollowDist: The minimum distance the vehicle must have from its' friend player (If friendly) before it stops following them. To prevent dogpiling. Also works with vehicles following other actors.
 	//MoveParams: A struct that can pass detailed parameters for KAI_MoveTowards/Away. For the ChaseFlags and AngleLimit params, use the ChaseFlags and TurnRadius properties.
-	Void KAI_LandVehicleChase (StateLabel WaitState = Null, Int Flags = 0, Int ChaseFlags = 0, Double TurnRadius = 10, Double FollowDist = 384, KAIMoveParams MoveParams = Null)
+	//MinHazard: The minimum level that a hazard needs to trigger the vehicles' retreat, picks the strongest hazard in range of the vehicle, turned of if the level is harmless (Default) or the actor doesn't use bAvoidHazards.
+	Void KAI_LandVehicleChase (StateLabel WaitState = Null, Int Flags = 0, Int ChaseFlags = 0, Double TurnRadius = 10, Double FollowDist = 384, KAIMoveParams MoveParams = Null, Int MinHazard = HazardInfo.HAZARD_HARMLESS)
 	{
 		//No detailed movement parameters, use defaults
 		//HACK: ZScript does not allow me to make a struct instance for MoveParams if none is passed. So we create a struct and call Chase again :>>>>>>>>
@@ -320,7 +321,7 @@ Extend Class KAI_BaseVehicle
 			Default_Params.DetourFactor = 1.0;
 			Default_Params.Attempts = 32;
 			Default_Params.MaxSteps = 32;
-			KAI_LandVehicleChase(WaitState, Flags, ChaseFlags, TurnRadius, FollowDist, Default_Params); //The optimal GZDoom solution.
+			KAI_LandVehicleChase(WaitState, Flags, ChaseFlags, TurnRadius, FollowDist, Default_Params, MinHazard); //The optimal GZDoom solution.
 			Return;
 		}
 		
@@ -345,14 +346,14 @@ Extend Class KAI_BaseVehicle
 				//If you can't attack (But not because you are in a NOATTACK sector), run. Also run if the other actor is frightening or you're frightened.
 				If ((!CanAttack() && !(CurSector.Flags & Sector.SECF_NOATTACK))|| bFrightened || IsFrightening (Target) ||
 				//If the targets' threat level is over the threshold, and it's visible and nearby, GTFO. Unless it's a cheating player.
-				ThreatLevelThreshold != THREAT_ASSESS && AssessThreatLevel(Target, Flags & LVC_PLAYERSASTHREATS) >= ThreatLevelThreshold && (Distance3DSquared(Target) < MajorThreatRange))
+				ThreatLevelThreshold != THREAT_ASSESS && AssessThreatLevel(Target, Flags & LVC_PLAYERSASTHREATS) >= ThreatLevelThreshold && Distance3DSquared(Target) < MajorThreatRange)
 				{
 					//And at last, check if the target is still visible.
 					If (IsVisible (Target, True))
 					{
-						If (!(Flags & LVC_USERETREATSTATE))
+						If (!(Flags & LVC_USERETREATSTATE && RetreatState))
 							KAI_MoveAway (Target,MoveParams.Attempts,MoveParams.RunRad,MoveParams.MaxSteps,0.5,TurnRadius,ChaseFlags,KMTFlags); //DetourFactor is not exposed to the struct.
-						Else If (Flags & LVC_USERETREATSTATE && RetreatState)
+						Else
 							SetState (RetreatState);
 						MovedAlready = True;
 					}
@@ -365,25 +366,40 @@ Extend Class KAI_BaseVehicle
 		
 		FollowPlayerControl (FollowDist); //Handle turning on bDontFollowPlayers if you are too close to your friendplayer.
 		
+		If (bAvoidHazards && MinHazard != HazardInfo.HAZARD_HARMLESS)
+		{
+			StrongestHazard = GetStrongestHazard(Hazards);console.printf ("strongest hazard in range is %p",strongesthazard);
+			If (StrongestHazard && StrongestHazard.Level < MinHazard) StrongestHazard = Null; //Hazard seller, I need your strongest hazards.
+		}
+		/*If (!(IsPatrolling(Self) && bChaseGoal))*/ NearestEnemy = FindNearestEnemy (RetreatRange);
+		
 		//If you can move and haven't done so already.
 		If (!(ChaseFlags & CHF_DONTMOVE) && !MovedAlready)
 		{
-			If (!(IsPatrolling(Self) && bChaseGoal)) NearestEnemy = FindNearestEnemy (RetreatRange);
-			//If you aren't patrolling and not allowed off your route, and there is an enemy nearby.
-			If (NearestEnemy)
+			//If you aren't patrolling and not allowed off your route, and there is an hazard nearby.
+			If (!(IsPatrolling(Self) && bChaseGoal) && StrongestHazard)
 			{
-				If (!(Flags & LVC_USERETREATSTATE))
+				If (!(Flags & LVC_USERETREATSTATE && RetreatState))
+					KAI_MoveAway (Null,MoveParams.Attempts,MoveParams.RunRad,MoveParams.MaxSteps,0.5,TurnRadius,ChaseFlags,targpos:GetHazardOriginPos(StrongestHazard)); //Keep your distance.
+				Else
+					SetState (RetreatState);
+				MovedAlready = True;
+			}
+			//If you aren't patrolling and not allowed off your route, and there is an enemy nearby.
+			Else If (!(IsPatrolling(Self) && bChaseGoal) && NearestEnemy)
+			{
+				If (!(Flags & LVC_USERETREATSTATE && RetreatState))
 					KAI_MoveAway (NearestEnemy,MoveParams.Attempts,MoveParams.RunRad,MoveParams.MaxSteps,0.5,TurnRadius,ChaseFlags); //Keep your distance.
-				Else If (Flags & LVC_USERETREATSTATE && RetreatState)
+				Else
 					SetState (RetreatState);
 				MovedAlready = True;
 			}
 			//If your turrets' target is too high up for it to reach.
 			Else If (Turret && Turret.Target && Turret.ElevationState == Turret.ELEVATION_TOOHIGH)
 			{
-				If (!(Flags & LVC_USERETREATSTATE))
+				If (!(Flags & LVC_USERETREATSTATE && RetreatState))
 					KAI_MoveAway (Turret.Target,MoveParams.Attempts,MoveParams.RunRad,MoveParams.MaxSteps,0.5,TurnRadius,ChaseFlags); //Back off to allow your turret to shoot.
-				Else If (Flags & LVC_USERETREATSTATE && RetreatState)
+				Else
 					SetState (RetreatState);
 				MovedAlready = True;
 			}
@@ -472,7 +488,7 @@ Extend Class KAI_BaseVehicle
 	//Flags: Look above for a list of flags.
 	Bool RetargetVehicleHull (Int Flags = 0)
 	{
-		If (!Target || !Master) Return False;
+		If (!Target) Return False;
 		
 		//Turret must be attached on a vehicle to actually retarget.
 		If (Target Is "KAI_BaseTurret" && Target.Master)

@@ -3,6 +3,7 @@
 
 //TODO:
 //Add a headlightsound property, that plays a sound when the vehicles' headlights turn on or off.
+//Refactor how turrets stick to vehicles because it fucking sucks, get rid of TurnAmount and make turrets actually move relative to their parent vehicle/turret.
 
 //IDEA:
 /*Make a passenger system for vehicles ? By being able to define coordinates relative to the vehicle for NPCs to go to,
@@ -224,6 +225,7 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	Const DEFAULT_SEEDISTANCE = 8192; //The default sight distance.
 	
 	//AI variables
+	HazardInfo StrongestHazard; //The strongest hazard currently in range, if any.
 	Actor NearestEnemy; //The enemy closest to the vehicle, if any.
 	Int ChaseTimer; //Makes the vehicle only chase its' target for a certain amount of time after it goes out of sight. Is also used to determine how long turreted vehicles stay in one place.
 	Int StayStillDelay; //How long before the vehicle can stand still to attack again.

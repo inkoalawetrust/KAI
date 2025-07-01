@@ -1,3 +1,4 @@
+//TODO: URGENT: Okay why the fuck did I even add this here? Mothball it back to the MVP.
 Class KAI_BaseProp : KAI_BaseVehicle Abstract
 {
 	Default

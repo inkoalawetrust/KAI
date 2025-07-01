@@ -1033,6 +1033,9 @@ Extend Class KAI_Actor
 		}
 		
 		NextMovePos = FindRandomMovePos (Pos,Attempts,MoveRad,FRMP_RANDOM,(Flags & KMT_3D)); //Pick a random position to go to.
+		//Take the first new step to not pause between new positions.
+		KAI_MoveTowards (NextMovePos, DetourFactor, AngleLimit, ChaseFlags, Flags,ExtraParams.PitchLimit);
+		NewPosStepCount++;
 	}
 	
 	Enum MoveAwayFlags
@@ -1218,6 +1221,9 @@ Extend Class KAI_Actor
 				NextMovePos.Z = Pos.Z + Vec.Z;
 			}
 		}
+		//Take the first new step to not pause between new positions.
+		KAI_MoveTowards (NextMovePos, DetourFactor, AngleLimit, ChaseFlags, Flags,ExtraParams.PitchLimit);
+		NewPosStepCount++;
 	}
 	
 	//Checks to the left and right of the caller for a position from where Targ can't see them. And returns it.
@@ -1532,26 +1538,28 @@ Extend Class KAI_Actor
 	//BUG: It's not portal aware, because of course it isn't ! DESPITE LITERALLY CHECKING BY *ACTUALLY* MOVING THE CALLER IN A STRAIGHT LINE !
 	//BUG: God, why is a function that literally walks the caller forward so fucking hard.
 	//NOTE: A potential fix might be making Vec3Offset absolute, it should at least fix portals, since it fixed movement through them for KAI_MoveTowards.
-	//Checks if the straight line between the callers' position and the specified position can be walked up to.
+	//Checks if the straight line between the callers' position and the specified position can be walked up to. Also returns where the position check ended.
 	//TargetPos: The position to check if it's walkable.
 	/*DistCutoff: The amount of map units to trim off the distance between the callers' pos and TargetPos. Useful for subtracting the radius of another actor,
 	so that if you are checking if a position to another actor can be reached, the check doesn't return false because the actor itself is in the way !*/
 	//Spacing: The spacing of the move checks. Default is 0, which means that the spacing is the diameter of the callers' hitbox.
 	//IgnoreActors: Makes' the check ignore blocking actors entirely.
 	//Dropoff: The Dropoff value passed to TryMove().
-	Bool IsPosReachable (Vector3 TargetPos, Double DistCutoff = 0, Double Spacing = 0, Bool IgnoreActors = False, Int Dropoff = 1, Bool Full3D = False)
+	Bool, Vector3 IsPosReachable (Vector3 TargetPos, Double DistCutoff = 0, Double Spacing = 0, Bool IgnoreActors = False, Int Dropoff = 1, Bool Full3D = False)
 	{
 		If (Full3D)
-			Return IsPosReachable3D(TargetPos,DistCutoff,Spacing,IgnoreActors);
+			Return IsPosReachable3D(TargetPos,DistCutoff,Spacing,IgnoreActors), (Double.NaN,Double.NaN,Double.NaN);
 		Vector3 OldPos = Pos;
+		Vector3 WhereTo;
 		Bool Interp = bDontInterpolate;
 		Bool ThruActs = bThruActors;
 		Vector2 Path = Level.Vec2Diff( Pos.XY, TargetPos.XY );
 		Double Distance = (Path.Length()-DistCutoff);
+		
 		If (Spacing == 0)
 			Spacing = Radius*2;
 		Distance += Spacing; //HACK: According to RaveYard, apparently the last check in the row might be getting ignored, so this is a simple hack fix.
-		If (Distance <= 1) Return False;
+		If (Distance <= 1) Return False, (Double.NaN,Double.NaN,Double.NaN);
 		Path /= Distance;
 		
 		bDontInterpolate = True; //No movement interpolation during the test.
@@ -1562,10 +1570,11 @@ Extend Class KAI_Actor
 			//Run as many times as it takes between you and your destination.
 			FCheckPosition Data;
 			Data.FromPMove = True;
-			If (TryMove (Level.Vec2Offset(OldPos.XY, Path*I), Dropoff, tm:Data))
+			WhereTo = (Level.Vec2Offset(OldPos.XY, Path*I),0);
+			If (TryMove (WhereTo.XY, Dropoff, tm:Data))
 			{
-				//TODO: Get rid of this SetZ when moving in 3D? Honestly I might need to make totally custom code for flying movement. Using Vec3Diff and CheckPosition().
 				SetZ (GetZAt (Pos.X,Pos.Y,flags:GZF_ABSOLUTEPOS)); //HACK: Update the actors' Z position. TryMove should do that internally, but it doesn't. GZDoom moment.
+				WhereTo.Z = Pos.Z;
 				//actor debug = spawn ("kai_debugpoint",(Level.Vec2Offset(OldPos.XY, Path*I),Pos.Z));
 				//debug.scale *= 0.5;
 			}
@@ -1575,19 +1584,19 @@ Extend Class KAI_Actor
 				bDontInterpolate = Interp;
 				bThruActors = ThruActs;
 				SetOrigin (OldPos,True);
-				Return False;
+				Return False, WhereTo;
 			}
 		}
 		bDontInterpolate = Interp;
 		bThruActors = ThruActs;
 		SetOrigin (OldPos,True);
-		Return True; //No TryMove call returned false.
+		Return True, (Double.NaN,Double.NaN,Double.NaN); //No TryMove call returned false.
 	}
 	
-	//Called in place of the stock one for flying actors.
+	//Called in place of the stock one for flying actors. Also returns where the check failed, or NaN if it passed.
 	//Works similarly to the normal one. Except that it relies on a row of CheckPosition() calls instead of moving the actor forward.
 	//No3DFloors: If any of the intermediate positions hit a 3D floor, fail automatically. Since the function normally treats solid 3D floors as traversable.
-	Bool IsPosReachable3D (Vector3 TargetPos, Double DistCutoff = 0, Double Spacing = 0, Bool IgnoreActors = False, Bool No3DFloors = False)
+	Bool, Vector3 IsPosReachable3D (Vector3 TargetPos, Double DistCutoff = 0, Double Spacing = 0, Bool IgnoreActors = False, Bool No3DFloors = False)
 	{
 		Vector3 OldPos = Pos;
 		Bool ThruActs = bThruActors;
@@ -1599,7 +1608,7 @@ Extend Class KAI_Actor
 		If (Spacing == 0)
 			Spacing = Radius*2;
 		Distance += Spacing; //HACK: According to RaveYard, apparently the last check in the row might be getting ignored, so this is a simple hack fix.
-		If (Distance <= 1) Return False;
+		If (Distance <= 1) Return False, (Double.NaN,Double.NaN,Double.NaN);
 		Path /= Distance;
 		
 		For (Int I = 0; I < Distance; I += Spacing)
@@ -1617,13 +1626,13 @@ Extend Class KAI_Actor
 				If (KAI_DebugPrintMessages) Console.Printf ("IsPosReachable3D(): %.2f %.2f %.2f is blocking %p",CheckPos,Self);
 				bThruActors = ThruActs;
 				SetOrigin(OldPos,True);
-				Return False;
+				Return False, CheckPos;
 			}
 		}
 		
 		bThruActors = ThruActs;
 		SetOrigin(OldPos,True);
-		Return True;
+		Return True, (Double.NaN,Double.NaN,Double.NaN);
 	}
 	
 	//Check how big the specified space is for the calling actor. Works by scaling up the actor to the desired size, and seeing if they are blocked by anything.
@@ -1752,8 +1761,8 @@ Extend Class KAI_Actor
 		{
 			Actor Mobj = FindEnemies.Thing;
 			
-			//Skip this actor if it's dead, cannot be targeted, is not a monster nor a player, or is not even an enemy.
-			If (!Mobj || IsDead (Mobj) || IsInanimateObject(Mobj) || Mobj.Health >= 10000 || !CanBeTargeted (Self, Mobj) || !IsActorHostile (Mobj)) Continue;
+			//Skip this actor if it's dead, cannot be targeted, is not a monster nor a player, is too far away, or is not even an enemy.
+			If (!Mobj || IsDead (Mobj) || IsInanimateObject(Mobj) || Mobj.Health >= 10000 || !CanBeTargeted (Self, Mobj) || !IsActorHostile (Mobj) || Distance3DSquared(Mobj) > Range*Range) Continue;
 			
 			If (!CheckSight (Mobj)) Continue; //And at last, check if the enemy is even visible.
 			NearbyEnemies.Push(Mobj); //Add it to the list.

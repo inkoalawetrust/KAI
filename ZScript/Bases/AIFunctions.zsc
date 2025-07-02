@@ -1034,7 +1034,7 @@ Extend Class KAI_Actor
 		
 		NextMovePos = FindRandomMovePos (Pos,Attempts,MoveRad,FRMP_RANDOM,(Flags & KMT_3D)); //Pick a random position to go to.
 		//Take the first new step to not pause between new positions.
-		KAI_MoveTowards (NextMovePos, DetourFactor, AngleLimit, ChaseFlags, Flags,ExtraParams.PitchLimit);
+		KAI_MoveTowards (NextMovePos, DetourFactor, AngleLimit, ChaseFlags, Flags, PitchLimit);
 		NewPosStepCount++;
 	}
 	

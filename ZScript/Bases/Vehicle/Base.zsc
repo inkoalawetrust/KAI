@@ -235,7 +235,6 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	Array <KAI_Headlight> Headlights; //Pointers to each headlight the vehicle has.
 	Bool HeadlightsOn; //Should the headlights be on ?
 	KAI_BaseTurret Turret; //The turret the vehicle has, used to actually spawn said turret.
-	Vector3 TurretOffsets; //The offsets of the turret relative to the vehicle.
 	Bool LightsOnAlready; //Used to stop the headlight code from constantly iterating through the headlights.
 	
 	//Flag variables
@@ -254,6 +253,8 @@ Class KAI_BaseVehicle : KAI_Actor Abstract
 	Property RetreatRange : RetreatRange;
 	Int SearchTime; //How much time the vehicle spends looking for its target. The timer resets every time the target is in sight. And decrements with every chase call.
 	Property SearchTime : SearchTime;
+	Vector3 TurretOffsets; //The offsets of the turret relative to the vehicle.
+	Property TurretOffsets : TurretOffsets;
 	
 	Int MaxPushableMass; //The maximum amount of mass that the vehicle can shove around. Default is 0, which means the vehicle can't push pushable obstacles.
 	Double MaxPushRadius, MaxPushHeight;

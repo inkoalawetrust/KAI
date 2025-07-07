@@ -13,14 +13,14 @@ Extend Class KAI_BaseTurret
 	
 	//Is the other actor specified too high or below the turrets' pitch limits ?
 	//ZOfs and TargZOfs are properties passed over to PitchTo().
-	Int IsOverPitchLimits (Actor Other, Double ZOfs = 0, Double TargetZOfs = 0)
+	Int IsOverPitchLimits (Actor Other, Double ZOfs = 0, Double TargetZOfs = 0, Double Padding = 0)
 	{
 		If (!Other || MaxPitch == 0 && MinPitch == 0) Return ELEVATION_INBOUNDS; //No other actor or pitch limits specified.
 		
 		Double PitchToOther = PitchTo (Other,ZOfs,TargetZOfs);
 		
-		If (MaxPitch != 0 && PitchToOther < MaxPitch) Return ELEVATION_TOOHIGH;
-		If (MinPitch != 0 && PitchToOther > MinPitch) Return ELEVATION_TOOLOW;
+		If (MaxPitch != 0 && PitchToOther < MaxPitch-Padding) Return ELEVATION_TOOHIGH;
+		If (MinPitch != 0 && PitchToOther > MinPitch+Padding) Return ELEVATION_TOOLOW;
 		Return ELEVATION_INBOUNDS;
 	}
 	

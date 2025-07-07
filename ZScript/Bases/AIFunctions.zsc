@@ -1750,6 +1750,7 @@ Extend Class KAI_Actor
 	
 	//=====|Search functions|=====\\
 	//Does exactly what it says, finds the nearest enemy that can be targeted and is visible, and returns a pointer to it.
+	//TODO: URGENT: MAKE THIS INTO A GLORIFIED LOOKFORENEMIESEX() CALL.
 	Actor FindNearestEnemy (Double Range = 256)
 	{
 		If (Range <= 0) Return Null;
@@ -1820,6 +1821,25 @@ Extend Class KAI_Actor
 		
 		//All else failed, aim to the middle again and return false;
 		Return FAF_MIDDLE;
+	}
+	
+	//Get what part of the actor the specified aim pos is looking at.
+	Double GetFAFPosOffset (Actor Other, Int AimPos)
+	{
+		If (!Other)
+			Return 0;
+		
+		Switch (AimPos)
+		{
+			Case FAF_MIDDLE:
+				Return Other.Height/2;
+			Case FAF_TOP:
+				Return Other.Height;
+			Case FAF_BOTTOM:
+				Return 0; //The bottom is the origin of actors.
+			Default:
+				Return 0;
+		}
 	}
 	
 	//Get the first NPC group you're in that has a leader in it, otherwise, fall back to returning whatever the first group in the array is.

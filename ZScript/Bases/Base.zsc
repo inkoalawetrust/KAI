@@ -142,7 +142,7 @@ Class KAI_TestCaco : KAI_Creature Replaces Cacodemon
 				Params.ObstacleSpeed = 2;
 				Params.ObstacleMinDist = Radius*1.2;
 				//binfloat = true;
-				KAI_Chase (flags:CHF_RESURRECT|CHF_DONTIDLE,flagsex:0,extra:params,retreatrange:512,voice:"HECU");
+				KAI_Chase (flags:CHF_DONTIDLE,flagsex:0,extra:params,retreatrange:512,voice:"HECU");
 			}
 			Loop;
 		Missile:

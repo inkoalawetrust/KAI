@@ -7,3 +7,4 @@ Server Bool KAI_DebugPrintFlyers = False; //Show debug messages for KMT_3D movem
 Server Int	KAI_DebugObstacleAvoid = 0; //Show debug visualizations for KAI_AvoidObstacles. Controls how long the visualizations last too.
 Server Int	KAI_Debug3DCornerCheck = 0; //Show all the points for KAI_AvoidObstacles3D().
 Server Int	KAI_Debug3DObstacleCheck = 0; //Show debug visualizations for KAI_AvoidObstacles3D(), both the traces and averaged position.
+Server Bool KAI_DebugCoverCheck = False; //Debug KAI_HasCoverHere().

@@ -1376,7 +1376,6 @@ Extend Class KAI_Actor
 					CheckPos.Z = GetZAt (CheckPos.X,CheckPos.Y,0,GZF_ABSOLUTEPOS)+(Height/2);
 					
 					Xs.Push (CheckPos.X); Ys.Push (CheckPos.Y); Zs.Push (CheckPos.Z); //Epic GZDoom fail.
-					console.printf ("added reachable pos to array for later use");
 				}
 				Else
 				{
@@ -1571,16 +1570,24 @@ Extend Class KAI_Actor
 			FCheckPosition Data;
 			Data.FromPMove = True;
 			WhereTo = (Level.Vec2Offset(OldPos.XY, Path*I),0);
-			If (TryMove (WhereTo.XY, Dropoff, tm:Data))
+			WhereTo.Z = GetZAt (WhereTo.X,WhereTo.Y,flags:GZF_ABSOLUTEPOS);
+			//console.printf ("z here is %.2f",whereto.z);
+			//HACK: Try to manually check if the next step is too high up.
+			If (CheckPosition (WhereTo.XY, False, tm:Data) && WhereTo.Z <= Pos.Z+MaxStepHeight)
 			{
-				SetZ (GetZAt (Pos.X,Pos.Y,flags:GZF_ABSOLUTEPOS)); //HACK: Update the actors' Z position. TryMove should do that internally, but it doesn't. GZDoom moment.
-				WhereTo.Z = Pos.Z;
-				//actor debug = spawn ("kai_debugpoint",(Level.Vec2Offset(OldPos.XY, Path*I),Pos.Z));
+				//console.printf ("ACTOR Z %.2f, FLOORZ %.2f, ACTOR Z AND STEP HEIGHT %.2f, CHECKING AT %.2f %.2f",pos.z,data.floorz,pos.z+maxstepheight,whereto.xy);
+				SetZ (WhereTo.Z); //HACK: Update the actors' Z position. TryMove should do that internally, but it doesn't. GZDoom moment.
+				//actor debug = KAI_DebugPointDelay.KAI_TempPointSpawn((Level.Vec2Offset(OldPos.XY, Path*I),Pos.Z),16);
 				//debug.scale *= 0.5;
 			}
 			//If one of them fails, then return false.
 			Else
-			{If (KAI_DebugPrintMessages)console.printf ("i can't walk to %d %d %d",targetpos);
+			{
+				If (KAI_DebugPrintMessages)
+				{
+					console.printf ("i can't walk to %d %d %d",targetpos);
+					If (!(WhereTo.Z <= Pos.Z+MaxStepHeight)) Console.Printf ("And it's SPECIFICALLY BECAUSE IT'S TOO HIGH UP, SOMETHING THAT GZDOOM DIDN'T CATCH!");
+				}
 				bDontInterpolate = Interp;
 				bThruActors = ThruActs;
 				SetOrigin (OldPos,True);
@@ -1750,22 +1757,18 @@ Extend Class KAI_Actor
 	
 	//=====|Search functions|=====\\
 	//Does exactly what it says, finds the nearest enemy that can be targeted and is visible, and returns a pointer to it.
-	//TODO: URGENT: MAKE THIS INTO A GLORIFIED LOOKFORENEMIESEX() CALL.
 	Actor FindNearestEnemy (Double Range = 256)
 	{
 		If (Range <= 0) Return Null;
 		
 		Array <Actor> NearbyEnemies;
-		BlockThingsIterator FindEnemies = BlockThingsIterator.Create (Self,Range);
+		LookForEnemiesEx (NearbyEnemies,Range,False,True);
 		
-		While (FindEnemies.Next())
+		ForEach (Mobj : NearbyEnemies)
 		{
-			Actor Mobj = FindEnemies.Thing;
+			//Skip this actor if it's dead or is too far away.
+			If (IsDead (Mobj) || Distance3DSquared(Mobj) > Range*Range) Continue;
 			
-			//Skip this actor if it's dead, cannot be targeted, is not a monster nor a player, is too far away, or is not even an enemy.
-			If (!Mobj || IsDead (Mobj) || IsInanimateObject(Mobj) || Mobj.Health >= 10000 || !CanBeTargeted (Self, Mobj) || !IsActorHostile (Mobj) || Distance3DSquared(Mobj) > Range*Range) Continue;
-			
-			If (!CheckSight (Mobj)) Continue; //And at last, check if the enemy is even visible.
 			NearbyEnemies.Push(Mobj); //Add it to the list.
 		}
 		Return GetClosestActor (NearbyEnemies,Self.Pos,Range);

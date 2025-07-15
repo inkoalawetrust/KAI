@@ -418,6 +418,11 @@ Class KAI_BaseProjectile : FastProjectile
 		Angle -= 180; //Turn around.
 		Vel *= -1; //Opposite day today
 		Speed *= VelFac; //Slow down by a set amount. Can just be randomized in the parameters instead.
+		If (Vel.Length() <= 1) //Slowed down too much, just do a final collision and stop, prevents projectiles from being stuck between vehicles.
+		{
+			ExplodeMissile (target:FromWhat);
+			Return;
+		}
 		//Randomize the direction you'll fly to.
 		Angle += FRandom (Funnel.X,Funnel.Y);
 		Pitch += FRandom (Funnel.Z,Funnel.W);

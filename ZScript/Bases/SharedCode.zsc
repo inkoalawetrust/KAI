@@ -122,7 +122,7 @@ Mixin Class HumanoidAndVehicleCode
 		
 		//Don't crouch if Other is invalid or you're below the world.
 		If (!Other || Pos.Z < FloorZ)
-			{CONSOLE.PRINTF ("FUCK");Return False, HipHitPos;}
+			Return False, HipHitPos;
 		
 		//If the other actor is this close to you, you probably can't crouch.
 		If (MinDist > 0 && Distance3DSquared(Other) <= MinDist*MinDist)
@@ -140,19 +140,15 @@ Mixin Class HumanoidAndVehicleCode
 		
 		If (!InCoverAlready) //Eye trace.
 			EyeLevel = KAI_FireCoverTrace (Other,Heights.X,TraceDist.X);
-			//LineTrace (AngleTo (Other),TraceDist.X,PitchTo(Other,Heights.X,Other.Height/2),0,Heights.X,data:EyeLevel);
 		Else
 			EyeLevel = KAI_FireCoverTrace (Other,Heights.X,TraceDist.Y);
-			//LineTrace (AngleTo (Other),TraceDist.Y,PitchTo(Other,Heights.X,Other.Height/2),0,Heights.X,data:EyeLevel);
 		
-		EyeLevelUnblocked = !EyeLevel.BadLOF;//!(EyeLevel.HitActor || EyeLevel.HitType == TRACE_HitWall || EyeLevel.HitType == TRACE_HitFloor || EyeLevel.HitType == Trace_HitCeiling);
+		EyeLevelUnblocked = !EyeLevel.BadLOF;
 
 		If (!InCoverAlready) //Hip trace.
 			HipLevel = KAI_FireCoverTrace (Other,Heights.Y,TraceDist.X);
-			//LineTrace (AngleTo (Other),TraceDist.X,PitchTo(Other,Heights.Y,Other.Height/2),TRF_THRUHITSCAN,Heights.Y,data:HipLevel);
 		Else //Run a longer range trace when crouched to not go out of cover as easily when behind strangely shaped cover like star shaped fountains.
 			HipLevel = KAI_FireCoverTrace (Other,Heights.Y,TraceDist.Y);
-			//LineTrace (AngleTo (Other),TraceDist.Y,PitchTo(Other,Heights.Y,Other.Height/2),TRF_THRUHITSCAN,Heights.Y,data:HipLevel);
 		
 		//KLUDGE: Just because this shouldn't be happening, it doesn't mean it WON'T.
 		If (!HipLevel || !EyeLevel)
@@ -181,28 +177,18 @@ Mixin Class HumanoidAndVehicleCode
 		//Only take cover behind level geometry, and large enough actors that aren't other NPCs or players. And aren't about to break.
 		If (HasHit || !NoMobjCover && Mobj && IsInanimateObject(Mobj) && Mobj.Radius >= ActorCover.X && Mobj.Height <= ActorCover.Y && Mobj.Health >= ActorCover.Z)
 			HipLevelBlocked = True;
-		/*If ((HasHit == TRACE_HitWall || HasHit == TRACE_HitFloor || HasHit == Trace_HitCeiling) ||
-		(!NoMobjCover && Mobj && IsInanimateObject(Mobj) && Mobj.Radius >= ActorCover.X && Mobj.Height <= ActorCover.Y && Mobj.Health >= ActorCover.Z))
-			HipLevelBlocked = True;*/
 			
 		Bool OtherInSight = !From ? True : From.CheckSight (Other,SF_SEEPASTSHOOTABLELINES|SF_IGNOREWATERBOUNDARY);
 		//Only run this if the actor is not crouched already.
 		If (!InCoverAlready)
 		{
 			If (EyelevelUnblocked && HipLevelBlocked && OtherInSight)
-			{
-				//KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(50),EyeLevel.HitLocation,EyeLevel.Distance);
-				//KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(18),HipLevel.HitLocation,HipLevel.Distance);
 				Return True, HipHitPos;
-			}
 		}
 		
 		//If you are crouching already and have a line of sight to the other actor.
 		If (InCoverAlready && OtherInSight)
 			Return HipLevelBlocked, HipHitPos; //Then return if you can crouch based on whether or not your hips are blocked by cover still.
-		
-		//If (!OtherInSight && Random (0,255) < 4) //If the other actor is out of sight, the marine will eventually give up staying behind cover.
-		//	Return False, HipHitPos;
 		
 		//If none of the other checks are true, but you are crouching already, then just assume you can keep doing so.
 		If (InCoverAlready)
@@ -241,12 +227,16 @@ Mixin Class HumanoidAndVehicleCode
 			SetZ(GetZAt());
 			FindFloorCeiling (FFCF_ONLYSPAWNPOS); //DO. NOT. CHECK. UNDER. THE. WORLD.
 			[GotLeftCover, LeftCover] = KAI_HasCoverHere (Other,InCoverAlready,MinDist,TraceDist,Heights,ActorCover,From);
-			//actor point = spawn ("kai_debugpoint",leftcover);
 			If (GotLeftCover) LeftCover.Z = GetZAt();
+			actor point = KAI_DebugPointDelay.KAI_TempPointSpawn(leftcover,16);
 			SetXYZ (RealPos);
 			FindFloorCeiling (FFCF_ONLYSPAWNPOS);
-			If (!GotLeftCover) LeftCover = (Double.NaN, Double.NaN, Double.NaN);
-			Else If (GotLeftCover && IsPosReachable (LeftCover,Radius*1.1))
+			If (!GotLeftCover || !IsPosReachable (LeftCover))
+			{
+				GotLeftCover = False;
+				LeftCover = (Double.NaN, Double.NaN, Double.NaN);
+			}
+			Else If (GotLeftCover)
 				Break; //Found a spot to hide behind on the left.
 		}
 		
@@ -256,12 +246,16 @@ Mixin Class HumanoidAndVehicleCode
 			SetZ(GetZAt());
 			FindFloorCeiling (FFCF_ONLYSPAWNPOS); //DO. NOT. CHECK. UNDER. THE. WORLD.
 			[GotRightCover, RightCover] = KAI_HasCoverHere (Other,InCoverAlready,MinDist,TraceDist,Heights,ActorCover,From);
-			//actor point = spawn ("kai_debugpoint",rightcover);
 			If (GotRightCover) RightCover.Z = GetZAt();
+			actor point = KAI_DebugPointDelay.KAI_TempPointSpawn(rightcover,16);
 			SetXYZ (RealPos);
 			FindFloorCeiling (FFCF_ONLYSPAWNPOS);
-			If (!GotRightCover) RightCover = (Double.NaN, Double.NaN, Double.NaN);
-			Else If (GotRightCover && IsPosReachable (RightCover))
+			If (!GotRightCover || !IsPosReachable (RightCover))
+			{
+				GotRightCover = False;
+				RightCover = (Double.NaN, Double.NaN, Double.NaN);
+			}
+			Else If (GotRightCover)
 				Break; //Found a spot to hide behind on the right.
 		}
 		

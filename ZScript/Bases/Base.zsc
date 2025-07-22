@@ -574,6 +574,39 @@ Class KAI_Actor : Actor Abstract
 		ALLORDERS, //Used to get how many orders there are to loop around.
 	};
 	
+	Enum SpriteFrameIndices
+	{
+		FRAME_A = 0,
+		FRAME_B = 1,
+		FRAME_C = 2,
+		FRAME_D = 3,
+		FRAME_E = 4,
+		FRAME_F = 5,
+		FRAME_G = 6,
+		FRAME_H = 7,
+		FRAME_I = 8,
+		FRAME_J = 9,
+		FRAME_K = 10,
+		FRAME_L = 11,
+		FRAME_M = 12,
+		FRAME_N = 13,
+		FRAME_O = 14,
+		FRAME_P = 15,
+		FRAME_Q = 16,
+		FRAME_R = 17,
+		FRAME_S = 18,
+		FRAME_T = 19,
+		FRAME_U = 20,
+		FRAME_V = 21,
+		FRAME_W = 22,
+		FRAME_X = 23,
+		FRAME_Y = 24,
+		FRAME_Z = 25,
+		FRAME_BRACKETOPEN = 26,
+		FRAME_SLASH = 27,
+		FRAME_BRACKETCLOSE = 28,
+	}
+	
 	//Constants
 	//Const NullVector = (Double.NaN,Double.NaN,Double.NaN);
 }

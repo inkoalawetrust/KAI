@@ -1,3 +1,5 @@
+//BUG: Bouncing projectiles like grenades seem to get stuck on dead actors with +DONTCORPSE.
+
 //IDEA: Make the deflection chance increase the more a shoot grazes the other actor, target wise.
 //NOTE: This code is kinda mostly made for bullets and other such projectiles, hence the bullet tracer-like code and deflection system. But can be used for fireballs and the likes just fine !
 //The base projectile for KAI actors, it's not necessary to really use this. But it does have some advantages:

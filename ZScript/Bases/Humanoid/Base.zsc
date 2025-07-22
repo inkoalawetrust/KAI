@@ -101,6 +101,8 @@ Class KAI_Humanoid : KAI_Creature Abstract
 			Bool PosGood = TestMobjLocation ();
 			SetXYZ ((CheckPos,ClimbZ-Height));
 			FindFloorCeiling (FFCF_ONLYSPAWNPOS); //DO. NOT. CHECK. UNDER. THE. WORLD.
+			If (Pos.Z < FloorZ) //HACK: FUCKING STOP. (Handles ClimbMuls under 1.0)
+				SetZ (FloorZ);
 			Bool PosGoodLower = TestMobjLocation(); //Alt check for if the call also supports jump up to a ledge to climb.
 			//console.printf ("tested mobj location %d %d %d, is it good? %d",pos,posgoodlower);
 			SetXYZ (OldPos);
@@ -118,7 +120,7 @@ Class KAI_Humanoid : KAI_Creature Abstract
 				If (KAI_DebugPrintMessages) Console.Printf ("KAI_HandleClimbing(): Wel'll hit a blocking actor or level geometry trying to climb up there");
 				Return False;
 			}
-			
+			//console.printf ("climbz is %.2f, jump climb height is %.2f, posgoodlower %d, good dropoff %d",climbz,Pos.Z+(Height*JumpClimbMul),posgoodlower,!(FloorZ - Tm.DropoffZ > MaxDropOffHeight));
 			//Ledge is just at around the actors' height.
 			If (PosGood && ClimbZ < Pos.Z+(Height*ClimbMul) && !(FloorZ - Tm.DropoffZ > MaxDropOffHeight))
 			{

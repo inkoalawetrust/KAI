@@ -1474,7 +1474,7 @@ Extend Class KAI_Actor
 			CurPos = (Xs[I],Ys[I],Zs[I]); //Reconstruct each vector.
 			SightTarget.SetXYZ (CurPos); //Move the target to the pos for the visibility check.
 			//If it's out of bounds, not visible, or can't be walked to. We can't go there. So remove that potential position.
-			If (!Level.IsPointInLevel (CurPos) || Full3D && IsInside3DFloor (CurPos,Height,True) ||  !CheckSight(SightTarget,SF_IGNOREVISIBILITY) || !IsPosReachable (CurPos,full3d:Full3D))
+			If (!Level.IsPointInLevel (CurPos) || Full3D && IsInside3DFloor (CurPos,Height,True) || !CheckSight(SightTarget,SF_IGNOREVISIBILITY) || !IsPosReachable (CurPos,full3d:Full3D))
 			{
 				Xs.Delete (I); Ys.Delete(I); Zs.Delete(I);
 			}
@@ -1557,7 +1557,7 @@ Extend Class KAI_Actor
 		
 		If (Spacing == 0)
 			Spacing = Radius*2;
-		Distance += Spacing; //HACK: According to RaveYard, apparently the last check in the row might be getting ignored, so this is a simple hack fix.
+		//Distance += Spacing; //HACK: According to RaveYard, apparently the last check in the row might be getting ignored, so this is a simple hack fix.
 		If (Distance <= 1) Return False, (Double.NaN,Double.NaN,Double.NaN);
 		Path /= Distance;
 		
@@ -1573,10 +1573,11 @@ Extend Class KAI_Actor
 			WhereTo.Z = GetZAt (WhereTo.X,WhereTo.Y,flags:GZF_ABSOLUTEPOS);
 			//console.printf ("z here is %.2f",whereto.z);
 			//HACK: Try to manually check if the next step is too high up.
-			If (CheckPosition (WhereTo.XY, False, tm:Data) && WhereTo.Z <= Pos.Z+MaxStepHeight)
+			If (CheckMove (WhereTo.XY, 0, tm:Data) && WhereTo.Z <= Pos.Z+MaxStepHeight)
 			{
 				//console.printf ("ACTOR Z %.2f, FLOORZ %.2f, ACTOR Z AND STEP HEIGHT %.2f, CHECKING AT %.2f %.2f",pos.z,data.floorz,pos.z+maxstepheight,whereto.xy);
-				SetZ (WhereTo.Z); //HACK: Update the actors' Z position. TryMove should do that internally, but it doesn't. GZDoom moment.
+				SetOrigin (WhereTo,True);
+				//SetZ (WhereTo.Z); //HACK: Update the actors' Z position. TryMove should do that internally, but it doesn't. GZDoom moment.
 				//actor debug = KAI_DebugPointDelay.KAI_TempPointSpawn((Level.Vec2Offset(OldPos.XY, Path*I),Pos.Z),16);
 				//debug.scale *= 0.5;
 			}
@@ -1594,6 +1595,7 @@ Extend Class KAI_Actor
 				Return False, WhereTo;
 			}
 		}
+		
 		bDontInterpolate = Interp;
 		bThruActors = ThruActs;
 		SetOrigin (OldPos,True);
@@ -1756,6 +1758,53 @@ Extend Class KAI_Actor
 	}
 	
 	//=====|Search functions|=====\\
+	Enum RetargetHullFlags
+	{
+		RVHF_NOTARGETCHANGE 		= 1 << 0, //This function should only return if the hull should be targeted, instead of also doing the actual retargeting.
+		RVHF_NOTRANSFERDAMAGECHECK	= 1 << 1, //Don't retarget hulls larger than their bTransferDamage turret.
+		RVHF_NOWEAKHULLCHECK		= 1 << 2, //Don't retarget hulls weaker than whatever turret the caller is targeting.
+		RVHF_STRONGERHULL			= 1 << 3, //Retarget the hull if it is stronger (Healthier) than the turret.
+	}
+	
+	//TODO: Add a check where even if any of these retarget conditions are met, the caller will not retarget if the hull is not actually hittable or visible. i.e out of melee range
+	//Makes NPCs target the hulls of vehicles instead of their turrets' under certain conditions:
+	//If the turret has bTransferDamage and is smaller than the vehicle it's attached to. Since attacking the turret only harms the vehicle, might as well shoot the bigger hull instead.
+	//If the hulls' health is less than the health of the turret being targeted. Would be quicker to kill the vehicle than the turret.
+	//Flags: Look above for a list of flags.
+	Bool RetargetVehicleHull (Int Flags = 0)
+	{
+		If (!Target) Return False;
+		
+		//Turret must be attached on a vehicle to actually retarget.
+		If (Target Is "KAI_BaseTurret" && Target.Master)
+		{
+			//If the damage that the targeted turret takes is transfered to the vehicle anyway (bTransferDamage).
+			If (!(Flags & RVHF_NOTRANSFERDAMAGECHECK) && KAI_BaseTurret(Target).bTransferDamage)
+			{
+				Let SelfVeh = KAI_BaseVehicle (Self);
+				//And the vehicle the turret is attached to is overall bigger than the turret.
+				If (SelfVeh && SelfVeh.Turret && Target.Master.Radius >  SelfVeh.Turret.Radius && Target.Master.Height >  SelfVeh.Turret.Height)
+				{
+					If (!(Flags & RVHF_NOTARGETCHANGE)) Target = Target.Master; //Then target the vehicle the turret is attached to.
+					Return True;
+				}
+			}
+			//If the turret doesn't have bTransferDamage, and it's health is higher than the hulls'.
+			If (!(Flags & RVHF_NOWEAKHULLCHECK) && !KAI_BaseTurret(Target).bTransferDamage && Target.Master.Health < (Target.Health*0.8))
+			{
+				If (!(Flags & RVHF_NOTARGETCHANGE)) Target = Target.Master;
+				Return True;
+			}
+			//Target the hull if it's stronger than the turret, basically targeting the strongest part of the vehicle.
+			If (Flags & RVHF_STRONGERHULL && Target.Master.Health > Target.Health)
+			{
+				If (!(Flags & RVHF_NOTARGETCHANGE)) Target = Target.Master;
+				Return True;
+			}
+		}
+		Return False;
+	}
+	
 	//Does exactly what it says, finds the nearest enemy that can be targeted and is visible, and returns a pointer to it.
 	Actor FindNearestEnemy (Double Range = 256)
 	{

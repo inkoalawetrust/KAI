@@ -166,10 +166,10 @@ Mixin Class HumanoidAndVehicleCode
 		
 		If (KAI_DebugCoverCheck)
 		{
-			FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 2; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
-			KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(Heights.X),EyeLevel.Results.HitPos,EyeLevel.Results.Distance,2,P);
+			FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 4; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+			KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(Heights.X),EyeLevel.Results.HitPos,EyeLevel.Results.Distance,4,P);
 			P.Color1 = "Red";
-			KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(Heights.Y),HipLevel.Results.HitPos,HipLevel.Results.Distance,2,P);
+			KAI_LOFRaycast.VisualizeTracePath (Pos.PlusZ(Heights.Y),HipLevel.Results.HitPos,HipLevel.Results.Distance,4,P);
 			//console.printf ("eye check went to %.2f %.2f %.2f eye level inblocked %d",eyelevel.results.hitpos,eyelevelunblocked);
 			//console.printf ("hip check went to %.2f %.2f %.2f and hit actor %p",hiplevel.results.hitpos,mobj);
 		}
@@ -228,7 +228,7 @@ Mixin Class HumanoidAndVehicleCode
 			FindFloorCeiling (FFCF_ONLYSPAWNPOS); //DO. NOT. CHECK. UNDER. THE. WORLD.
 			[GotLeftCover, LeftCover] = KAI_HasCoverHere (Other,InCoverAlready,MinDist,TraceDist,Heights,ActorCover,From);
 			If (GotLeftCover) LeftCover.Z = GetZAt();
-			actor point = KAI_DebugPointDelay.KAI_TempPointSpawn(leftcover,16);
+			//actor point = KAI_DebugPointDelay.KAI_TempPointSpawn(leftcover,16);
 			SetXYZ (RealPos);
 			FindFloorCeiling (FFCF_ONLYSPAWNPOS);
 			If (!GotLeftCover || !IsPosReachable (LeftCover))
@@ -247,7 +247,7 @@ Mixin Class HumanoidAndVehicleCode
 			FindFloorCeiling (FFCF_ONLYSPAWNPOS); //DO. NOT. CHECK. UNDER. THE. WORLD.
 			[GotRightCover, RightCover] = KAI_HasCoverHere (Other,InCoverAlready,MinDist,TraceDist,Heights,ActorCover,From);
 			If (GotRightCover) RightCover.Z = GetZAt();
-			actor point = KAI_DebugPointDelay.KAI_TempPointSpawn(rightcover,16);
+			//actor point = KAI_DebugPointDelay.KAI_TempPointSpawn(rightcover,16);
 			SetXYZ (RealPos);
 			FindFloorCeiling (FFCF_ONLYSPAWNPOS);
 			If (!GotRightCover || !IsPosReachable (RightCover))

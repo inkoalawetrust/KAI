@@ -471,54 +471,6 @@ Extend Class KAI_BaseVehicle
 		bDontFollowPlayers = (Distance3DSquared (Players[KAI_GetFriendPlayer()].Mo) <= MaxDist*MaxDist);
 	}
 	
-	Enum RetargetHullFlags
-	{
-		RVHF_NOTARGETCHANGE 		= 1 << 0, //This function should only return if the hull should be targeted, instead of also doing the actual retargeting.
-		RVHF_NOTRANSFERDAMAGECHECK	= 1 << 1, //Don't retarget hulls larger than their bTransferDamage turret.
-		RVHF_NOWEAKHULLCHECK		= 1 << 2, //Don't retarget hulls weaker than whatever turret the caller is targeting.
-		RVHF_STRONGERHULL			= 1 << 3, //Retarget the hull if it is stronger (Healthier) than the turret.
-	}
-	
-	/*MAYDO: Move this to KAI_Actor, or add a function similar to it to KAI_Actor.
-	To make it possible to easily prevent dumb scenarios like non-flying melee enemies (e.g) trying to attack a turret porched on top of a vehicle.*/
-	//MAYDO: Add a check where even if any of these retarget conditions are met, the caller will not retarget if the hull is not actually hittable or visible.
-	//Makes vehicles target the hulls of vehicles instead of their turrets' under certain conditions:
-	//If the turret has bTransferDamage and is smaller than the vehicle it's attached to. Since attacking the turret only harms the vehicle, might as well shoot the bigger hull instead.
-	//If the hulls' health is less than the health of the turret being targeted. Would be quicker to kill the vehicle than the turret.
-	//Flags: Look above for a list of flags.
-	Bool RetargetVehicleHull (Int Flags = 0)
-	{
-		If (!Target) Return False;
-		
-		//Turret must be attached on a vehicle to actually retarget.
-		If (Target Is "KAI_BaseTurret" && Target.Master)
-		{
-			//If the damage that the targeted turret takes is transfered to the vehicle anyway (bTransferDamage).
-			If (!(Flags & RVHF_NOTRANSFERDAMAGECHECK) && KAI_BaseTurret(Target).bTransferDamage)
-			{
-				//And the vehicle the turret is attached to is overall bigger than the turret.
-				If (Turret && Target.Master.Radius > Turret.Radius && Target.Master.Height > Turret.Height)
-				{
-					If (!(Flags & RVHF_NOTARGETCHANGE)) Target = Target.Master; //Then target the vehicle the turret is attached to.
-					Return True;
-				}
-			}
-			//If the turret doesn't have bTransferDamage, and it's health is higher than the hulls'.
-			If (!(Flags & RVHF_NOWEAKHULLCHECK) && !KAI_BaseTurret(Target).bTransferDamage && Target.Master.Health < (Target.Health*0.8))
-			{
-				If (!(Flags & RVHF_NOTARGETCHANGE)) Target = Target.Master;
-				Return True;
-			}
-			//Target the hull if it's stronger than the turret, basically targeting the strongest part of the vehicle.
-			If (Flags & RVHF_STRONGERHULL && Target.Master.Health > Target.Health)
-			{
-				If (!(Flags & RVHF_NOTARGETCHANGE)) Target = Target.Master;
-				Return True;
-			}
-		}
-		Return False;
-	}
-	
 	//Used to make vehicles able to run over and grind corpses like crushers.
 	Void KAI_CrushCorpses (Double RadiusMultiplier = 1.0)
 	{

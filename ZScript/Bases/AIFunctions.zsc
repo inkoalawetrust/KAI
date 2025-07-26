@@ -1823,6 +1823,108 @@ Extend Class KAI_Actor
 		Return GetClosestActor (NearbyEnemies,Self.Pos,Range);
 	}
 	
+	//A ZScript copy of A_MonsterRefire without the shitty HitFriend() check, and with the A_FaceTarget() call toggleable.
+	//Chance, AbortState: Work the same as in A_MonsterRefire.
+	//DontFaceTarget: If on, the turret won't instantly face the target after each refire.
+	//RetargetCheckChance: The chance that RetargetVehicleHull() runs after each refire. Never runs if set to -1. 
+	//RetargetCheckFlags: The flags to pass to RetargetVehicleHull() if it DOES run.
+	//FOV: If the target is outside this FOV, then have a chance to stop shooting. Default is 180, which basically disables this check.
+	//AimPos: If we're facing the target, what portion are we looking at?
+	State KAI_NPCRefire (Int Chance, StateLabel AbortState, Bool DontFaceTarget = False, Int RetargetCheckChance = -1, Int RetargetCheckFlags = 0, Double FOV = 360, Int AimPos = 0)
+	{
+		If (!DontFaceTarget)
+			A_FaceTarget(flags:AimPos);
+		
+		If (RetargetCheckChance != -1 && Random2[pr_monsterrefire]() < RetargetCheckChance)
+			RetargetVehicleHull (RetargetCheckFlags);
+		
+		If (CurSector.Flags & Sector.SECF_NOATTACK)
+			Return FindState (AbortState);
+		
+		If (KAI_BaseTurret(Self)) KAI_BaseTurret(Self).TurretAimPos = GetFAFAimPos (Target);
+			
+		If (Random2[pr_monsterrefire]() < Chance)
+			Return State (Null);
+		
+		//KLUDGE: Must manually check if Target is null for CheckFOV, because as of GZDoom 4.10, it doesn't natively do a null check, causing a hard crash !
+		If (!Target /*|| HitFriend()*/ || IsDead (Target) || (Target && !CheckFOV (Target,FOV)) || !CheckSight (Target,SF_SEEPASTBLOCKEVERYTHING|SF_SEEPASTSHOOTABLELINES))
+			Return FindState (AbortState);
+		
+		Return State (Null);
+	}
+	
+	//Just use the flags from when it was KAI_TurretCheckLOF(), nevermind that the acronym is now inaccurate.
+	Enum TurretLOFFlags
+	{
+		TLOF_FaceOther		= 1 << 0, //Should the ray be fired at the direction of the other actor instead of the direction the turret is facing ?
+		TLOF_DoStayAround	= 1 << 1, //Should the function not mess with the turrets' bDontStayAround flag ?
+		TLOF_FriendlyFire	= 1 << 2, //The turret can hit and harm its' allies.
+		TLOF_OnlyAhead		= 1 << 3, //If the turret is lagging behind instead of aiming ahead of the target. Kinda assumes Other is the turrets' Target.
+	}
+	
+	//TODO: Make this a generic LOF function.
+	//A generic LOF check for monsters, that is a wrapper for the stock projectile line of fire check.
+	//Other: The actor to check for, normally this will be the target. You can also simply not specify another actor.
+	//PropHealthThreshold: If a destructible prop is in the actors' way with this much health or less, then still return true and fire through it.
+	//SplashRadius: For explosive attacks, if the LOF misses and hits level geometry, then still return true if the Other actor would be caught in the blast.
+	//CheckOffsets: How much to offset the checks' origin relative to the callers' position, default is offset 32 map units off the callers' Z position.
+	//Flags: What flags to pass to the check, a list of flags can be found above.
+	//ProjCls: What's the class of the projectile this check is used for ? Used to get additional attack info, like the rip level, depth, flags, etc.
+	//AimPos: If we are explicitly aiming the LOF check at another actor, this is the explicit AimPos to use for them. For NPC turrets this is ignored in favor of TurretAimPos.
+	Bool KAI_CheckLOF (Actor Other = Null, Int PropHealthThreshold = 400, Double SplashRadius = 0, Vector3 CheckOffsets = (0,0,32), Int Flags = 0, Class<Actor> ProjCls = Null, Int AimPos = 0)
+	{
+		Let Check = New ("KAI_ProjectileLOFCheck");
+		
+		If (KAI_BaseTurret(Self)) KAI_BaseTurret(Self).TurretAimPos = GetFAFAimPos (Target);
+		
+		//If not aiming ahead of the target
+		If (Flags & TLOF_OnlyAhead && !AimingAheadOfTarget())
+			Return False;
+		
+		Vector3 Direction;
+		If (!(Flags & TLOF_FaceOther))
+			Direction = (AngleToVector(Angle, Cos(Pitch)), -Sin(Pitch));
+		Else
+		{
+			If (Other)
+			{
+				Int Aim = KAI_BaseTurret(Self) ? GetFAFPosOffset(Target,KAI_BaseTurret(Self).TurretAimPos) : GetFAFPosOffset(Target,AimPos);
+				Double PitchTo = PitchTo (Other,Height/2,Aim);
+				Direction = (AngleToVector(AngleTo(Other), Cos(PitchTo)), -Sin(PitchTo));
+			}
+			Else
+				Return False; //Actor stopped existing, so no need to fire.
+		}
+		
+		Double Distance = Other ? Distance3D (Other)+32 : MaxTargetRange;
+		Check.Shooter = Self;
+		Check.Other = Other;
+		Check.SplashRadius = SplashRadius;
+		Check.PropHealthThreshold = PropHealthThreshold;
+		Check.FriendlyFire = Flags & TLOF_FriendlyFire;
+		
+		Check.ProjInfo = New ('LOFProjInfo'); //Assign data class.
+		Check.ProjInfo.Projectile = ProjCls; //Pass projectile class to class.
+		Check.ProjInfo.InitializeProjectileInfo(); //Let it infer the rest.
+		
+		Check.Trace (Level.Vec3Offset (Pos,CheckOffsets),CurSector,Direction,Distance,0);
+		
+		//KAI_LOFRaycast.VisualizeTracePath (Level.Vec3Offset (Pos,CheckOffsets),Check.Results.HitPos,Check.Results.Distance);
+		
+		If (Check.BadLOF)
+		{
+			If (!(Flags & TLOF_DoStayAround) && KAI_BaseTurret(Self)) KAI_BaseTurret(Self).bDontStayAround = True;
+			If (Check.ProjInfo) Check.ProjInfo.Destroy();
+			Check.Destroy();
+			Return False;
+		}
+		
+		If (!(Flags & TLOF_DoStayAround) && KAI_BaseTurret(Self)) KAI_BaseTurret(Self).bDontStayAround = False;
+		If (Check.ProjInfo) Check.ProjInfo.Destroy();
+		Check.Destroy();
+		Return True;
+	}
+	
 	//Find a height position (From the three FAF_ positions) at which the NPC can aim at the specified actor with a clear line of sight.
 	//Useful for making NPCs aim at a different part of an actor when attacking.
 	Int GetFAFAimPos (Actor Other, Vector3 Offset = (0,0,0))

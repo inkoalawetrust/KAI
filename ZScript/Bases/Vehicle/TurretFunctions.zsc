@@ -189,22 +189,6 @@ Extend Class KAI_BaseTurret
 		Return KAI_CheckLOF (Other,PropHealthThreshold,SplashRadius,CheckOffsets,Flags,ProjCls);
 	}
 	
-	Double GetTurretAimPosOffset ()
-	{
-		If (!Target) Return 0;
-		Switch (TurretAimPos)
-		{
-			Case FAF_MIDDLE:
-				Return Target.Height/2;
-			Case FAF_TOP:
-				Return Target.Height;
-			Case FAF_BOTTOM:
-				Return 0; //The bottom is the origin of actors.
-			Default:
-				Return 0;
-		}
-	}
-	
 	Enum FindInLOFFlags
 	{
 		FIL_FaceTarget = 1 << 0, //Fire the ray straight at the Other actors' direction instead of wherever the turret is facing.

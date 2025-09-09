@@ -37,8 +37,8 @@ Class HazardInfo
 		HAZ_SECTOR	= 1 << 1, //The hazard in question is the sector at Position, instead of any particular point.
 	}
 	
-	//Emit a hazard alert around a source actor.
-	Static Play Void EmitHazard (Actor Source, Double Range, Int Type = HazardInfo.HAZARD_NONE, Int HazLevel = HazardInfo.HAZARD_LOW, Int Flags = 0, Array <String> Tags = Null)
+	//Emit a hazard alert around a source actor. Or optionally around the passed position.
+	Static Play Void EmitHazard (Actor Source, Double Range, Int Type = HazardInfo.HAZARD_NONE, Int HazLevel = HazardInfo.HAZARD_LOW, Int Flags = 0, Array <String> Tags = Null, Vector3 Pos = (Double.NaN, Double.NaN, Double.NaN), Bool UsePos = False)
 	{
 		If (!Source || Range <= 0)
 			Return;
@@ -46,7 +46,7 @@ Class HazardInfo
 		HazardInfo Hazard = New ("HazardInfo"); //Create hazard information.
 		If (Hazard)
 		{
-			Hazard.Position = (Double.NaN, Double.NaN, Double.NaN);
+			Hazard.Position = Pos;
 			Hazard.Origin = Source;
 			Hazard.Range = Range;
 			Hazard.Type = Type;
@@ -57,15 +57,22 @@ Class HazardInfo
 		Else
 			Return;
 		
-		Let Finder = BlockThingsIterator.Create (Source,Range);
+		BlockThingsIterator Finder;
+		If (!UsePos)
+			Finder = BlockThingsIterator.Create (Source,Range);
+		Else
+			Finder = BlockThingsIterator.CreateFromPos (Pos.X,Pos.Y,Pos.Z,0,Range,False);
 		
-		Actor Other;
+		Actor Other; Double Dist;
 		While (Finder.Next())
 		{
 			Other = Finder.Thing;
-			If (Level.Vec3Diff (Source.Pos,Other.Pos).Length() > Range || !(Flags & HAZ_NOSIGHT) && !Other.CheckSight (Source,SF_IGNOREWATERBOUNDARY))
+			If (!UsePos)
+				Dist = Level.Vec3Diff (Source.Pos,Other.Pos).Length();
+			Else
+				Dist = Level.Vec3Diff (Pos,Other.Pos).Length();
+			If (Other == Source || Dist > Range || !(Flags & HAZ_NOSIGHT) && !Other.CheckSight (Source,SF_IGNOREWATERBOUNDARY))
 				Continue;
-			
 			HazardInfo.GiveHazard (Other,Hazard);
 		}
 	}

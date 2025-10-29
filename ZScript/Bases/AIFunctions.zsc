@@ -858,7 +858,6 @@ Extend Class KAI_Actor
 	}
 	
 	//Returns a position for KMT_3D actors to head to avoid bumping into things. By averaging where a sphere of traces hit.
-	//DOCUMENT: This'll be a fucking doozy to document. TL;DR: Trial and error the parameters with the debug CVAR, ideally use this per tick to propel the actor instead of using it like KAI_MoveAway() does.
 	//HorzTraces: How many horizontal traces to fire in the sphere.
 	//VertTraces: Ditto but for vertical (Pitch) traces. If set to 0, the function operates in horizontal-only mode.
 	//Distance: How far each trace will go. Basically how far the actor checks for obstacles.

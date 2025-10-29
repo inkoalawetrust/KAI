@@ -239,6 +239,18 @@ Mixin Class KAI_CheckFunctions
 		Return (Other == Caller.Target || !Other.bNoTarget && !(Other.Player && Other.Player.Cheats & CF_NOTARGET));
 	}
 	
+	//Can the other actor take fall damage?
+	Static ClearScope Bool CanTakeFallDamage (Actor Other)
+	{
+		If (!Other || Other.CurSector.Flags & Sector.SECF_NOFALLINGDAMAGE)
+			Return False;
+		
+		If (!Other.Player)
+			Return (Level.MonsterFallingDamage || Other.bFallDamage);
+		Else
+			Return ((Level.Info.Flags & LEVEL_FALLDMG_HX || Level.Info.Flags & LEVEL_FALLDMG_ZD) || SV_FallingDamage);
+	}
+	
 	//Returns if the calling actor is fast.
 	//https://github.com/ZDoom/gzdoom/blob/master/src/playsim/p_mobj.cpp?L4892#L4892-L4897
 	Static ClearScope Bool IsFast (Actor Other)

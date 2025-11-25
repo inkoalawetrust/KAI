@@ -8,9 +8,10 @@
 //IDEA:
 /*Make a passenger system for vehicles ? By being able to define coordinates relative to the vehicle for NPCs to go to,
 "enter" the vehicle once they reach the entrance or exit point with A_ChangeLinkFlags and becoming STAT_INFOS.
-Also, since we can't have vector arrays anyway, maybe make each entrace a custom "KAI_VehicleEntrance class,
-with both the entrance position stored, and a "Closed" bool (Can't use), and a max number of passangers that can
-enter from there?*/
+And since we can't have vector arrays anyway, maybe make each entrace a custom "KAI_VehicleEntrance" class in an array,
+with the entrance position stored, and a "Closed" bool (Can't use), and a max number of passengers that can
+enter from there? That last one could perhaps be handles by "compartment IDs", so for example 3 entrances could
+correspond to the same compartment with a max passenger amount of 5. Also give entrances class filters for others to use.*/
 
 //FIXME:
 /*Try and fix the vehicle turrets to be at the top of their vehicle even at the first tick of their existance.

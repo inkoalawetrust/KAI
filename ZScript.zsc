@@ -38,9 +38,12 @@ Add a GetBodyPart virtual to NPCs, to define positions for parts, and return the
 allowing for projectiles to do special effects like double damage on headshots.
 Maybe also add an OnBodyPartHit callback for projectiles to use. Such as to make the victim itself react to a headshot. Or the back of the tank being hit.
 */
-//Make some kind of target priority queue system, or something ? Like, for having NPCs optionally target multiple enemies.
 //Ugh, try making velocity-based movement for ground actors again using the KMT_3D code?
-
+//Behavior module ideas, for when that's FINALLY put into a goddamn release.
+	//Make a multi-target and priority queue system. Like, for having NPCs optionally target multiple enemies and sort them by some heuristic to focus on more than one target.
+	//Move over the target position tracking into its' own behavior.
+	//Make tracking for the last seen position of a target (Or multiple targets), for behaviors such as heading there and suppressive fire.
+	
 //=====|Library structure|=====\\
 /*The most basic NPC class, all types are based on this, land/water/air vehicles, humanoids, flying creatures, you name it. 
 So, the code that is meant to be shared by all NPCs also goes here.*/

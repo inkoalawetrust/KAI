@@ -761,15 +761,15 @@ Class KAI_EventHandler : EventHandler
 		NPCGroupEventHandler (KAI_NPCGroup.GRPEVNT_REVIVAL,E.Thing);
 	}
 	
-	Void AddToProjectileList (Actor What)
+	Void AddToProjectileList (Actor What, Bool Force = False)
 	{
-		If (What && What.bMissile && What.GetMissileDamage (1,7) > 0)
+		If (What && (Force || What.bMissile && What.GetMissileDamage (1,7) > 0))
 			ProjectileList.Push(What);
 	}
 	
-	Void RemoveFromProjectileList (Actor What)
+	Void RemoveFromProjectileList (Actor What, Bool Force = False)
 	{
-		If (!What.bMissile) Return;
+		If (!What || !Force && !What.bMissile) Return;
 		Let Proj = ProjectileList.Find(What);
 		If (Proj < ProjectileList.Size())
 			ProjectileList.Delete(Proj);

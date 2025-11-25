@@ -1780,9 +1780,9 @@ Extend Class KAI_Actor
 			//If the damage that the targeted turret takes is transfered to the vehicle anyway (bTransferDamage).
 			If (!(Flags & RVHF_NOTRANSFERDAMAGECHECK) && KAI_BaseTurret(Target).bTransferDamage)
 			{
-				Let SelfVeh = KAI_BaseVehicle (Self);
+				Let SelfVeh = KAI_BaseVehicle (Target.Master);
 				//And the vehicle the turret is attached to is overall bigger than the turret.
-				If (SelfVeh && SelfVeh.Turret && Target.Master.Radius >  SelfVeh.Turret.Radius && Target.Master.Height >  SelfVeh.Turret.Height)
+				If (SelfVeh && SelfVeh.Turret && Target.Master.Radius > SelfVeh.Turret.Radius && Target.Master.Height > SelfVeh.Turret.Height)
 				{
 					If (!(Flags & RVHF_NOTARGETCHANGE)) Target = Target.Master; //Then target the vehicle the turret is attached to.
 					Return True;
@@ -1814,8 +1814,8 @@ Extend Class KAI_Actor
 		
 		ForEach (Mobj : NearbyEnemies)
 		{
-			//Skip this actor if it's dead or is too far away.
-			If (IsDead (Mobj) || Distance3DSquared(Mobj) > Range*Range) Continue;
+			//Skip this actor if it's too far away.
+			If (Distance3DSquared(Mobj) > Range*Range) Continue;
 			
 			NearbyEnemies.Push(Mobj); //Add it to the list.
 		}

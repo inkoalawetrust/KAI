@@ -132,6 +132,7 @@ Extend Class KAI_Actor
 	
 	//IDEA: Actually integrate some KAI features into this generic function, whatever I CAN reasonably integrate into one function.
 	//MAYBE having KAI_Humanoid callers able to run up to and use emplacements.
+	//TODO: Make flyers fly to the middle of the target, and maybe also give them a minimum height property so they can try to stay off the ground actively.
 	
 	//Basic generic chase function for making NPCs go up to their target pointer and attack it. Literally just A_Chase() lite.
 	//Melee: An arbitrary state override to go to for melee attacks.

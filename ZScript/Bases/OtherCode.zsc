@@ -578,7 +578,7 @@ Class KAI_LOFRaycast : LineTracer
 	//BUG: This check fails on 3D floors with FF_THINFLOOR. This however seems to be a GZDoom bug. And I'm not knowledgeable enough to PR a fix lol.
 	Bool HitLevelGeometry (TraceResults Result)
 	{
-		//Hit a floor or ceiling.
+		//Hit a floor or ceiling. Or a 3D floor.
 		If (Result.HitType == Trace_HitFloor || Result.HitType == Trace_HitCeiling)
 			Return True;
 		

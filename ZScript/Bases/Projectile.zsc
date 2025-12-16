@@ -16,6 +16,7 @@ Class KAI_BaseProjectile : FastProjectile
 	{
 		MissileHeight 8;
 		KAI_BaseProjectile.TrailLineSpacing 2;
+		KAI_BaseProjectile.Iterations 8;
 		Projectile;
 	}
 	
@@ -44,7 +45,7 @@ Class KAI_BaseProjectile : FastProjectile
 		FCheckPosition tm;
 		tm.DoRipping = bRipper;
 
-		int count = 8;
+		int count = TickIterations;
 		if (radius > 0)
 		{
 			while (abs(Vel.X) >= radius * count || abs(Vel.Y) >= radius * count)
@@ -698,6 +699,9 @@ Class KAI_BaseProjectile : FastProjectile
 	Property ScaleAmountX : ScaleAmountX;
 	Property ScaleAmountY : ScaleAmountY;
 	Property FadeAmount : FadeAmount;
+	
+	Int TickIterations;
+	Property Iterations : TickIterations;
 	
 	Int RipDepth; //How many actors can the ripper with RipOnce rip ?
 	Property RipDepth : RipDepth;

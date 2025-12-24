@@ -479,7 +479,6 @@ Class KAI_Actor : Actor Abstract
 			
 			If (IgnoringPlayers && Master && !IsDead(Master)) //We are ignoring the player, so just follow whoever the master is, unless it is set to your friendplayer for some reason.
 				Return Master.Pos, Master;
-			console.printf ("%s falling back to returning the friendplayer (%d) to follow",getclassname(),kai_Getfriendplayer());
 			Return Players[KAI_GetFriendPlayer()].Mo.Pos, Players[KAI_GetFriendPlayer()].Mo;
 		}
 		

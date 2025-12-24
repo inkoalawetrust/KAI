@@ -191,7 +191,6 @@ Extend Class KAI_Actor
 		
 		Bool RunAway = (!bNoFear && (IsFrightening (Target) || bFrightened)); //Run away from spooky actors, or maybe we're just a little bitch.
 		Double Aggro = MissileChanceMult; //Because it can be temporarily raised to make the NPC far less aggressive when trying to run away with bAvoidMelee.
-		//if (runaway) console.printf ("oooh, very scary!");
 		
 		//Only move to the target if we, you know, have one. What to do if there is none is handed by KAI_Chase_Retarget().
 		If (Target && !(Flags & CHF_DONTMOVE))
@@ -309,6 +308,7 @@ Extend Class KAI_Actor
 		KMT_ZIGZAG	  	= 1 << 1, //Move around with more A_Chase-esque movement (Like zigzagging), instead of only moving in a straight line.
 		KMT_NOLINEUSE 	= 1 << 2, //Disable the function being able to make the monster use crossed over lines at all, in case you want your own code for that.
 		KMT_3D		  	= 1 << 3, //The actor should be able to move in full 3D, such as if it's a flying NPC.
+		KMT_DROPOFFMOBJ	= 1 << 4, //Avoid getting stuck on top of objects that are on the ground like pillars. For objects without +ACTLIKEBRIDGE.
 	}
 	
 	Double LastTurnDir;
@@ -386,6 +386,7 @@ Extend Class KAI_Actor
 			vector2 NextPos = Vec2Angle(speed, NextAngle, True);
 			FCheckPosition Move;
 			Move.FromPMove = True; //Move anyways if there's an actor within your hitbox already.
+			
 			If (IsVehicle) //Vehicle push and crush handling.
 			{
 				Let Vehicle = KAI_BaseVehicle(Self);
@@ -394,9 +395,16 @@ Extend Class KAI_Actor
 				KAI_BaseVehicle(Self).KAI_VehicleCrushObstacles (Pushovers,Vehicle.VehicleCrushDamage);
 				//TurretBlock = !Vehicle.CheckTurretCollision ((NextPos,Pos.Z),3);
 			}
+			Bool GetUnstuck = (!bDropoff && !TurretBlock && Flags & KMT_DROPOFFMOBJ); //Only bother if bDropoff isn't already on during this call.
 			//if (turretblock) console.printf ("DING DING DING TURRET IN THE WAY!");
 			//else if (isvehicle) console.printf ("the turrets of %p aren't getting on their way",self);
 			//If (!(Flags & KMT_NOLINEUSE)) {a_log ("lemme try opening this door");CheckMonsterUseSpecials ();}
+			If (GetUnstuck) //Drop off non-bridge-like objects that are on the ground instead of spazzing out.
+			{
+				Bool B; Actor Mo;
+				[B, Mo] = TestMobjZ(True);
+				bDropoff = (IsInanimateObject(Mo) && !Mo.bActLikeBridge && Mo.bSolid && Mo.Pos.Z <= Mo.FloorZ);
+			}
 			bool moved = !TurretBlock ? TryMove(NextPos, 0, false, Move) : False;
 			
 			//if I hit an obstacle while avoiding another, try moving straight towards Other
@@ -413,6 +421,12 @@ Extend Class KAI_Actor
 					KAI_BaseVehicle(Self).KAI_VehiclePushActors(Self, NextPos,Vehicle.MaxPushRadius,Vehicle.MaxPushHeight,Pushovers);
 					KAI_BaseVehicle(Self).KAI_VehicleCrushObstacles (Pushovers,Vehicle.VehicleCrushDamage);
 					//TurretBlock = !Vehicle.CheckTurretCollision ((NextPos,Pos.Z),3);
+				}
+				If (GetUnstuck)
+				{
+					Bool B; Actor Mo;
+					[B, Mo] = TestMobjZ(True);
+					bDropoff = (IsInanimateObject(Mo) && !Mo.bActLikeBridge && Mo.bSolid && Mo.Pos.Z <= Mo.FloorZ);
 				}
 				moved = !TurretBlock ? TryMove(NextPos, 0, false, Move) : False;
 			}
@@ -476,6 +490,8 @@ Extend Class KAI_Actor
 					if (moved) break;
 				}
 			}
+			
+			If (GetUnstuck) bDropoff = False; //We tried all our possible steps and shit, so turn bDropoff back off.
 		}
 		//3D velocity based movement
 		//TODO:
@@ -788,7 +804,6 @@ Extend Class KAI_Actor
 				GoingDown = True;
 			}
 		}
-		//console.printf ("targetz for actor blocker is %.2f",targetz);
 		If (!(NoTop && NoBottom)) Return TargetZ, GoingDown;
 		Else Return Double.NaN, False;
 	}
@@ -980,8 +995,7 @@ Extend Class KAI_Actor
 		{
 			Double Old = Abs(Magnitude);
 			Magnitude = KAI_Math.LinearMap (AvgDist,0,Distance,Abs(Magnitude),1);
-			If (KAI_Debug3DObstacleCheck)
-				Console.Printf ("Dynamic magnitude is %.2f with a max of %.2f",magnitude,old);
+			If (KAI_Debug3DObstacleCheck) Console.Printf ("Dynamic magnitude is %.2f with a max of %.2f",magnitude,old);
 		}
 		Vector3 RelAv = Level.Vec3Diff (Pos,Average)*Abs(Magnitude);
 		Average = Level.Vec3Offset (Pos,RelAv);
@@ -1116,7 +1130,6 @@ Extend Class KAI_Actor
 				{
 					Vector3 ObsVel = KAI_Math.AngleToVector3D (GetAngleToPos (ObsVec,0),-GetPitchToPos(ObsVec,0),ExtraParams.ObstacleSpeed);
 					KMT_3D_SpeedLimit (Speed,ObsVel);
-					console.printf ("moving away from obstacle");
 				}
 			}
 			NewPosStepCount++;
@@ -1125,7 +1138,7 @@ Extend Class KAI_Actor
 		//Once the position is reached, empty the the NextMovePos vector;
 		Else
 		{
-			If (KAI_DebugPrintMessages) Console.Printf ("movepos reached, nulling");
+			If (KAI_DebugPrintMessages) Console.Printf ("KAI_MoveAway(): MovePos reached, nulling");
 			NextMovePos = (Double.NaN,Double.NaN,Double.NaN);
 			NewPosStepCount = 0;
 		}
@@ -1247,7 +1260,7 @@ Extend Class KAI_Actor
 			For (Double I = Division; I < Distance+Division; I += Division)
 			{
 				LeftPos = Vec3Angle (I,Angle-90);
-				If (KAI_DebugPrintMessages) console.printf ("left corner check is %.2f MU away from actual pos",level.vec3diff (leftpos,pos).length());
+				If (KAI_DebugPrintMessages) Console.Printf ("Left corner check is %.2f MU away from actual pos.",Level.Vec3Diff (LeftPos,Pos).Length());
 				SetOrigin (LeftPos, True);
 				//I think CheckSight() is literally cheaper than IsPosReachable() so run these checks first.
 				Bool LeftSight = Targ.CheckSight (Self,SF_IGNOREWATERBOUNDARY);
@@ -1264,7 +1277,7 @@ Extend Class KAI_Actor
 			For (Double I = Division; I < Distance+Division; I += Division)
 			{
 				RightPos = Vec3Angle (I,Angle+90);
-				If (KAI_DebugPrintMessages) console.printf ("right corner check is %.2f MU away from actual pos",level.vec3diff (rightpos,pos).length());
+				If (KAI_DebugPrintMessages) console.printf ("Right corner check is %.2f MU away from actual pos.",Level.Vec3Diff (RightPos,Pos).Length());
 				SetOrigin (RightPos, True);
 				//I think CheckSight() is literally cheaper than IsPosReachable() so run these checks first.
 				Bool RightSight = Targ.CheckSight (Self,SF_IGNOREWATERBOUNDARY);
@@ -1379,7 +1392,7 @@ Extend Class KAI_Actor
 				}
 				Else
 				{
-					If (KAI_DebugPrintMessages) Console.Printf ("%d %d %d isn't reachable, adjusting movepos",CheckPos);
+					If (KAI_DebugPrintMessages) Console.Printf ("%d %d %d isn't reachable, adjusting movepos.",CheckPos);
 					If (KAI_DebugObstacleAvoid)
 					{
 						Let Debug = KAI_DebugPointDelay.KAI_TempPointSpawn(CheckPos,KAI_DebugObstacleAvoid);
@@ -1571,7 +1584,6 @@ Extend Class KAI_Actor
 			Data.FromPMove = True;
 			WhereTo = (Level.Vec2Offset(OldPos.XY, Path*I),0);
 			WhereTo.Z = GetZAt (WhereTo.X,WhereTo.Y,flags:GZF_ABSOLUTEPOS);
-			//console.printf ("z here is %.2f",whereto.z);
 			//HACK: Try to manually check if the next step is too high up.
 			If (CheckMove (WhereTo.XY, 0, tm:Data) && WhereTo.Z <= Pos.Z+MaxStepHeight)
 			{
@@ -1586,8 +1598,8 @@ Extend Class KAI_Actor
 			{
 				If (KAI_DebugPrintMessages)
 				{
-					console.printf ("i can't walk to %d %d %d",targetpos);
-					If (!(WhereTo.Z <= Pos.Z+MaxStepHeight)) Console.Printf ("And it's SPECIFICALLY BECAUSE IT'S TOO HIGH UP, SOMETHING THAT GZDOOM DIDN'T CATCH!");
+					Console.Printf ("IsPosReachable(): I can't walk to %d %d %d,",TargetPos);
+					If (!(WhereTo.Z <= Pos.Z+MaxStepHeight)) Console.Printf ("And it's SPECIFICALLY BECAUSE IT'S TOO HIGH UP, SOMETHING THAT UZDOOM DIDN'T CATCH!");
 				}
 				bDontInterpolate = Interp;
 				bThruActors = ThruActs;
@@ -1714,18 +1726,22 @@ Extend Class KAI_Actor
 		
 		//If we are set to follow, and we have a commander that is friendly, follow them.
 		If (CurrentOrder == ORDER_FOLLOW)
-		{//If (KAI_DebugPrintMessages)console.printf ("Okay jolly green retard (%p), is your current order ORDER_FOLLOW ?",self);
+		{
 			If (bFriendly && Commander == Players[KAI_GetFriendPlayer()].Mo) //If your commander is your friendplayer, remove your master pointer to follow friendplayer.
 				Master = Null;
 			
 			If (Commander && !EnemyCommand && Commander != Players[KAI_GetFriendPlayer()].Mo) //Only set master pointer for non-player commanders.
-			{If (KAI_DebugPrintMessages)console.printf ("set ORDER_FOLLOW and master for %p",self);
+			{
+				If (KAI_DebugPrintMessages) Console.Printf ("Set ORDER_FOLLOW and master for %p",self);
 				Master = Commander;
 				If (bFriendly)
 					bDontFollowPlayers = True; //Friendly marine needs to follow an actor that isn't the friendplayer, so turn off player following.
 			}
 			Else If (!Master && !bFriendly && (!Commander || !EnemyCommand)) //We are set to follow but we don't have a (friendly) commander or existing master.
-				{If (KAI_DebugPrintMessages)console.printf ("SETTING HOSTILE NPC %p TO ORDER_WANDER",self);CurrentOrder = ORDER_WANDER;}
+			{
+				If (KAI_DebugPrintMessages) Console.Printf ("Setting hostile NPC %p to ORDER_WANDER",self);
+				CurrentOrder = ORDER_WANDER;
+			}
 		}
 		
 		If (CurrentOrder == ORDER_WANDER && bFriendly) //Friendly wandering NPCs don't follow the player.
@@ -1752,7 +1768,7 @@ Extend Class KAI_Actor
 			If (!NPC || NPC.IsDead(NPC)) //Ignore nonexistent or dead NPCs.
 				Continue;
 			
-			If (KAI_DebugPrintMessages)console.printf ("SetNPCOrder() was called from ACS, setting order %d for %p",order,NPC);
+			If (KAI_DebugPrintMessages) Console.Printf ("SetNPCOrder() was called from ACS, setting order %d for %p",Order,NPC);
 			NPC.SetNPCOrder (Order, Increment, Activator, IgnoreAllegiance, True);
 		}
 	}

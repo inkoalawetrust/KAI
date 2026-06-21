@@ -6,7 +6,7 @@ Class KAI_MixinActor : Actor Abstract
 	Mixin KAI_CheckFunctions;
 }
 
-Class KAI_TestImp : KAI_Humanoid Replaces DoomImp
+Class KAI_TestImp : KAI_Humanoid// Replaces DoomImp
 {
 	Default
 	{
@@ -89,7 +89,7 @@ Class KAI_TestImp : KAI_Humanoid Replaces DoomImp
 	}
 }
 
-Class KAI_TestCaco : KAI_Creature Replaces Cacodemon
+Class KAI_TestCaco : KAI_Creature// Replaces Cacodemon
 {
 	Default
 	{

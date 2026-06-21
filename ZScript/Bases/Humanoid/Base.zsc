@@ -164,7 +164,7 @@ Class KAI_Humanoid : KAI_Creature Abstract
 			If (Flags & Line.ML_BLOCKMONSTERS)
 				Return True;
 			
-			If (Flags2 & Line.ML2_BLOCKLANDMONSTERS && !(Level.CompatFlags2 & COMPATF2_NOMBF21) && !bFloat)
+			If (Flags2 & Line.ML2_BLOCKLANDMONSTERS && !bFloat)
 				Return True;
 		}
 		

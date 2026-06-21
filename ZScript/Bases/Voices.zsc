@@ -96,6 +96,7 @@ Extend Class KAI_Actor
 }
 
 //Script parser and voice pack storage handling.
+//MAYDO: Try to get rid of the duplication for every built-in voice type.
 Extend Class KAI_EventHandler
 {
 	//Parser

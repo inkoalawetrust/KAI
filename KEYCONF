@@ -2,3 +2,4 @@
 
 alias KAI_GetTargetGroups "netevent KAI_GetTargetGroups"
 alias KAI_GetTargetHazards "netevent KAI_GetTargetHazards"
+alias KAI_GetThreatLevel "netevent KAI_GetThreatLevel"

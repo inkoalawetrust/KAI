@@ -95,6 +95,7 @@ Class KAI_Humanoid : KAI_Creature Abstract
 			}
 			
 			//Make sure that the space you're trying to climb at is unobstructed.
+			//FIXME: Can break sometimes, like in gz_bigcity, with an actor that can jump high enough, that then keeps trying to jump up from the parking lot entrance despite the 3D floor roof above.
 			Vector3 OldPos = Pos;
 			SetXYZ ((CheckPos,ClimbZ));
 			FindFloorCeiling (FFCF_ONLYSPAWNPOS); //DO. NOT. CHECK. UNDER. THE. WORLD.
@@ -232,8 +233,8 @@ Class KAI_Humanoid : KAI_Creature Abstract
 			MovePos = Level.Vec2Offset(Pos.XY, Path*I);
 			
 			LineTrace (0,8192,90,TRF_THRUHITSCAN|TRF_SOLIDACTORS|TRF_ABSPOSITION,0,MovePos.X,MovePos.Y,data:Jump);
-			FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 2; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
-			KAI_LOFRaycast.VisualizeTracePath((MovePos,Pos.Z),Jump.HitLocation,Jump.Distance,8,p);
+			//FSpawnParticleParams P; P.Color1 = "Green"; P.Style = STYLE_None; P.Lifetime = 2; P.Size = 4; P.StartAlpha = 1; P.FadeStep = -1; P.Flags = SPF_FULLBRIGHT;
+			//KAI_LOFRaycast.VisualizeTracePath((MovePos,Pos.Z),Jump.HitLocation,Jump.Distance,8,p);
 			
 			//We should NOT be getting a position that is out of bounds!!!!
 			If (!Level.IsPointInLevel((MovePos,Jump.HitLocation.Z)))

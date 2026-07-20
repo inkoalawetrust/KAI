@@ -505,7 +505,7 @@ Class KAI_Actor : Actor Abstract
 	Int ThreatLevel; //The NPCs' predetermined threat level. In its basic form it can be used as just a static value. But you could also dynamically change it, e.g based on what attacks your NPC currently has available.
 	Property ThreatLevelThreshold : ThreatLevelThreshold;
 	Property ThreatLevel : ThreatLevel;
-	Vector3 Inaccuracy; //How inaccurate is the target tracking ? This is a vector3 property, which as of 19/8/2023 is exclusive to GZDoom dev builds.
+	Vector3 Inaccuracy; //How inaccurate is the target tracking ?
 	Property Inaccuracy : Inaccuracy; //TODO: Make this be affected by SHADOW and SHADOWBLOCK actors, and the Shadow penalty factors.
 	Double InaccuracyFrequency; //How fast does the inaccuracy property shift ?
 	Property InaccuracyFrequency : InaccuracyFrequency;
@@ -729,6 +729,34 @@ Class KAI_EventHandler : EventHandler
 					Console.Printf ("\c[Green]KAI_GetTargetHazards: The actor has %d hazards.",HazardCount);
 				Else
 					Console.Printf ("\c[Red]KAI_GetTargetHazards: The actor has no hazards!");
+			}
+		}
+		Else If (Command[0] ~== "KAI_GetThreatLevel")
+		{
+			FLineTraceData MoFind;
+			Double PlrHeight = PlrMo.Height * 0.5 - PlrMo.Floorclip + PlrMo.AttackZOffset*Players[E.Player].CrouchFactor;
+			PlrMo.LineTrace (PlrMo.Angle,PLAYERMISSILERANGE,PlrMo.Pitch,TRF_THRUHITSCAN|TRF_SOLIDACTORS,PlrHeight,data:MoFind);
+			If (MoFind.HitActor)	
+			{
+				Bool Fail;
+				Actor Dummy = Actor.Spawn ("KAI_ThreatAssessHack");
+				If (Dummy)
+				{
+					Dummy.Target = MoFind.HitActor;
+					If (Dummy.Target)
+					{
+						KAI_ThreatAssessHack(Dummy).Assess();
+						Console.Printf ("\c[Green] KAI_GetThreatLevel(): Threat level of actor %p(%s) is: %s",Dummy.Target,Dummy.Target.GetClassName(),Dummy.GetTag());
+					}
+					Else
+						Fail = True;
+					Dummy.Destroy();
+				}
+				Else
+					Fail = True;
+				
+				If (Fail)
+					Console.Printf ("\c[Red] KAI_GetThreatLevel(): Couldn't get threat level of actor in line of sight!");
 			}
 		}
 	}
@@ -999,58 +1027,54 @@ Class KAI_DataToken : Inventory
 	Vector4 DeflectionFunnel;
 }
 
-//DEBUG: Assesses the threat level of an actor in front of it, to see if the system works as intended.
-//TODO: Replace this with a KAI_GetThreatLevel netevent command. That also has a parameter for passing what classes' AssessThreatLevel() to use.
-Class ThreatAssess : KAI_Actor
+//Used by the KAI_GetThreatLevel command, and also by the group management code to powerscale group members.
+Class KAI_ThreatAssessHack : KAI_Actor
 {
-	Default {+NoTarget;}
-	States
+	Override Void PostBeginPlay ()
 	{
-		Spawn:
-			TNT1 A 1 A_LookEx(fov:360);
-			loop;
-		See:
-			TNT1 A 1
-			{
-				String Text;
-				Switch (AssessThreatLevel (Target))
-				{
-					Case THREAT_SUPERDANGER:
-						Text = "THREAT_SUPERDANGER";
-						Break;
-					Case THREAT_VERYDANGEROUS:
-						Text = "THREAT_VERYDANGEROUS";
-						Break;
-					Case THREAT_DANGEROUS:
-						Text = "THREAT_DANGEROUS";
-						Break;
-					Case THREAT_ABOVENORMAL:
-						Text = "THREAT_ABOVENORMAL";
-						Break;
-					Case THREAT_NORMAL:
-						Text = "THREAT_NORMAL";
-						Break;
-					Case THREAT_MILD:
-						Text = "THREAT_MILD";
-						Break;
-					Case THREAT_LOW:
-						Text = "THREAT_LOW";
-						Break;
-					Case THREAT_VERYLOW:
-						Text = "THREAT_VERYLOW";
-						Break;
-					Case THREAT_UNSTOPPABLE:
-						Text = "THREAT_UNSTOPPABLE";
-						Break;
-					Case THREAT_NONE:
-						Text = "THREAT_NONE";
-						Break;
-					Default:
-						Text = "Oops";
-						Break;
-				}
-				Console.Printf ("%s threat level:%s",Target.GetClassName(),Text);
-			}
-			Stop;
+		Super.PostBeginPlay();
+		Assess();
+		Destroy();
+	}
+	
+	Void Assess()
+	{
+		Switch (AssessThreatLevel (Target))
+		{
+			Case THREAT_SUPERDANGER:
+				SetTag ("THREAT_SUPERDANGER");
+				Break;
+			Case THREAT_VERYDANGEROUS:
+				SetTag ("THREAT_VERYDANGEROUS");
+				Break;
+			Case THREAT_DANGEROUS:
+				SetTag ("THREAT_DANGEROUS");
+				Break;
+			Case THREAT_ABOVENORMAL:
+				SetTag ("THREAT_ABOVENORMAL");
+				Break;
+			Case THREAT_NORMAL:
+				SetTag ("THREAT_NORMAL");
+				Break;
+			Case THREAT_MILD:
+				SetTag ("THREAT_MILD");
+				Break;
+			Case THREAT_LOW:
+				SetTag ("THREAT_LOW");
+				Break;
+			Case THREAT_VERYLOW:
+				SetTag ("THREAT_VERYLOW");
+				Break;
+			Case THREAT_UNSTOPPABLE:
+				SetTag ("THREAT_UNSTOPPABLE");
+				Break;
+			Case THREAT_NONE:
+				SetTag ("THREAT_NONE");
+				Break;
+			Default:
+				SetTag ("Couldn't assess threat level!");
+				Break;
+		}
+
 	}
 }

@@ -337,7 +337,7 @@ Class KAI_NPCGroup Play
 	Actor GetStrongestMember (Bool NoPlayers = False)
 	{
 		Map <Int, Actor> Powerscaling;
-		KAI_Actor Reference = KAI_Actor(Actor.Spawn("ThreatAssess"));
+		KAI_Actor Reference = KAI_Actor(Actor.Spawn("KAI_ThreatAssessHack"));
 		ForEach (Member : Members)
 		{
 			If (IsDead(Member)) Continue; //Corpses aren't exactly dangerous, excluding diseases.

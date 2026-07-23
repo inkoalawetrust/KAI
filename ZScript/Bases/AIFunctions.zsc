@@ -1000,7 +1000,7 @@ Extend Class KAI_Actor
 		Vector3 RelAv = Level.Vec3Diff (Pos,Average)*Abs(Magnitude);
 		Average = Level.Vec3Offset (Pos,RelAv);
 		
-		If (!KAI_Debug3DObstacleCheck)
+		If (KAI_Debug3DObstacleCheck)
 		{
 			Console.Printf ("Sum of all coordinates is %.2f %.2f %.2f, average is %.2f %.2f %.2f, actual pos is %.2f %.2f %.2f",Sum,Average,Pos);
 			If (Dists.Size() != 0) Console.Printf ("Average distance of all traces that were blocked is %.2f",DistSum/Dists.Size());

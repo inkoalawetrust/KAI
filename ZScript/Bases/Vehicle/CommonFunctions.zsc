@@ -368,7 +368,7 @@ Extend Class KAI_BaseVehicle
 		
 		If (bAvoidHazards && MinHazard != HazardInfo.HAZARD_HARMLESS)
 		{
-			StrongestHazard = GetStrongestHazard(Hazards);console.printf ("strongest hazard in range is %p",strongesthazard);
+			StrongestHazard = GetStrongestHazard(Hazards);
 			If (StrongestHazard && StrongestHazard.Level < MinHazard) StrongestHazard = Null; //Hazard seller, I need your strongest hazards.
 		}
 		/*If (!(IsPatrolling(Self) && bChaseGoal))*/ NearestEnemy = FindNearestEnemy (RetreatRange);
